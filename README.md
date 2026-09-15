@@ -147,7 +147,7 @@ flowchart LR
 운영대시보드.html          운영본부 대시보드 (admin_dashboard RPC)
 supabase_setup.sql         테이블·뷰·RLS·RPC·Storage. 1~10절, 재실행 가능
 jsQR.js · qrcode.min.js    로컬 라이브러리 (배포 시 같이)
-배포.ps1 · deploy/         Vercel 배포 (vercel.json: cleanUrls, no-cache)
+배포.ps1 · deploy/         Vercel 배포 (vercel.json: cleanUrls, html no-cache · js immutable / 배포.ps1 이 ?v= 버전 치환)
 기능정리.md                요구사항·결정 사항·변경 이력의 단일 출처
 tests/                     playwright e2e (test_v3 · test_survey · test_live_survey), soak.mjs 지속 테스트, soakchart.mjs 결과 차트, shots_public.mjs README 스크린샷
 assets/                    README 스크린샷 (전부 더미 데이터)
