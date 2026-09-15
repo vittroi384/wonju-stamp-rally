@@ -1704,9 +1704,20 @@ function parseBoothQR(text){
   const m = String(text).match(/^(?:b|booth|부스)?[:\s]*(\d{1,3})$/i); return m ? m[1].padStart(2, '0') : null;
 }
 /* 카메라 스캐너. testStampInput 이면 번호 입력창(https 아닌 로컬용). 아니면 getUserMedia → 120ms 마다 jsQR → 부스 번호 나오면 #/stamp/번호 */
-async function openScanner(){
+/* 스캐너. 기본은 부스 QR(→ 도장). opts.onCode(text) 를 주면 그 콜백이 처리 (관리자 › 선물 수령의 교환권 스캔).
+   콜백이 처리하는 동안 인식을 멈추고(scanner.paused), 콜백 쪽에서 scanner.resume() 을 부르면 다시 읽는다 */
+async function openScanner(opts = {}){
   const box = $('#scan'), msg = $('#scanMsg'), video = $('#scanVideo');
-  box.classList.add('show'); scanner.on = true;
+  box.classList.add('show'); scanner.on = true; scanner.paused = false; scanner.opts = opts;
+  $('#scan .scan-top .t').textContent = opts.title || '부스 QR 스캔';
+  scanner.resume = () => { scanner.paused = false; msg.innerHTML = opts.hint || '<b>부스 앞 QR을 네모 안에 맞춰주세요</b>인식되면 바로 도장이 찍혀요'; };
+  const handle = async text => { scanner.paused = true; $('#scanHit').classList.add('on'); if(navigator.vibrate) navigator.vibrate(60); setTimeout(() => $('#scanHit').classList.remove('on'), 250); await opts.onCode(text); };
+  if(CONFIG.testStampInput && opts.onCode){   // 테스트용: 카메라 없이 코드 입력. resume 때마다 입력칸을 다시 그림
+    const manual = () => { msg.innerHTML = `<b>테스트 모드 · 교환권 코드 입력</b><div style="display:flex;gap:8px;max-width:300px;margin:14px auto 0"><input class="inp" id="scanManual" placeholder="6자리 코드 또는 QR 내용" autocomplete="off" style="text-align:center;font-weight:800"><button class="btn sun" id="scanManualGo" style="white-space:nowrap;flex-shrink:0">확인</button></div><button class="btn soft sm" style="margin-top:12px" onclick="closeScanner()">닫기</button>`;
+      const inp = $('#scanManual'), fire = () => { const v = inp.value.trim(); if(v) handle(v); }; $('#scanManualGo').onclick = fire; inp.onkeydown = e => { if(e.key === 'Enter') fire(); }; setTimeout(() => inp.focus(), 50); };
+    scanner.resume = () => { scanner.paused = false; manual(); }; manual();
+    return;
+  }
   if(CONFIG.testStampInput){   // 테스트용: 카메라 없이 번호로 도장
     msg.innerHTML = `<b>테스트 모드 · 부스 번호 입력</b><span style="color:var(--sun)">배포 전 CONFIG.testStampInput 을 false 로</span><br>
       <div style="display:flex;gap:8px;max-width:300px;margin:14px auto 0"><input class="inp" id="scanManual" placeholder="예: 7, 본1, QR 주소" autocomplete="off" style="text-align:center;font-weight:800"><button class="btn sun" id="scanManualGo" style="white-space:nowrap;flex-shrink:0">도장</button></div>
@@ -1722,16 +1733,17 @@ async function openScanner(){
     await loadJsQR();
     scanner.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
     video.srcObject = scanner.stream; await video.play();
-    msg.innerHTML = '<b>부스 앞 QR을 네모 안에 맞춰주세요</b>인식되면 바로 도장이 찍혀요';
+    scanner.resume();
     const cv = document.createElement('canvas'), ctx = cv.getContext('2d', { willReadFrequently: true });
     let last = 0;
     const tick = now => {
       if(!scanner.on) return;
-      if(now - last > 120 && video.readyState >= 2){
+      if(!scanner.paused && now - last > 120 && video.readyState >= 2){
         last = now; const w = video.videoWidth, h = video.videoHeight, side = Math.min(w, h) * .7;
         cv.width = 480; cv.height = 480; ctx.drawImage(video, (w - side) / 2, (h - side) / 2, side, side, 0, 0, 480, 480);
         const img = ctx.getImageData(0, 0, 480, 480); const code = jsQR(img.data, 480, 480, { inversionAttempts: 'dontInvert' });
-        if(code && code.data){ const n = parseBoothQR(code.data);
+        if(code && code.data && opts.onCode){ handle(code.data); }
+        else if(code && code.data){ const n = parseBoothQR(code.data);
           if(n && boothByN(n)){ $('#scanHit').classList.add('on'); if(navigator.vibrate) navigator.vibrate(60); setTimeout(() => { closeScanner(); go('/stamp/' + n); }, 250); return; }
           if(!n) msg.innerHTML = '<b>행사 QR이 아니에요</b>부스 앞 안내판의 QR을 찍어주세요';
           else msg.innerHTML = `<b>${esc(n)}번 부스를 찾을 수 없어요</b>안내데스크에 문의해 주세요`;
@@ -1746,10 +1758,12 @@ async function openScanner(){
   }
 }
 function closeScanner(){
+  const after = scanner.opts?.onClose; scanner.opts = null;
   scanner.on = false; cancelAnimationFrame(scanner.raf);
   if(scanner.stream){ scanner.stream.getTracks().forEach(t => t.stop()); scanner.stream = null; }
   const v = $('#scanVideo'); if(v) v.srcObject = null;
   $('#scan').classList.remove('show'); $('#scanHit').classList.remove('on');
+  if(after) after();
 }
 
 /* =====================================================================
@@ -1817,8 +1831,10 @@ function admGift(st){
   const list = st.achievers.slice().sort((a, b) => (a.giftAt ? 1 : 0) - (b.giftAt ? 1 : 0) || b.createdAt - a.createdAt);
   const perVisitor = Object.fromEntries(list.map(v => [v.id, v.n]));
   admShell('gift', `
-    <div class="card tight"><div class="searchbar" style="box-shadow:none;background:var(--card-2)">${I.search}<input id="gq" placeholder="이름, 학교, 교환권 코드" autocomplete="off"></div>
-      <p class="small muted" style="margin-top:10px;line-height:1.6">방문객 폰의 교환권 화면에서 <b>6자리 코드</b>를 보고 검색하세요. 설문 전인 사람은 교환권이 안 열려 있어요. 중복 수령은 자동으로 막혀요.</p></div>
+    <div class="card tight">
+      <button class="btn sun full" id="gScan" style="margin-bottom:10px">${I.qr} 교환권 QR 찍기 — 연속 처리</button>
+      <div class="searchbar" style="box-shadow:none;background:var(--card-2)">${I.search}<input id="gq" placeholder="이름, 학교, 교환권 코드" autocomplete="off"></div>
+      <p class="small muted" style="margin-top:10px;line-height:1.6">학생 폰의 교환권 QR을 찍으면 그 학생이 바로 뜨고 [수령 처리] 한 번이면 끝, 다음 학생 자동 대기. 카메라가 안 되면 <b>6자리 코드</b>로 검색하세요. 관리자 여러 명이 각자 폰으로 동시에 처리해도 돼요. 중복 수령은 자동으로 막혀요.</p></div>
     <div class="card tight"><div class="h-sec" style="margin:0 0 8px">방문객 찾기 · 수동 도장</div>
       <p class="small muted" style="line-height:1.6;margin-bottom:10px">완주 전인 사람도 이름·학교·코드로 찾아요. <b>폰이 바뀐 사람</b>에겐 코드를 알려주면 새 폰에서 '기록 이어받기'로 복구돼요. <b>QR이 안 찍히는 경우</b>엔 부스 번호로 도장을 직접 넣어요.</p>
       <div class="row" style="gap:8px"><input class="inp sm" id="fq" placeholder="이름, 학교, 코드" autocomplete="off" style="max-width:280px"><button class="btn sm" id="fGo">찾기</button></div>
@@ -1836,6 +1852,26 @@ function admGift(st){
     $$('[data-undo]').forEach(b => b.onclick = async () => { if(confirm('수령 처리를 취소할까요?')){ await DB.setGift(b.dataset.undo, false); renderAdmin('gift'); } });
   };
   $('#gq').oninput = draw; draw(); $('#gq').focus();
+  /* 교환권 QR 연속 스캔: 'WJ:uuid' → 달성자 목록에서 찾고(없으면 서버 검색) → 카드 → 수령 처리 → 다음 학생 */
+  $('#gScan').onclick = () => {
+    let changed = false;
+    openScanner({ title: '교환권 QR 스캔', hint: '<b>학생 폰의 교환권 QR을 네모 안에</b>인식되면 학생 정보가 떠요', onClose: () => { if(changed) renderAdmin('gift'); },
+      onCode: async text => {
+        const m = String(text).match(/^WJ:([0-9a-f-]{36})$/i); const code = m ? shortCode(m[1]) : String(text).trim().toUpperCase();
+        let v = list.find(x => m ? x.id === m[1] : shortCode(x.id) === code);
+        if(!v && code.length === 6){ try{ v = (await DB.findVisitor(code)).find(x => shortCode(x.id) === code); }catch(e){} }
+        if(!v){ $('#scanMsg').innerHTML = `<b>교환권이 아니거나 못 찾았어요</b>${esc(String(text).slice(0, 40))}<br><button class="btn sun sm" id="scanNext">다시 찍기</button>`; $('#scanNext').onclick = scanner.resume; return; }
+        const n = v.n ?? perVisitor[v.id] ?? 0, done = n >= CONFIG.stampGoal, ok = done && v.surveyAt && !v.giftAt;
+        const why = v.giftAt ? `이미 ${fmtTime(v.giftAt)}에 받았어요` : !done ? `아직 완주 전 (도장 ${n}/${CONFIG.stampGoal})` : !v.surveyAt ? '설문을 아직 안 했어요' : '';
+        $('#scanMsg').innerHTML = `<div style="background:#fff;color:var(--ink);border-radius:18px;padding:16px;max-width:340px;margin:0 auto;text-align:left">
+            <div style="font-size:20px;font-weight:900">${esc(v.name)} <span class="small muted">${esc(v.school || '')} ${esc(v.grade || '')}</span></div>
+            <div class="small" style="margin-top:6px">코드 <b style="letter-spacing:.1em">${shortCode(v.id)}</b> · 도장 <b>${n}</b>개 · 설문 ${v.surveyAt ? '완료' : '전'}</div>
+            ${why ? `<div style="margin-top:10px;color:var(--coral);font-weight:800">✋ ${why}</div>` : `<div style="margin-top:10px;color:#12704F;font-weight:800">✅ 수령 가능</div>`}
+            <div class="row" style="margin-top:12px;gap:8px">${ok ? `<button class="btn sun grow" id="scanGive">🎁 수령 처리</button>` : ''}<button class="btn line ${ok ? '' : 'grow'}" id="scanNext">${ok ? '건너뛰기' : '다음 학생'}</button></div></div>`;
+        $('#scanNext').onclick = scanner.resume;
+        const give = $('#scanGive'); if(give) give.onclick = async () => { give.disabled = true; try{ await DB.setGift(v.id, true); v.giftAt = Date.now(); changed = true; toast(`${v.name} 수령 처리 완료`); $('#scanMsg').innerHTML = `<b style="color:var(--mint)">✅ ${esc(v.name)} 수령 완료</b>다음 학생 QR을 찍어주세요`; setTimeout(scanner.resume, 1200); }catch(e){ give.disabled = false; toast(e.message); } };
+      } });
+  };
   const find = async () => {
     const q = $('#fq').value.trim(); if(q.length < 2) return toast('두 글자 이상 적어주세요');
     $('#fRes').innerHTML = '<div class="empty">찾는 중…</div>';

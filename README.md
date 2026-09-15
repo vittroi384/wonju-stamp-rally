@@ -53,7 +53,7 @@
     <td width="50%"><img src="assets/admin-dash.png"><br><sub><b>관리자 · 현황</b> — 등록·도장·완주·수령, 시간대별, 부스별</sub></td>
   </tr>
   <tr>
-    <td><img src="assets/admin-gift.png"><br><sub><b>선물 수령</b> — 교환권 코드로 찾아 수령 처리, 방문객 찾기·수동 도장</sub></td>
+    <td><img src="assets/admin-gift.png"><br><sub><b>선물 수령</b> — 교환권 QR 연속 스캔 또는 코드 검색으로 수령 처리, 방문객 찾기·수동 도장</sub></td>
     <td><img src="assets/admin-survey.png"><br><sub><b>설문</b> — 문항 편집(5가지 유형) + 결과 집계 + CSV</sub></td>
   </tr>
   <tr>
@@ -77,7 +77,7 @@ flowchart LR
   ST -- 통신 실패 --> Q[폰에 저장<br/>자동 재전송]
   ST -- OK --> C{7개?}
   C -- 아니오 --> M[지도에서 다음 부스]
-  C -- 예 --> SV[앱 내 설문] --> V[교환권 QR+코드] --> G[운영본부<br/>수령 처리]
+  C -- 예 --> SV[앱 내 설문] --> V[교환권 QR+코드] --> G[운영본부가 QR 스캔<br/>수령 처리]
 ```
 
 ## 아키텍처
