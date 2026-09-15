@@ -347,8 +347,8 @@ select.inp.sm{padding-right:30px;background-position:right 10px center}
   .frame{max-width:none}
   /* 가로 A4 한 장에 카드 2개 (종이 반 장씩). 카드마다 자기 여백을 가져서 다음 장 위쪽이 안 잘림. 2개마다 강제 쪽 나눔 */
   .qrgrid{display:grid;grid-template-columns:1fr 1fr;gap:0;padding:0}
-  .qrc{box-sizing:border-box;height:200mm;margin:0;padding:14mm 12mm 10mm;border:0;border-radius:0;display:flex;flex-direction:column;align-items:center;justify-content:center;break-inside:avoid;page-break-inside:avoid}
-  .qrc:nth-child(odd){border-right:1px dashed #999}   /* 가운데 자르는 선 */
+  .qrc{box-sizing:border-box;height:200mm;margin:0;padding:14mm 12mm 10mm;border:0!important;border-radius:0;display:flex;flex-direction:column;align-items:center;justify-content:center;break-inside:avoid;page-break-inside:avoid}
+  .qrc:nth-child(odd){border-right:1px dashed #999!important}   /* 가운데 자르는 선 */
   .qrc:nth-child(even){break-after:page;page-break-after:always}
   .qrc .qr{width:110mm;height:110mm;margin:0 0 6mm;padding:0}
   .qrc .n{font-size:40pt;line-height:1.1}
