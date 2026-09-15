@@ -137,6 +137,9 @@ select.btn{padding:7px 8px}
 .tbl .bar{width:120px;height:6px;border-radius:3px;background:var(--card-2);overflow:hidden}
 .tbl .bar i{display:block;height:100%;background:var(--blue)}
 .tbl tr.zero td{color:var(--ink-3)}
+.tbl th.sortable{cursor:pointer;user-select:none}
+.tbl th.sortable:hover{color:var(--ink)}
+.tbl th.sortable.on{color:var(--sun)}
 .tbl .dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px;vertical-align:middle}
 /* 분포 */
 .dist{display:flex;flex-direction:column;gap:8px}
@@ -214,8 +217,10 @@ select.btn{padding:7px 8px}
     <div class="card c12">
       <div class="h"><div><div class="t">부스 전체</div><div class="s" id="allSub">95개 · 누적 도장 순</div></div><div class="grow"></div>
         <input class="inp" id="allQ" placeholder="번호·이름·기관 검색" style="width:200px;padding:6px 10px;font-size:13px">
-        <div class="seg" id="allSort"><button class="on" data-k="n">누적</button><button data-k="n15">최근 15분</button><button data-k="num">번호순</button></div></div>
-      <div class="tscroll"><table class="tbl"><thead><tr><th>#</th><th>번호</th><th>부스</th><th>운영기관</th><th>분류</th><th class="r">누적</th><th></th><th class="r">최근 15분</th><th class="r">마지막 도장</th></tr></thead><tbody id="allBody"></tbody></table></div>
+        <div class="seg" id="allSort"><button class="on" data-k="n">누적</button><button data-k="n15">최근 15분</button><button data-k="num">번호순</button></div>
+        <button class="btn" id="allDir" title="오름차순/내림차순">↓ 내림차순</button></div>
+      <div class="tscroll"><table class="tbl"><thead><tr><th>#</th><th class="sortable" data-k="num">번호</th><th class="sortable" data-k="name">부스</th><th class="sortable" data-k="org">운영기관</th><th class="sortable" data-k="cat">분류</th><th class="r sortable" data-k="n">누적</th><th></th><th class="r sortable" data-k="n15">최근 15분</th><th class="r sortable" data-k="last">마지막 도장</th></tr></thead><tbody id="allBody"></tbody></table></div>
+      <div class="s" style="font-size:12px;color:var(--ink-3);margin-top:6px">열 제목을 누르면 그 열로 정렬, 한 번 더 누르면 오름·내림 바뀜</div>
     </div>
   </div>
   <div class="foot" id="foot"></div>
@@ -260,7 +265,7 @@ const adm = (fn, args = {}) => rpc(fn, { pw: pwStore.get(), ...args });
 /* =====================================================================
    상태
    ===================================================================== */
-const D = { booths: [], byId: {}, data: null, mode: 'n15', basic: false, timer: null, lastOk: 0, prevRecent: '', survey: [], surveyLink: false, allSort: 'n', allQ: '' };
+const D = { booths: [], byId: {}, data: null, mode: 'n15', basic: false, timer: null, lastOk: 0, prevRecent: '', survey: [], surveyLink: false, allSort: 'n', allDir: 'desc', allQ: '' };
 function boothsIn(zone){ return D.booths.filter(b => (b.zone || '') === zone); }
 
 async function loadBooths(){
@@ -436,11 +441,17 @@ function renderAll(d){
   const per = Object.fromEntries((d.per_booth || []).map(r => [r.booth_id, r])), now = Date.now(), q = D.allQ.trim().toLowerCase();
   const rows = D.booths.map(b => ({ b, n: per[b.id]?.n || 0, n15: per[b.id]?.n15 ?? null, last: per[b.id]?.last_at ? new Date(per[b.id].last_at).getTime() : 0 }))
     .filter(x => !q || x.b.n.toLowerCase().includes(q) || x.b.name.toLowerCase().includes(q) || (x.b.org || '').toLowerCase().includes(q));
-  const numKey = n => { const m = String(n).match(/\d+/); return m ? +m[0] : 9999; };
-  if(D.allSort === 'num') rows.sort((a, b) => numKey(a.b.n) - numKey(b.b.n) || String(a.b.n).localeCompare(String(b.b.n)));
-  else rows.sort((a, b) => (b[D.allSort] || 0) - (a[D.allSort] || 0) || numKey(a.b.n) - numKey(b.b.n));
+  const numKey = n => /^\d+$/.test(String(n)) ? +n : 9000 + (+(String(n).match(/\d+/) || [0])[0]);   // 본1·네1 같은 문자 번호는 숫자 뒤로
+  const k = D.allSort, dir = D.allDir === 'asc' ? 1 : -1;
+  const byNum = (a, b) => numKey(a.b.n) - numKey(b.b.n) || String(a.b.n).localeCompare(String(b.b.n));
+  const cmp = k === 'num' ? byNum : k === 'name' || k === 'org' ? (a, b) => String(a.b[k] || '').localeCompare(String(b.b[k] || ''), 'ko') : k === 'cat' ? (a, b) => (CATS[a.b.cat]?.name || '').localeCompare(CATS[b.b.cat]?.name || '', 'ko') : (a, b) => (a[k] || 0) - (b[k] || 0);
+  rows.sort((a, b) => cmp(a, b) * dir || byNum(a, b));
   const max = Math.max(1, ...rows.map(x => x.n));
-  $('#allSub').textContent = `${D.booths.length}개${q ? ` · 검색 ${rows.length}개` : ''} · ${{ n: '누적 도장 순', n15: '최근 15분 순', num: '번호순' }[D.allSort]}`;
+  const label = { n: '누적 도장', n15: '최근 15분', num: '번호', name: '부스명', org: '운영기관', cat: '분류', last: '마지막 도장' }[k];
+  $('#allSub').textContent = `${D.booths.length}개${q ? ` · 검색 ${rows.length}개` : ''} · ${label} ${D.allDir === 'asc' ? '오름차순' : '내림차순'}`;
+  $('#allDir').textContent = D.allDir === 'asc' ? '↑ 오름차순' : '↓ 내림차순';
+  $$('#allSort button').forEach(x => x.classList.toggle('on', x.dataset.k === k));
+  $$('.tbl th.sortable').forEach(th => { th.classList.toggle('on', th.dataset.k === k); th.textContent = th.textContent.replace(/ [▲▼]$/, '') + (th.dataset.k === k ? (D.allDir === 'asc' ? ' ▲' : ' ▼') : ''); });
   $('#allBody').innerHTML = rows.map((x, i) => { const c = CATS[x.b.cat] || CATS.etc; return `<tr class="${x.n ? '' : 'zero'}"><td>${i + 1}</td><td class="b" style="color:${c.color}">${esc(x.b.n)}</td><td>${esc(x.b.name)}</td><td style="color:var(--ink-2)">${esc(x.b.org || '')}</td><td><span class="dot" style="background:${c.color}"></span>${c.name}</td><td class="r b">${fmt(x.n)}</td><td><div class="bar"><i style="width:${x.n / max * 100}%"></i></div></td><td class="r">${x.n15 == null ? '—' : fmt(x.n15)}</td><td class="r" style="color:${x.last && now - x.last > CONFIG.quietMin * 60e3 ? 'var(--coral)' : 'var(--ink-2)'}">${x.last ? hhmm(x.last) : '—'}</td></tr>`; }).join('') || '<tr><td colspan="9" class="empty">검색 결과가 없어요</td></tr>';
 }
 function renderSurvey(d){
@@ -554,7 +565,11 @@ $('#logout').onclick = () => { pwStore.set(''); showLogin(); };
 $('#refresh').onclick = refresh; $('#ivl').onchange = schedule;
 $$('.seg button').forEach(b => b.onclick = () => { if(D.basic) return; D.mode = b.dataset.mode; $$('.seg button').forEach(x => x.classList.toggle('on', x === b)); if(D.data) renderMap(D.data); });
 $('#mapwrap').addEventListener('mousemove', e => { const g = e.target.closest('.bt'); const tip = $('#tip'); if(!g){ tip.style.display = 'none'; return; } tip.textContent = g.querySelector('title')?.textContent.replace('\n', ' · ') || ''; tip.style.display = 'block'; const r = $('#mapwrap').getBoundingClientRect(); tip.style.left = (e.clientX - r.left + 12) + 'px'; tip.style.top = (e.clientY - r.top + 12) + 'px'; });
-$$('#allSort button').forEach(b => b.onclick = () => { D.allSort = b.dataset.k; $$('#allSort button').forEach(x => x.classList.toggle('on', x === b)); if(D.data) renderAll(D.data); });
+const defaultDir = k => (k === 'num' || k === 'name' || k === 'org' || k === 'cat') ? 'asc' : 'desc';   // 글자·번호는 오름, 숫자는 내림이 기본
+const setSort = k => { if(D.allSort === k) D.allDir = D.allDir === 'asc' ? 'desc' : 'asc'; else { D.allSort = k; D.allDir = defaultDir(k); } if(D.data) renderAll(D.data); };
+$$('#allSort button').forEach(b => b.onclick = () => { if(D.allSort !== b.dataset.k){ D.allSort = b.dataset.k; D.allDir = defaultDir(b.dataset.k); } if(D.data) renderAll(D.data); });
+$('#allDir').onclick = () => { D.allDir = D.allDir === 'asc' ? 'desc' : 'asc'; if(D.data) renderAll(D.data); };
+$$('.tbl th.sortable').forEach(th => th.onclick = () => setSort(th.dataset.k));
 $('#allQ').oninput = e => { D.allQ = e.target.value; if(D.data) renderAll(D.data); };
 $('#mapwrap').addEventListener('mouseleave', () => $('#tip').style.display = 'none');
 document.addEventListener('visibilitychange', () => { if(document.visibilityState === 'visible' && !$('#dash').hidden) refresh(); });
