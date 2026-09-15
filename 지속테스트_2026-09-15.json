@@ -1,0 +1,356 @@
+{
+ "date": "2026-09-15T00:51:29.257Z",
+ "minutes": 10,
+ "arrivalsPerSec": 4,
+ "visitors": 2344,
+ "finishedVisitors": 1304,
+ "requests": 11558,
+ "errors": 0,
+ "errRate": 0,
+ "errCodes": {},
+ "p50": 53,
+ "p95": 64,
+ "p99": 97,
+ "max": 1094,
+ "avgRps": 19.3,
+ "peakRps": 31.85,
+ "dashP50": 101,
+ "dashMax": 203,
+ "buckets": [
+  {
+   "minute": 0,
+   "requests": 383,
+   "rps": 6.38,
+   "errors": 0,
+   "p50": 53,
+   "p95": 90,
+   "max": 200,
+   "dashP50": 194,
+   "dashMax": 203,
+   "byKind": {
+    "register": {
+     "n": 231,
+     "err": 0,
+     "p50": 54,
+     "p95": 108
+    },
+    "stamp": {
+     "n": 116,
+     "err": 0,
+     "p50": 53,
+     "p95": 81
+    },
+    "reopen": {
+     "n": 36,
+     "err": 0,
+     "p50": 52,
+     "p95": 63
+    }
+   }
+  },
+  {
+   "minute": 1,
+   "requests": 547,
+   "rps": 9.12,
+   "errors": 0,
+   "p50": 52,
+   "p95": 67,
+   "max": 185,
+   "dashP50": 101,
+   "dashMax": 200,
+   "byKind": {
+    "register": {
+     "n": 234,
+     "err": 0,
+     "p50": 52,
+     "p95": 65
+    },
+    "stamp": {
+     "n": 235,
+     "err": 0,
+     "p50": 53,
+     "p95": 68
+    },
+    "reopen": {
+     "n": 78,
+     "err": 0,
+     "p50": 51,
+     "p95": 71
+    }
+   }
+  },
+  {
+   "minute": 2,
+   "requests": 755,
+   "rps": 12.58,
+   "errors": 0,
+   "p50": 52,
+   "p95": 64,
+   "max": 156,
+   "dashP50": 118,
+   "dashMax": 176,
+   "byKind": {
+    "register": {
+     "n": 234,
+     "err": 0,
+     "p50": 52,
+     "p95": 63
+    },
+    "stamp": {
+     "n": 395,
+     "err": 0,
+     "p50": 53,
+     "p95": 70
+    },
+    "reopen": {
+     "n": 126,
+     "err": 0,
+     "p50": 50,
+     "p95": 59
+    }
+   }
+  },
+  {
+   "minute": 3,
+   "requests": 881,
+   "rps": 14.68,
+   "errors": 0,
+   "p50": 52,
+   "p95": 65,
+   "max": 154,
+   "dashP50": 110,
+   "dashMax": 156,
+   "byKind": {
+    "register": {
+     "n": 235,
+     "err": 0,
+     "p50": 52,
+     "p95": 69
+    },
+    "stamp": {
+     "n": 492,
+     "err": 0,
+     "p50": 52,
+     "p95": 65
+    },
+    "reopen": {
+     "n": 154,
+     "err": 0,
+     "p50": 50,
+     "p95": 60
+    }
+   }
+  },
+  {
+   "minute": 4,
+   "requests": 1093,
+   "rps": 18.22,
+   "errors": 0,
+   "p50": 53,
+   "p95": 65,
+   "max": 339,
+   "dashP50": 74,
+   "dashMax": 135,
+   "byKind": {
+    "register": {
+     "n": 234,
+     "err": 0,
+     "p50": 54,
+     "p95": 67
+    },
+    "stamp": {
+     "n": 671,
+     "err": 0,
+     "p50": 54,
+     "p95": 65
+    },
+    "reopen": {
+     "n": 188,
+     "err": 0,
+     "p50": 52,
+     "p95": 64
+    }
+   }
+  },
+  {
+   "minute": 5,
+   "requests": 1179,
+   "rps": 19.65,
+   "errors": 0,
+   "p50": 54,
+   "p95": 64,
+   "max": 172,
+   "dashP50": 107,
+   "dashMax": 111,
+   "byKind": {
+    "register": {
+     "n": 235,
+     "err": 0,
+     "p50": 54,
+     "p95": 63
+    },
+    "stamp": {
+     "n": 724,
+     "err": 0,
+     "p50": 54,
+     "p95": 65
+    },
+    "reopen": {
+     "n": 220,
+     "err": 0,
+     "p50": 52,
+     "p95": 60
+    }
+   }
+  },
+  {
+   "minute": 6,
+   "requests": 1497,
+   "rps": 24.95,
+   "errors": 0,
+   "p50": 53,
+   "p95": 64,
+   "max": 1094,
+   "dashP50": 97,
+   "dashMax": 118,
+   "byKind": {
+    "register": {
+     "n": 235,
+     "err": 0,
+     "p50": 53,
+     "p95": 63
+    },
+    "stamp": {
+     "n": 952,
+     "err": 0,
+     "p50": 53,
+     "p95": 65
+    },
+    "reopen": {
+     "n": 310,
+     "err": 0,
+     "p50": 51,
+     "p95": 61
+    }
+   }
+  },
+  {
+   "minute": 7,
+   "requests": 1555,
+   "rps": 25.92,
+   "errors": 0,
+   "p50": 53,
+   "p95": 64,
+   "max": 197,
+   "dashP50": 102,
+   "dashMax": 113,
+   "byKind": {
+    "register": {
+     "n": 236,
+     "err": 0,
+     "p50": 53,
+     "p95": 66
+    },
+    "stamp": {
+     "n": 1017,
+     "err": 0,
+     "p50": 53,
+     "p95": 64
+    },
+    "reopen": {
+     "n": 302,
+     "err": 0,
+     "p50": 52,
+     "p95": 62
+    }
+   }
+  },
+  {
+   "minute": 8,
+   "requests": 1747,
+   "rps": 29.12,
+   "errors": 0,
+   "p50": 53,
+   "p95": 64,
+   "max": 140,
+   "dashP50": 95,
+   "dashMax": 96,
+   "byKind": {
+    "register": {
+     "n": 234,
+     "err": 0,
+     "p50": 53,
+     "p95": 64
+    },
+    "stamp": {
+     "n": 1185,
+     "err": 0,
+     "p50": 54,
+     "p95": 64
+    },
+    "reopen": {
+     "n": 328,
+     "err": 0,
+     "p50": 52,
+     "p95": 62
+    }
+   }
+  },
+  {
+   "minute": 9,
+   "requests": 1911,
+   "rps": 31.85,
+   "errors": 0,
+   "p50": 53,
+   "p95": 64,
+   "max": 144,
+   "dashP50": 108,
+   "dashMax": 109,
+   "byKind": {
+    "register": {
+     "n": 236,
+     "err": 0,
+     "p50": 54,
+     "p95": 64
+    },
+    "stamp": {
+     "n": 1281,
+     "err": 0,
+     "p50": 54,
+     "p95": 64
+    },
+    "reopen": {
+     "n": 394,
+     "err": 0,
+     "p50": 52,
+     "p95": 63
+    }
+   }
+  },
+  {
+   "minute": 10,
+   "requests": 10,
+   "rps": 0.17,
+   "errors": 0,
+   "p50": 54,
+   "p95": 59,
+   "max": 59,
+   "dashP50": 0,
+   "dashMax": 0,
+   "byKind": {
+    "stamp": {
+     "n": 8,
+     "err": 0,
+     "p50": 56,
+     "p95": 59
+    },
+    "reopen": {
+     "n": 2,
+     "err": 0,
+     "p50": 52,
+     "p95": 52
+    }
+   }
+  }
+ ]
+}
