@@ -277,6 +277,7 @@ async function loadSettings(){
   try{ const rows = await q('settings?id=eq.1&select=data'); const s = rows[0]?.data; if(!s) return;
     if(s.eventTitle) CONFIG.eventTitle = s.eventTitle; if(parseInt(s.stampGoal) >= 1) CONFIG.stampGoal = parseInt(s.stampGoal);
     if(Array.isArray(s.survey)) D.survey = s.survey; D.surveyLink = !!s.surveyUrl;
+    if(Array.isArray(s.categories)) s.categories.forEach(c => { if(c && c.id && c.name && !CATS[c.id]) CATS[c.id] = { name: c.name, color: c.color || '#64748B' }; });   // 관리자가 추가한 분류
     $('#subtitle').textContent = `${CONFIG.eventTitle} · 운영본부${s.eventDate ? ' · ' + s.eventDate : ''}`;
   }catch(e){}
 }

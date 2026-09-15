@@ -537,6 +537,23 @@ const $  = (s, el=document) => el.querySelector(s);
 const $$ = (s, el=document) => [...el.querySelectorAll(s)];
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const catOf = id => CATS.find(c => c.id === id) || CATS[CATS.length-1];
+/* 사용자 정의 분류 (관리자 › 부스 표에서 없는 이름을 적으면 생김). settings.categories 에 저장, 부팅 때 CATS 에 합침 */
+const CUSTOM_CAT_COLORS = ['#0EA5E9', '#F97316', '#84CC16', '#EC4899', '#14B8A6', '#A855F7', '#EAB308', '#64748B', '#EF4444', '#22C55E'];
+function addCategory(name, id, color){
+  name = String(name || '').trim(); if(!name) return null;
+  const hit = CATS.find(c => c.name === name || c.id === id); if(hit) return hit;
+  const custom = CATS.filter(c => c.custom).length;
+  const c = { id: id || 'c' + Date.now().toString(36) + custom, name, color: color || CUSTOM_CAT_COLORS[custom % CUSTOM_CAT_COLORS.length], custom: true };
+  CATS.splice(CATS.findIndex(x => x.id === 'ops'), 0, c);   // 운영·편의는 항상 맨 뒤
+  return c;
+}
+/* 글자 → 분류. 정확히 같거나 일부만 써도 인식('갤러리'). 없으면 새 분류로 추가(create=true). 빈 값이면 prev */
+function matchCategory(t, prev, create){
+  t = String(t || '').trim(); if(!t) return prev;
+  const c = CATS.find(c => c.name === t || c.id === t) || CATS.find(c => c.name.includes(t) || (t.length >= 2 && t.includes(c.name.slice(0, 3))));
+  if(c) return c.id;
+  return create ? addCategory(t).id : prev;
+}
 const fmtTime = t => { const d = new Date(t); return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; };
 const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : 'x'+Date.now().toString(36)+Math.random().toString(36).slice(2,10));
 const ytId = u => { const m = String(u || '').match(/(?:youtu\.be\/|[?&]v=|shorts\/|embed\/|live\/)([\w-]{11})/); return m ? m[1] : null; };
@@ -792,6 +809,7 @@ function applySettings(s){
   if(Array.isArray(s.schedule)) SCHEDULE = s.schedule;
   if(Array.isArray(s.resources)) RESOURCES = s.resources;
   if(Array.isArray(s.survey)) SURVEY = s.survey.filter(q => q && q.id && q.title && SV_TYPES[q.type]);
+  if(Array.isArray(s.categories)) s.categories.forEach(c => c && c.id && c.name && addCategory(c.name, c.id, c.color));
   S.settingsRaw = s;   // 관리자 저장 때 다른 키(survey 등)를 잃지 않게 통째로 보관
 }
 /* 설문 방식: 링크가 있으면 외부(구글폼) / 없고 문항이 있으면 앱 내 설문 / 둘 다 없으면 자기신고 버튼만 */
@@ -1799,15 +1817,15 @@ function admBooths(){
       <button class="btn sm line" id="bXlsx">엑셀 양식 내려받기</button>
       <label class="btn sm line" style="cursor:pointer">엑셀·CSV 불러오기<input type="file" accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" id="bImp" hidden></label>
       <button class="btn xs soft" id="bCsv" title="예전 방식">CSV</button>
-      <span class="small muted">${S.booths.length}/${CONFIG.boothMax}개 · 같은 구역 안에서는 표 순서가 지도 순서예요 (트랙 둘레는 정문 오른쪽부터 시계방향)<br>분류: ${CATS.map(c => c.name).join(' / ')} · 구역: ${ZONES.map(z => z.name).join(' / ')} — 일부만 적어도 알아들어요</span>
+      <span class="small muted">${S.booths.length}/${CONFIG.boothMax}개 · 같은 구역 안에서는 표 순서가 지도 순서예요 (트랙 둘레는 정문 오른쪽부터 시계방향)<br>분류: ${CATS.map(c => c.name).join(' / ')} — 일부만 적어도 알아듣고, 없는 이름을 적으면 새 분류가 생겨요</span>
     </div>
     <div class="tscroll"><table class="table"><thead><tr><th>번호</th><th>부스명</th><th>운영</th><th>분류</th><th>구역</th><th>소개</th><th>유튜브 영상</th><th>PDF 자료</th><th>사진 URL</th><th></th></tr></thead><tbody>
       ${S.booths.map((b, i) => `<tr data-i="${i}">
         <td><input class="inp sm" value="${esc(b.n)}" data-f="n" style="width:56px"></td>
         <td><input class="inp sm" value="${esc(b.name)}" data-f="name" style="min-width:180px"></td>
         <td><input class="inp sm" value="${esc(b.org)}" data-f="org" style="min-width:110px"></td>
-        <td><input class="inp sm" value="${esc(catOf(b.cat).name)}" data-f="cat" style="width:120px" title="${CATS.map(c => c.name).join(' / ')}"></td>
-        <td><input class="inp sm" value="${esc(zoneOf(b.zone).name)}" data-f="zone" style="width:170px" title="${ZONES.map(z => z.name).join(' / ')}"></td>
+        <td><input class="inp sm" value="${esc(catOf(b.cat).name)}" data-f="cat" style="width:120px" title="없는 이름을 적으면 새 분류가 생겨요"></td>
+        <td><select class="inp sm" data-f="zone" style="width:190px">${ZONES.map(z => `<option value="${z.id}" ${z.id === (b.zone || '') ? 'selected' : ''}>${z.name}</option>`).join('')}</select></td>
         <td><input class="inp sm" value="${esc(b.desc || '')}" data-f="desc" style="min-width:220px"></td>
         <td><input class="inp sm" value="${esc(b.video || '')}" data-f="video" placeholder="https://youtu.be/…" style="min-width:150px"></td>
         <td><div class="row" style="gap:4px;flex-wrap:nowrap"><input class="inp sm" value="${esc(b.pdf || '')}" data-f="pdf" placeholder="파일 올리기 또는 URL" style="min-width:150px"><label class="btn xs soft" style="cursor:pointer;white-space:nowrap">파일<input type="file" accept="application/pdf" data-file="pdf" hidden></label></div></td>
@@ -1815,11 +1833,17 @@ function admBooths(){
         <td class="row" style="gap:4px"><button class="btn xs soft" data-up="${i}">↑</button><button class="btn xs soft" data-down="${i}">↓</button><button class="btn xs line" data-del="${i}" style="color:var(--coral)">삭제</button></td></tr>`).join('')}
     </tbody></table></div>
     <div class="row no-print"><button class="btn blue" id="bSave">변경사항 저장</button><span class="small muted">저장 전엔 지도에 반영되지 않아요</span></div>`);
-  /* 분류·구역은 글자로 입력 → 이름을 id 로. 정확히 같거나 일부만 써도 인식(예: '갤러리', '골대 왼쪽'), 못 알아보면 원래 값 유지 */
-  const catId = (t, prev) => { t = String(t || '').trim(); if(!t) return prev; const c = CATS.find(c => c.name === t || c.id === t) || CATS.find(c => c.name.includes(t) || t.includes(c.name.slice(0, 3))); return c ? c.id : prev; };
-  const zoneId = (t, prev) => { t = String(t || '').trim(); if(!t) return prev || ''; const z = ZONES.find(z => z.name === t || z.id === t) || ZONES.find(z => z.name.includes(t)) || ZONES.find(z => t.split(/[\s·]+/).every(w => z.name.includes(w))); return z ? z.id : prev || ''; };
-  const collect = () => S.booths.map((b, i) => { const tr = $(`tr[data-i="${i}"]`); const o = { ...b }; $$('[data-f]', tr).forEach(el => { const v = el.value.trim(); o[el.dataset.f] = el.dataset.f === 'cat' ? catId(v, b.cat) : el.dataset.f === 'zone' ? zoneId(v, b.zone) : v; }); return o; });
-  $('#bSave').onclick = async () => { const list = collect(); const seen = new Set(); for(const b of list){ if(!b.n || !b.name) return toast('번호와 이름은 비울 수 없어요'); if(seen.has(b.n)) return toast(`부스 번호 ${b.n}이(가) 중복돼요`); seen.add(b.n); } S.booths = list; await DB.saveBooths(list); toast('저장했어요'); renderAdmin('booths'); };
+  /* 분류는 글자 입력. 있는 이름(일부만 써도 됨)이면 그걸로, 없는 이름이면 새 분류가 생김. 구역은 드롭다운 */
+  const collect = () => S.booths.map((b, i) => { const tr = $(`tr[data-i="${i}"]`); const o = { ...b }; $$('[data-f]', tr).forEach(el => { const v = el.value.trim(); o[el.dataset.f] = el.dataset.f === 'cat' ? matchCategory(v, b.cat, true) : v; }); return o; });
+  /* 부스 저장 뒤 사용자 정의 분류를 settings 에 같이 저장. 아무 부스도 안 쓰는 사용자 정의 분류는 정리 */
+  const saveCategories = async list => {
+    const used = new Set(list.map(b => b.cat));
+    for(let i = CATS.length - 1; i >= 0; i--) if(CATS[i].custom && !used.has(CATS[i].id)) CATS.splice(i, 1);
+    const cats = CATS.filter(c => c.custom).map(c => ({ id: c.id, name: c.name, color: c.color }));
+    const prev = JSON.stringify((S.settingsRaw || {}).categories || []);
+    if(prev !== JSON.stringify(cats)){ const data = { ...(S.settingsRaw || {}), categories: cats }; await DB.saveSettings(data); S.settingsRaw = data; }
+  };
+  $('#bSave').onclick = async () => { const list = collect(); const seen = new Set(); for(const b of list){ if(!b.n || !b.name) return toast('번호와 이름은 비울 수 없어요'); if(seen.has(b.n)) return toast(`부스 번호 ${b.n}이(가) 중복돼요`); seen.add(b.n); } S.booths = list; await DB.saveBooths(list); await saveCategories(list); toast('저장했어요'); renderAdmin('booths'); };
   $('#bAdd').onclick = () => { const list = collect(); if(list.length >= CONFIG.boothMax) return toast(`부스는 최대 ${CONFIG.boothMax}개까지예요`); const n = String(Math.max(0, ...list.map(b => parseInt(b.n) || 0)) + 1).padStart(2, '0'); list.push({ id: 'b' + n + '-' + Date.now().toString(36), n, name: '', cat: 'etc', org: '', zone: '', desc: '', video: '', pdf: '', img: '' }); S.booths = list; renderAdmin('booths'); setTimeout(() => $$('tr[data-i]').pop()?.querySelector('[data-f=name]').focus(), 50); };
   $$('[data-del]').forEach(b => b.onclick = () => { const list = collect(); if(!confirm(`${list[b.dataset.del].n} 부스를 삭제할까요? 저장을 눌러야 반영돼요.`)) return; list.splice(b.dataset.del, 1); S.booths = list; renderAdmin('booths'); });
   const move = (i, d) => { const list = collect(); const j = i + d; if(j < 0 || j >= list.length) return; [list[i], list[j]] = [list[j], list[i]]; S.booths = list; renderAdmin('booths'); };
@@ -1843,7 +1867,7 @@ function admBooths(){
     ws.eachRow((row, i) => { if(i === 1) return; row.alignment = { vertical: 'top', wrapText: true }; row.getCell(1).alignment = { vertical: 'top', horizontal: 'center' }; });
     ws.autoFilter = 'A1:I1';
     const guide = wb.addWorksheet('안내'); guide.getColumn(1).width = 90;
-    ['이 파일을 채워서 관리자 › 부스 › 엑셀·CSV 불러오기 로 올리면 부스 목록이 통째로 바뀝니다.', '', '• 번호: 숫자 또는 본1·네1 같은 문자. 비우면 그 줄은 무시. 같은 번호가 두 개면 올릴 때 막힘', '• 분류·구역: 아래 목록의 이름 그대로 적어요. 비우면 분류는 "상상그이상", 구역은 "트랙 둘레"', '• 소개: 길어도 돼요. 줄바꿈은 Alt+Enter', '• 유튜브·PDF·사진: 링크만. PDF·사진 파일 업로드는 관리자 화면의 [파일] 버튼으로', '• 표 순서 = 지도 순서 (같은 구역 안에서). 트랙 둘레는 정문 오른쪽부터 시계방향', '', `분류: ${CATS.map(c => c.name).join(' / ')}`, `구역: ${ZONES.map(z => z.name).join(' / ')}`].forEach(t => guide.addRow([t]));
+    ['이 파일을 채워서 관리자 › 부스 › 엑셀·CSV 불러오기 로 올리면 부스 목록이 통째로 바뀝니다.', '', '• 번호: 숫자 또는 본1·네1 같은 문자. 비우면 그 줄은 무시. 같은 번호가 두 개면 올릴 때 막힘', '• 분류: 아래 목록의 이름(일부만 써도 됨). 목록에 없는 이름을 적으면 새 분류로 추가돼요. 비우면 "상상그이상"', '• 구역: 아래 목록 중 하나. 비우면 "트랙 둘레"', '• 소개: 길어도 돼요. 줄바꿈은 Alt+Enter', '• 유튜브·PDF·사진: 링크만. PDF·사진 파일 업로드는 관리자 화면의 [파일] 버튼으로', '• 표 순서 = 지도 순서 (같은 구역 안에서). 트랙 둘레는 정문 오른쪽부터 시계방향', '', `분류: ${CATS.map(c => c.name).join(' / ')}`, `구역: ${ZONES.map(z => z.name).join(' / ')}`].forEach(t => guide.addRow([t]));
     guide.getRow(1).font = { bold: true };
     const buf = await wb.xlsx.writeBuffer(); const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })); a.download = '부스목록.xlsx'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   };
@@ -1856,8 +1880,8 @@ function admBooths(){
     if(!rows.length) return toast('읽을 행이 없어요');
     { const seen = new Set(); for(const r of rows){ if(seen.has(r[0])) return toast(`부스 번호 ${r[0]}이(가) 두 번 있어요`); seen.add(r[0]); } }
     if(rows.length > CONFIG.boothMax) return toast(`부스는 최대 ${CONFIG.boothMax}개까지예요 (${rows.length}개)`);
-    S.booths = rows.map(r => ({ id: 'b' + r[0], n: r[0], name: r[1] || '', org: r[2] || '', cat: (CATS.find(c => c.name === r[3]) || CATS.find(c => c.id === 'etc')).id,
-      zone: (ZONES.find(z => z.name === r[4] || z.id === r[4]) || ZONES[0]).id, desc: r[5] || '', video: r[6] || '', pdf: r[7] || '', img: r[8] || '' })); await DB.saveBooths(S.booths); toast(`${rows.length}개 부스를 불러왔어요`); renderAdmin('booths'); };
+    S.booths = rows.map(r => ({ id: 'b' + r[0], n: r[0], name: r[1] || '', org: r[2] || '', cat: matchCategory(r[3], 'etc', true),
+      zone: (ZONES.find(z => z.name === r[4] || z.id === r[4]) || ZONES[0]).id, desc: r[5] || '', video: r[6] || '', pdf: r[7] || '', img: r[8] || '' })); await DB.saveBooths(S.booths); await saveCategories(S.booths); toast(`${rows.length}개 부스를 불러왔어요`); renderAdmin('booths'); };
 }
 /* QR 인쇄 시트. 부스별 QR 주소 = base?b=번호&t=토큰. 토큰은 DB.boothTokens (부스가 서버에 없으면 먼저 저장해 발급). 같은 탭의 테스트 번호 입력도 통과되게 qrTok 에 넣음 */
 function admQR(){
