@@ -89,7 +89,11 @@ select.btn{padding:7px 8px}
 .chart svg{width:100%;height:auto;display:block}
 .cbar{fill:var(--blue)}
 .cbar.now{fill:var(--sun)}
-.cval{font-size:10px;fill:var(--ink-2);text-anchor:middle;font-weight:700}
+.cval{font-size:10.5px;fill:var(--ink);text-anchor:middle;font-weight:900;paint-order:stroke;stroke:var(--card);stroke-width:3px;stroke-linejoin:round}
+.cval.now{fill:var(--sun)}
+.ctick{font-size:9px;fill:var(--ink-3);text-anchor:end;font-variant-numeric:tabular-nums}
+.cgrid.base{stroke:var(--ink-3);opacity:.5}
+.chart svg g:hover .cbar{filter:brightness(1.25)}
 .clbl{font-size:10px;fill:var(--ink-3);text-anchor:middle}
 .cgrid{stroke:var(--line);stroke-width:1}
 
@@ -388,23 +392,37 @@ function renderMap(d){
   s += `</svg>`;
   const tip = $('#tip'); $('#mapwrap').innerHTML = s; $('#mapwrap').appendChild(tip);
 }
-function barChart(items, opts = {}){   // items: [{l, v, now}] → SVG 막대
+/* 축 숫자: 1,234 / 1.2만 */
+const fmtK = v => v >= 10000 ? (v / 10000).toFixed(v % 10000 ? 1 : 0) + '만' : fmt(v);
+/* 눈금 간격: 1·2·5×10^k 중 4~6칸 나오는 값 */
+function niceStep(max){ const raw = max / 4, p = Math.pow(10, Math.floor(Math.log10(raw))); for(const m of [1, 2, 5, 10]){ if(m * p >= raw) return m * p; } return 10 * p; }
+function barChart(items, opts = {}){   // items: [{l, v, now, tip}] → SVG 막대. 값 숫자는 최고점·현재 칸만(everyVal 이면 전부), 나머지는 왼쪽 눈금 + 막대 툴팁
   const n = items.length; if(!n) return '<div class="empty">아직 데이터가 없어요</div>';
-  const W = 400, H = 130, pad = 12, bw = Math.max(4, (W - pad * 2) / n - 3), max = Math.max(1, ...items.map(i => i.v));
-  return `<svg viewBox="0 0 ${W} ${H}">${[0.5, 1].map(f => `<line class="cgrid" x1="${pad}" x2="${W - pad}" y1="${104 - 90 * f}" y2="${104 - 90 * f}"/>`).join('')}${items.map((it, i) => { const x = pad + i * ((W - pad * 2) / n), h = Math.round(it.v / max * 90); return `<rect class="cbar ${it.now ? 'now' : ''}" x="${x}" y="${104 - h}" width="${bw}" height="${h}" rx="3"/>${it.v && (opts.everyVal || n <= 12 || i % Math.ceil(n / 12) === 0 || it.now) ? `<text class="cval" x="${x + bw / 2}" y="${100 - h}">${it.v}</text>` : ''}${it.l && (opts.allLabels || n <= 12 || i % Math.ceil(n / 9) === 0 || i === n - 1) ? `<text class="clbl" x="${x + bw / 2}" y="${122}">${it.l}</text>` : ''}`; }).join('')}</svg>`;
+  const W = 400, H = 130, L = 36, R = 8, top = 14, base = 104, iw = W - L - R, gap = n > 20 ? 2 : 3, bw = Math.max(3, iw / n - gap);
+  const vmax = Math.max(1, ...items.map(i => i.v)), step = niceStep(vmax), max = Math.ceil(vmax / step) * step, ih = base - top;
+  const y = v => base - Math.round(v / max * ih);
+  const ticks = []; for(let v = step; v <= max; v += step) ticks.push(v);
+  const first = items.findIndex(i => i.v === vmax);
+  const showVal = (it, i) => it.v && (opts.everyVal || n <= 12 || i === first || it.now);
+  const lab = (it, i) => it.l && (opts.allLabels || n <= 12 || i % Math.ceil(n / 9) === 0 || i === n - 1);
+  return `<svg viewBox="0 0 ${W} ${H}">
+    ${ticks.map(v => `<line class="cgrid" x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}"/><text class="ctick" x="${L - 5}" y="${y(v) + 3.5}">${fmtK(v)}</text>`).join('')}
+    <line class="cgrid base" x1="${L}" x2="${W - R}" y1="${base}" y2="${base}"/>
+    ${items.map((it, i) => { const x = L + i * (iw / n), h = base - y(it.v); return `<g><rect class="cbar ${it.now ? 'now' : ''}" x="${x}" y="${base - h}" width="${bw}" height="${h}" rx="2"/><title>${esc(it.tip || `${it.l || ''} ${fmt(it.v)}개`.trim())}</title></g>${showVal(it, i) ? `<text class="cval${it.now ? ' now' : ''}" x="${x + bw / 2}" y="${base - h - 4}">${fmt(it.v)}</text>` : ''}${lab(it, i) ? `<text class="clbl" x="${x + bw / 2}" y="122">${it.l}</text>` : ''}`; }).join('')}
+  </svg>`;
 }
 function renderTrend(d){
   if(!d.per_10min){ $('#c10').innerHTML = '<div class="empty">SQL 10절 실행 후 표시돼요</div>'; return; }
   const now = Date.now(), slots = [];   // 최근 6시간을 10분 칸으로 채움 (비어 있는 칸은 0)
   const start = Math.floor((now - 6 * 3600e3) / 600e3) * 600e3;
   const m = {}; d.per_10min.forEach(r => m[Math.floor(new Date(r.t).getTime() / 600e3) * 600e3] = r.n);
-  for(let t = start; t <= now; t += 600e3) slots.push({ t, v: m[t] || 0, l: new Date(t).getMinutes() === 0 ? hhmm(t) : '', now: t + 600e3 > now });
+  for(let t = start; t <= now; t += 600e3) slots.push({ t, v: m[t] || 0, l: new Date(t).getMinutes() === 0 ? hhmm(t) : '', now: t + 600e3 > now, tip: `${hhmm(t)}~${hhmm(t + 600e3)} · ${fmt(m[t] || 0)}개${t + 600e3 > now ? ' (진행 중)' : ''}` });
   $('#c10').innerHTML = barChart(slots, { allLabels: true });   // 정시 라벨은 전부 표시
 }
 function renderHour(d){
   const m = {}; (d.per_hour || []).forEach(r => m[r.h] = r.n);
   const h0 = 9, h1 = 17, cur = new Date().getHours();
-  $('#cHour').innerHTML = barChart(Array.from({ length: h1 - h0 + 1 }, (_, i) => ({ l: `${h0 + i}시`, v: m[h0 + i] || 0, now: h0 + i === cur })), { everyVal: true });
+  $('#cHour').innerHTML = barChart(Array.from({ length: h1 - h0 + 1 }, (_, i) => ({ l: `${h0 + i}시`, v: m[h0 + i] || 0, now: h0 + i === cur, tip: `${h0 + i}시~${h0 + i + 1}시 · ${fmt(m[h0 + i] || 0)}개` })), { everyVal: true });
 }
 function boothRow(b, v, max, extra = '', hot = false){
   const c = CATS[b.cat] || CATS.etc;

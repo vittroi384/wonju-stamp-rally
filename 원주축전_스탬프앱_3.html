@@ -317,6 +317,7 @@ select.inp.sm{padding-right:30px;background-position:right 10px center}
 .table th{text-align:left;font-size:12px;color:var(--ink-3);font-weight:700;padding:12px 14px;background:var(--card-2);white-space:nowrap}
 .table td{padding:11px 14px;border-top:1px solid var(--line-2);vertical-align:middle}
 .table .num{font-weight:900;font-variant-numeric:tabular-nums}
+.table th.sortable{cursor:pointer;user-select:none}.table th.sortable.on{color:var(--ink)}.table th.sortable[data-dir=asc]::after{content:' ↑'}.table th.sortable[data-dir=desc]::after{content:' ↓'}
 .table tr.rowbtn{cursor:pointer}.table tr.rowbtn:hover td,.table tr.rowbtn:focus-visible td{background:var(--card-2)}
 .bar{height:6px;border-radius:3px;background:var(--line-2);overflow:hidden;min-width:60px}
 .bar i{display:block;height:100%;background:var(--blue);border-radius:3px}
@@ -1838,11 +1839,21 @@ function admDash(st){
         <p class="desc small" style="line-height:1.7">참여 부스 <b>${active}/${S.booths.length}</b> · 가장 붐비는 시간 <b>${hours[perHour.indexOf(Math.max(...perHour))]}시</b><br>${ranked[0]?.n ? `최다 방문 <b>${esc(ranked[0].b.n)} ${esc(ranked[0].b.name)}</b> (${ranked[0].n})<br>` : ''}${ranked.filter(r => r.n === 0).length ? `아직 방문 없음 <b>${ranked.filter(r => r.n === 0).length}곳</b>` : '모든 부스에 방문 기록이 있어요'}</p>
         <button class="btn sm soft" style="margin-top:12px" onclick="route()">↻ 새로고침</button></div>
     </div>
-    <p class="desc small" style="margin:14px 2px 6px">부스 줄을 누르면 그 부스에 도장 찍은 방문객 명단이 떠요</p>
-    <div class="tscroll"><table class="table"><thead><tr><th>#</th><th>부스</th><th>운영</th><th>스탬프</th><th></th><th>최근</th></tr></thead><tbody>
-      ${ranked.map((r, i) => { const c = catOf(r.b.cat); return `<tr class="rowbtn" data-bv="${esc(r.b.id)}" tabindex="0"><td class="muted">${i + 1}</td><td><span class="pill" style="background:${c.color}1a;color:${c.color}"><span class="dot"></span>${esc(r.b.n)}</span> <b>${esc(r.b.name)}</b></td><td class="muted">${esc(r.b.org)}</td><td class="num">${r.n}</td><td><div class="bar"><i style="width:${r.n / maxB * 100}%"></i></div></td><td class="muted">${r.last ? fmtTime(r.last) : '—'}</td></tr>`; }).join('')}
-    </tbody></table></div>`);
-  $$('[data-bv]').forEach(tr => { const open = () => admBoothVisitors(tr.dataset.bv); tr.onclick = open; tr.onkeydown = e => { if(e.key === 'Enter') open(); }; });
+    <p class="desc small" style="margin:14px 2px 6px">열 제목을 누르면 정렬(한 번 더 누르면 오름·내림), 부스 줄을 누르면 그 부스 참여자 명단</p>
+    <div class="tscroll"><table class="table" id="admBoothTbl"><thead><tr><th>#</th>${[['num', '부스'], ['org', '운영'], ['n', '스탬프']].map(([k, t]) => `<th class="sortable" data-k="${k}">${t}</th>`).join('')}<th></th><th class="sortable" data-k="last">최근</th></tr></thead><tbody></tbody></table></div>`);
+  admBoothTable(ranked, maxB);
+}
+/* 현황 부스별 표: 정렬 상태는 탭을 다시 열어도 유지. 번호 정렬은 숫자 → 문자(본1·네1) 순 */
+const admBoothSort = { k: 'n', dir: 'desc' };
+function admBoothTable(rows, maxB){
+  const { k, dir } = admBoothSort, sg = dir === 'asc' ? 1 : -1;
+  const numKey = b => { const m = String(b.n).match(/^\d+$/); return m ? [0, +b.n, ''] : [1, 0, String(b.n)]; };
+  const cmp = (a, b) => { if(k === 'num'){ const x = numKey(a.b), y = numKey(b.b); return (x[0] - y[0]) || (x[1] - y[1]) || x[2].localeCompare(y[2], 'ko'); } if(k === 'org') return String(a.b.org || '').localeCompare(String(b.b.org || ''), 'ko'); if(k === 'last') return (a.last || 0) - (b.last || 0); return a.n - b.n; };
+  const list = [...rows].sort((a, b) => cmp(a, b) * sg || (b.n - a.n));
+  const tbl = $('#admBoothTbl'); if(!tbl) return;
+  tbl.querySelector('tbody').innerHTML = list.map((r, i) => { const c = catOf(r.b.cat); return `<tr class="rowbtn" data-bv="${esc(r.b.id)}" tabindex="0"><td class="muted">${i + 1}</td><td><span class="pill" style="background:${c.color}1a;color:${c.color}"><span class="dot"></span>${esc(r.b.n)}</span> <b>${esc(r.b.name)}</b></td><td class="muted">${esc(r.b.org)}</td><td class="num">${r.n}</td><td><div class="bar"><i style="width:${r.n / maxB * 100}%"></i></div></td><td class="muted">${r.last ? fmtTime(r.last) : '—'}</td></tr>`; }).join('');
+  $$('th.sortable', tbl).forEach(th => { th.classList.toggle('on', th.dataset.k === k); th.dataset.dir = th.dataset.k === k ? dir : ''; th.onclick = () => { if(admBoothSort.k === th.dataset.k) admBoothSort.dir = admBoothSort.dir === 'asc' ? 'desc' : 'asc'; else { admBoothSort.k = th.dataset.k; admBoothSort.dir = th.dataset.k === 'num' || th.dataset.k === 'org' ? 'asc' : 'desc'; } admBoothTable(rows, maxB); }; });
+  $$('[data-bv]', tbl).forEach(tr => { const open = () => admBoothVisitors(tr.dataset.bv); tr.onclick = open; tr.onkeydown = e => { if(e.key === 'Enter') open(); }; });
 }
 /* 부스 참여자 명단 시트: 시각·이름·학교·학년·성별·그 사람 도장 수. 이름·학교 검색 */
 async function admBoothVisitors(boothId){
