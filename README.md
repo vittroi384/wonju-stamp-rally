@@ -98,7 +98,7 @@ flowchart LR
 - **한 파일 구조** — CONFIG → UTIL → STORAGE → DATA LAYER(LocalDB / SupabaseDB, 같은 인터페이스) → 상태 → 지도 기하 → 라우터 → 화면 → 스캐너 → 관리자 → BOOT. `CONFIG.supabaseUrl` 을 비우면 브라우저 저장소만으로 동작(데모).
 - **설정은 서버에** — 행사명·완주 개수·설문 문항·공지·일정을 관리자가 저장하면 열린 폰에도 5분 안에 반영.
 - **대시보드는 요청 하나** — `admin_dashboard` RPC 가 집계 전부를 jsonb 로 (이름 없음). 15초 갱신에 요청 1개.
-- **무료 한도 안에서 5만 명** — js 는 파일명 버전(`?v=배포시각`) + 1년 immutable 캐시, HTML 만 no-cache, favicon 은 인라인, 부스 목록은 `settings.boothsVersion` 으로 폰에 캐시. 재방문 한 번 = Vercel 요청 1건 · Supabase 1~3건(각 1KB 미만). Vercel Edge Requests 100만/월, Supabase egress 5GB 기준으로 여유.
+- **무료 한도 안에서 4~5만 명** — jsQR·qrcode 는 CDN 우선(3초 타임아웃 → 같은 서버 파일 폴백, 1년 immutable), HTML 만 no-cache, favicon 인라인, 부스 목록은 배포 시 HTML 에 박은 시드의 버전이 서버 `settings.boothsVersion` 과 같으면 요청 생략. 첫 방문·재방문 모두 Vercel 1건(HTML) · Supabase 1~3건(각 1KB 안팎). 4만 명 기준 Vercel Edge Requests 약 40만/100만, Supabase egress 약 1.5GB/5GB.
 - **지도는 코드로** — 이미지 없이 스타디움 기하(직선+반원)를 계산해 SVG 로. 부스 번호·구역만 바꾸면 자리가 따라옴.
 
 ## 기술 스택
@@ -106,7 +106,7 @@ flowchart LR
 | 영역 | 선택 | 이유 |
 |---|---|---|
 | 프런트 | Vanilla JS, 단일 HTML, 인라인 SVG | 빌드 없이 파일 하나. 담당자가 그대로 열어볼 수 있음 |
-| QR | jsQR(카메라) · qrcode.js(교환권·인쇄) | 로컬 파일 우선, 없으면 CDN 폴백 |
+| QR | jsQR(카메라) · qrcode.js(교환권·인쇄) | jsdelivr CDN 우선, 3초 안에 안 오면 같은 서버 파일로 폴백 |
 | DB / API | Supabase Postgres + PostgREST + plpgsql RPC | Auth 없이 anon 키 하나. 쓰기·개인정보는 전부 `security definer` RPC 뒤 |
 | 호스팅 | Vercel 정적 | 파일 4개 업로드가 전부. `vercel.json` 에 캐시 헤더(js immutable / html no-cache) |
 | 테스트 | Playwright(Chrome) e2e · Node 부하/지속 스크립트 | 실서버로 등록→도장→설문→교환권→관리자까지 |
@@ -135,7 +135,7 @@ flowchart LR
 1. **Supabase** 프로젝트 생성 → SQL Editor 에 `supabase_setup.sql` 통째로 붙여넣고 Run (다시 실행해도 됨).
 2. `원주축전_스탬프앱_3.html` 의 `CONFIG.supabaseUrl` · `supabaseAnonKey` 채우기 (`운영대시보드.html` 도 같은 값).
 3. 관리자 `#/admin` (초기 비번 `1234`) → 데이터 탭에서 비번 변경 → 부스 탭에서 저장(서버로 올라가며 QR 토큰 발급) → QR 시트 인쇄.
-4. 배포: `배포.ps1` (deploy/ 갱신 → `?v=DEV` 를 배포 시각으로 치환 → `vercel deploy --prod`). js 가 1년 캐시라 이 버전 치환이 있어야 수정본이 폰에 내려감. 배포 주소가 바뀌면 QR 재인쇄.
+4. 배포: `배포.ps1` (deploy/ 갱신 → `?v=DEV` 를 배포 시각으로 치환 → 서버 부스 목록·버전을 `SEED_BOOTHS`/`seedVersion` 에 박음 → `vercel deploy --prod`). 부스를 고친 뒤 재배포하면 방문객 폰이 부스 목록을 서버에서 받지 않음. 배포 주소가 바뀌면 QR 재인쇄.
 
 로컬에서 그냥 열어보려면 `CONFIG.supabaseUrl` 을 비우면 됨 — 브라우저 저장소로 동작하고 관리자 › 데이터에 데모 데이터 버튼이 생김. `CONFIG.testStampInput: true` 면 카메라 대신 부스 번호 입력창(https 없는 로컬용, 배포 스크립트가 false 로 바꿈).
 

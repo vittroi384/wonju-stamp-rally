@@ -7,8 +7,7 @@
 <title>2026 원주 수학과학축전 · 부스 스탬프</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Ctext y=%27.9em%27 font-size=%2790%27%3E%F0%9F%8D%81%3C/text%3E%3C/svg%3E">
-<script src="./qrcode.min.js?v=DEV"></script>   <!-- ?v= 는 배포 스크립트가 배포 시각으로 바꿈. js 는 1년 immutable 캐시라 이름(쿼리)이 바뀌어야 새 파일을 받음 -->
-<script>if(!window.QRCode) document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script>');</script>   <!-- 같은 폴더의 파일 먼저, 없으면 CDN -->
+<!-- qrcode.min.js · jsQR.js 는 필요할 때 loadLib() 로 받음: jsdelivr CDN 우선(Vercel 요청 수 절약), 3초 안에 안 오거나 실패하면 같은 서버 파일(?v= 는 배포 시각, 1년 immutable 캐시) -->   <!-- 같은 폴더의 파일 먼저, 없으면 CDN -->
 <style>
 :root{
   --bg:#F2F3F7; --card:#FFFFFF; --card-2:#F7F8FB;
@@ -507,6 +506,7 @@ const CONFIG = {
   supabaseAnonKey: 'YOUR_SUPABASE_ANON_KEY',   // publishable(=anon) 키. 공개용이라 HTML에 넣어도 됨
   storageBucket: 'booth-files',          // 부스 PDF·사진 업로드용 Supabase Storage 버킷 (public). 로컬 모드면 브라우저 IndexedDB에 저장
   stampGapSec: 90,                       // 도장 사이 최소 간격(초) — 링크 공유 치팅 억제. 실제 검사는 서버(SQL stamp_gap_sec)가 하고, 이 값은 로컬 모드 검사·안내 문구용. 둘을 같게 유지
+  seedVersion: 0,                        // ★배포 스크립트가 채움★ HTML 에 박힌 SEED_BOOTHS 가 어느 서버 부스 버전(settings.boothsVersion)인지. 같으면 앱이 부스 목록을 서버에서 안 받음
   requestTimeoutMs: 8000,                // 방문객 요청 타임아웃. 넘기면 도장은 폰에 저장(pending) 후 자동 재전송 — 폭주 때 30초 멍하니 기다리지 않게
   adminTimeoutMs: 20000,                 // 관리자 화면(집계·대량 조회·부스 저장)은 느려도 기다림
 };
@@ -852,6 +852,7 @@ async function loadSettings(){ try{ applySettings(await DB.settings()); }catch(e
    리로드마다 4KB(gzip)/25KB(원본) 나가던 걸 0으로. 관리자가 부스를 저장하면 boothsVersion 이 올라가 다음 로드 때만 새로 받음 */
 async function loadBoothsCached(){
   const v = S.settingsRaw?.boothsVersion;
+  if(v && CONFIG.seedVersion === v && SEED_BOOTHS.length){ S.booths = SEED_BOOTHS.map(seedToBooth); return; }   // 배포 시 박아둔 시드가 서버와 같은 버전 → 요청 없음
   if(v){ const c = await store.get('wj:booths_cache'); if(c && c.v === v && Array.isArray(c.list) && c.list.length){ S.booths = c.list; return; } }
   await loadBooths();
   if(v && S.booths.length) await store.set('wj:booths_cache', { v, list: S.booths });
@@ -894,6 +895,7 @@ function progress(){ return Math.min(S.myStamps.length, CONFIG.stampGoal); }
 function goalReached(){ return S.myStamps.length >= CONFIG.stampGoal; }
 
 /* 부팅: 부스 목록. 서버(또는 로컬 저장)에 저장된 게 있으면 그것, 없으면 파일에 내장된 SEED_BOOTHS. demoBoothCount 가 크면 데모 부스로 채움 */
+const seedToBooth = b => ({ id: b.id || 'b' + b.n, n: b.n, name: b.name, cat: b.cat, org: b.org, zone: b.zone || '', desc: b.desc || DESC_BY_CAT[b.cat], video: b.video || '', pdf: b.pdf || '', img: b.img || '' });
 async function loadBooths(){
   let saved = null;
   try{ saved = await DB.booths(); }catch(e){ console.warn('부스 목록을 서버에서 못 읽음 → 내장 목록 사용', e.message); }   // 서버 장애·컬럼 불일치 때도 앱은 뜨게
@@ -901,7 +903,7 @@ async function loadBooths(){
   const seed = SEED_BOOTHS.slice();
   const cats = ['play', 'craft', 'app', 'sci', 'play', 'craft', 'app'];
   for(let n = 91; seed.length < CONFIG.demoBoothCount; n++) seed.push({ n: String(n), name: `체험 부스 ${n}`, cat: cats[n % cats.length], org: '참여기관 미정' });   // 데모용 자리 채우기 (트랙 둘레)
-  S.booths = seed.map(b => ({ id:'b'+b.n, n:b.n, name:b.name, cat:b.cat, org:b.org, zone:b.zone||'', desc:DESC_BY_CAT[b.cat], video:'', pdf:'', img:'' }));
+  S.booths = seed.map(seedToBooth);
 }
 /* 부팅: 내 정보. store 'wj:me'(uuid) 가 있으면 서버에서 나+내 도장을 다시 받고 캐시. 통신 실패면 마지막 캐시로 (오프라인 표시) */
 async function loadMe(){
@@ -1334,7 +1336,7 @@ function renderMy(){
     ${S.pending.length ? `<div class="notice">${I.bell}<span>도장 ${S.pending.length}개가 아직 서버에 안 갔어요. 통신되면 자동 전송돼요. <b style="cursor:pointer" onclick="flushPending()">지금 보내기</b></span></div>` : ''}
     ${allStampsLocal().length ? `<div class="stamp-grid">${allStampsLocal().reverse().map(s => { const b = boothById(s.boothId); return `<div class="sg" onclick="go('/booth/${b?.n}')"><div class="n ${s.pending ? 'pend' : ''}">${esc(b?.n || '?')}</div><div class="t">${esc(b?.name || '')}</div><div class="tm">${s.pending ? '전송 대기' : fmtTime(s.at)}</div></div>`; }).join('')}</div>`
         : `<div class="empty"><b>아직 도장이 없어요</b>가까운 부스의 QR부터 찍어보세요</div><button class="btn full" onclick="go('/map')">${I.map} 지도 열기</button>`}`);
-  if($('#myQr') && window.QRCode) new QRCode($('#myQr'), { text: 'WJ:' + S.me.id, width: 164, height: 164, correctLevel: QRCode.CorrectLevel.M });
+  if($('#myQr')) loadQRCode().then(() => { const el = $('#myQr'); if(el && !el.firstChild) new QRCode(el, { text: 'WJ:' + S.me.id, width: 164, height: 164, correctLevel: QRCode.CorrectLevel.M }); }).catch(() => { const el = $('#myQr'); if(el) el.innerHTML = '<div class="small muted" style="padding:20px">QR 그리기 실패 — 아래 코드로 확인받으세요</div>'; });
   /* 자기신고 보강(A안): '설문 참여하기'를 누른 시각을 폰에 저장하고, surveyMinSec 초가 지나야 '다 했어요'가 켜진다.
      열어보지도 않고 누르기·열자마자 누르기를 막는 정도. 링크가 비어 있으면(설문 준비 전) 기다리지 않음 */
   const svOpen = $('#svOpen'), svDone = $('#svDone'), svHint = $('#svHint');
@@ -1693,11 +1695,21 @@ function renderMap(focusN){
    QR SCANNER  (카메라 → jsQR → ?b=NN 파싱 → 도장)
    ===================================================================== */
 const scanner = { stream: null, raf: 0, on: false };
-function loadJsQR(){                                             // 같은 서버의 jsQR.js 먼저, 없으면 CDN
-  if(window.jsQR) return Promise.resolve();
-  const load = src => new Promise((ok, no) => { const el = document.createElement('script'); el.src = src; el.onload = ok; el.onerror = no; document.head.appendChild(el); });
-  return load('./jsQR.js?v=DEV').catch(() => load('https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js'));   // cdnjs 의 jsQR 1.4.0 경로는 404 라 jsdelivr 로
+/* 라이브러리 로더: 후보 주소를 순서대로. 각각 timeoutMs 안에 안 오면(느리거나 막힘) 다음 후보. CDN 먼저 → 같은 서버 파일 폴백 */
+const _libs = {};
+function loadLib(check, urls, timeoutMs = 3000){
+  if(check()) return Promise.resolve();
+  const key = urls[0]; if(_libs[key]) return _libs[key];
+  const tryOne = src => new Promise((ok, no) => { const el = document.createElement('script'); el.src = src; let done = false;
+    const t = setTimeout(() => { if(!done){ done = true; el.remove(); no(new Error('timeout ' + src)); } }, timeoutMs);
+    el.onload = () => { if(!done){ done = true; clearTimeout(t); check() ? ok() : no(new Error('bad ' + src)); } };
+    el.onerror = () => { if(!done){ done = true; clearTimeout(t); el.remove(); no(new Error('fail ' + src)); } };
+    document.head.appendChild(el); });
+  _libs[key] = urls.reduce((p, u) => p.catch(() => tryOne(u)), Promise.reject()).catch(e => { delete _libs[key]; throw e; });
+  return _libs[key];
 }
+const loadJsQR = () => loadLib(() => !!window.jsQR, ['https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js', './jsQR.js?v=DEV']);
+const loadQRCode = () => loadLib(() => !!window.QRCode, ['https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js', './qrcode.min.js?v=DEV']);
 /* QR 내용 → 부스 번호. 우리 QR 주소(?b=번호&t=토큰)면 토큰을 qrTok 에 저장하고 번호 반환. '7'·'부스 7' 같은 문자열도 허용(구형 QR) */
 function parseBoothQR(text){
   try{ const u = new URL(text); const b = u.searchParams.get('b') || (u.hash.match(/#\/stamp\/(\w+)/) || [])[1]; if(b){ qrTok.set(b, u.searchParams.get('t')); return b; } }catch(e){}
@@ -1980,7 +1992,7 @@ function admQR(){
         $('#qrStatus').textContent = '';
       }catch(e){ $('#qrStatus').innerHTML = `<span style="color:var(--coral)">토큰을 못 받았어요: ${esc(e.message)} — 이 상태로 인쇄하면 도장이 안 찍혀요</span>`; }
     }
-    if(!window.QRCode) return;
+    try{ await loadQRCode(); }catch(e){ $('#qrStatus').innerHTML = `<span style="color:var(--coral)">QR 라이브러리를 못 불러왔어요 (${esc(e.message)})</span>`; return; }
     new QRCode($('#qr-entry'), { text: `${base}?join`, width: 256, height: 256, correctLevel: QRCode.CorrectLevel.M });
     S.booths.forEach(b => new QRCode($('#qr-' + b.id), { text: `${base}?b=${encodeURIComponent(b.n)}${toks[b.id] ? '&t=' + toks[b.id] : ''}`, width: 256, height: 256, correctLevel: QRCode.CorrectLevel.M }));
   })();
