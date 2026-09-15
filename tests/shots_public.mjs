@@ -15,8 +15,11 @@ await p.goto(APP); await p.waitForFunction(() => S.booths.length > 0 && document
 await p.evaluate(() => location.hash = '#/register'); await p.waitForSelector('#rLevel'); await sleep(300);
 await p.click('#rLevel button[data-l="초"]'); await p.click('#rGrade button[data-n="4"]'); await p.fill('#rSchool', '가온초'); await p.fill('#rName', '김하늘');
 await p.screenshot({ path: OUT + 'register.png' });
-await p.click('#rGender button[data-g="여"]'); await p.check('#rConsent'); await p.click('#rGo'); await p.waitForFunction(() => S.me && S.me.id);
+await p.click('#rGender button[data-g="여"]'); await p.check('#rConsent'); await p.click('#rGo'); await p.waitForFunction(() => S.me && S.me.id); await sleep(2600);   // 환영 토스트 사라질 때까지
 await p.evaluate(() => location.hash = '#/map'); await p.waitForSelector('#mapSvg'); await sleep(900); await p.screenshot({ path: OUT + 'map-phone.png' });
+await p.evaluate(() => location.hash = '#/map/12'); await sleep(1200); await p.screenshot({ path: OUT + 'map-route.png' });
+await p.evaluate(() => location.hash = '#/booth/12'); await sleep(500); await p.screenshot({ path: OUT + 'booth.png' });
+await p.evaluate(() => location.hash = '#/'); await sleep(500); await p.screenshot({ path: OUT + 'home.png' });
 await p.evaluate(async () => { const d = await LocalDB._all(); ['b3', 'b12', 'b25', 'b40', 'b58', 'b70', 'b81'].forEach((bid, i) => d.stamps.push({ id: uuid(), visitorId: S.me.id, boothId: bid, at: Date.now() - (7 - i) * 900000 })); await LocalDB._save(d); S.myStamps = await DB.stampsOf(S.me.id); });
 await p.evaluate(() => location.hash = '#/my'); await sleep(400); await p.screenshot({ path: OUT + 'my-stamps-done.png' });
 await p.evaluate(() => location.hash = '#/survey'); await p.waitForSelector('#svSubmit'); await sleep(300);
@@ -34,9 +37,12 @@ const a = await ctx.newPage(); await a.setViewportSize({ width: 1280, height: 90
 await a.goto(APP); await a.waitForFunction(() => S.booths.length > 0 && document.querySelector('#main'));
 await a.evaluate(() => location.hash = '#/map'); await a.waitForSelector('#mapSvg'); await sleep(900); await a.screenshot({ path: OUT + 'map-pc.png' });
 await a.evaluate(() => location.hash = '#/admin'); await a.waitForSelector('#pw'); await a.fill('#pw', '1234'); await a.keyboard.press('Enter'); await a.waitForFunction(() => S.admin); await a.waitForSelector('.stats');
-await a.evaluate(() => location.hash = '#/admin/gift'); await a.waitForSelector('#gBody tr'); await sleep(2500); await a.screenshot({ path: OUT + 'admin-gift.png' });
-await a.evaluate(() => location.hash = '#/admin/event'); await a.waitForSelector('#evSave'); await sleep(300); await a.screenshot({ path: OUT + 'admin-event.png', fullPage: true });
-await a.evaluate(() => location.hash = '#/admin/survey'); await a.waitForSelector('#sqSave'); await a.click('#sqLoad'); await sleep(2500); await a.screenshot({ path: OUT + 'admin-survey.png', fullPage: true });
+await a.evaluate(() => location.hash = '#/admin/gift'); await a.waitForSelector('#gBody tr'); await sleep(2500); await a.screenshot({ path: OUT + 'admin-gift.png', clip: { x: 0, y: 0, width: 1280, height: 800 } });
+await a.evaluate(() => location.hash = '#/admin/dash'); await a.waitForSelector('.stats'); await sleep(600); await a.screenshot({ path: OUT + 'admin-dash.png', clip: { x: 0, y: 0, width: 1280, height: 800 } });
+await a.evaluate(() => location.hash = '#/admin/booths'); await a.waitForSelector('#bSave'); await sleep(400); await a.screenshot({ path: OUT + 'admin-booths.png', clip: { x: 0, y: 0, width: 1280, height: 800 } });
+await a.evaluate(() => location.hash = '#/admin/qr'); await a.waitForSelector('.qrgrid'); await sleep(1200); await a.screenshot({ path: OUT + 'admin-qr.png', clip: { x: 0, y: 0, width: 1280, height: 800 } });
+await a.evaluate(() => location.hash = '#/admin/event'); await a.waitForSelector('#evSave'); await sleep(300); await a.screenshot({ path: OUT + 'admin-event.png', clip: { x: 0, y: 0, width: 1280, height: 800 } });
+await a.evaluate(() => location.hash = '#/admin/survey'); await a.waitForSelector('#sqSave'); await a.click('#sqLoad'); await sleep(2500); await a.screenshot({ path: OUT + 'admin-survey.png', clip: { x: 0, y: 0, width: 1280, height: 800 } });
 await ctx.close();
 // 대시보드: 로그인 없이 가짜 집계로 직접 render
 const d = await b.newPage({ viewport: { width: 1600, height: 1000 } });
@@ -60,5 +66,6 @@ await d.evaluate(({ booths }) => {
     survey: { n: 81, scales: [{ q: 'overall', avg: 4.32, n: 81 }] } };
   $('#login').hidden = true; $('#dash').hidden = false; $('#logout').hidden = false; D.basic = false; D.data = data; render(data);
 }, { booths });
-await sleep(800); await d.screenshot({ path: OUT + 'dashboard.png', fullPage: true });
+await sleep(800); await d.screenshot({ path: OUT + 'dashboard.png', clip: { x: 0, y: 0, width: 1600, height: 925 } });   // 상단(KPI·히트맵·추이)만
+await d.locator('.card.c12').screenshot({ path: OUT + 'dashboard-table.png' });
 await b.close(); fs.unlinkSync(DIR + 'tests/_local.html'); console.log('done →', OUT);
