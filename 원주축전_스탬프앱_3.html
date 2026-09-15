@@ -1796,18 +1796,10 @@ function admBooths(){
   admShell('booths', `
     <div class="row" style="flex-wrap:wrap;gap:8px">
       <button class="btn sm" id="bAdd">+ 부스 추가</button>
-      <button class="btn sm sun" id="bPaste">📋 엑셀에서 붙여넣기</button>
-      <button class="btn sm line" id="bCsv">CSV로 내려받기</button>
-      <label class="btn sm line" style="cursor:pointer">CSV 불러오기<input type="file" accept=".csv,text/csv" id="bImp" hidden></label>
+      <button class="btn sm line" id="bXlsx">엑셀 양식 내려받기</button>
+      <label class="btn sm line" style="cursor:pointer">엑셀·CSV 불러오기<input type="file" accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" id="bImp" hidden></label>
+      <button class="btn xs soft" id="bCsv" title="예전 방식">CSV</button>
       <span class="small muted">${S.booths.length}/${CONFIG.boothMax}개 · 같은 구역 안에서는 표 순서가 지도 순서예요 (트랙 둘레는 정문 오른쪽부터 시계방향)</span>
-    </div>
-    <div class="card" id="bPastePanel" hidden style="display:flex;flex-direction:column;gap:10px">
-      <div class="h-sec" style="margin:0">엑셀에서 붙여넣기 <span class="muted small">· 주최측 부스 표를 그대로 복사해서 넣으면 번호 기준으로 합쳐져요</span></div>
-      <p class="small muted" style="line-height:1.7;margin:0">엑셀에서 <b>번호 · 부스명 · 운영기관 · 분류 · 소개</b> 순서로 열을 복사(Ctrl+C)해 아래에 붙여넣기(Ctrl+V). 제목 줄이 있어도 되고, 분류·소개는 비워도 돼요.<br>
-        분류는 <b>원리의정원 / 대담한갤러리 / 한바탕놀이터 / 상상공작소 / 상상그이상</b> 중 하나(일부만 써도 인식). 번호가 같은 부스는 이름·기관·분류·소개만 바뀌고 구역·영상·PDF·사진은 그대로예요. 없는 번호는 새로 추가.</p>
-      <textarea class="inp" id="bPasteText" style="min-height:140px;font-size:13px;font-family:ui-monospace,monospace" placeholder="1&#9;다니엘 전지 만들기&#9;OO여고&#9;원리의정원&#9;화학 전지를 직접 만들어 봅니다&#10;2&#9;마리모의 정체&#9;OO여고&#9;대담한갤러리&#9;..."></textarea>
-      <div id="bPastePreview"></div>
-      <div class="row"><button class="btn blue sm" id="bPasteApply" disabled>표에 반영</button><button class="btn line sm" id="bPasteClose">닫기</button><span class="small muted">반영 후에도 아래 <b>변경사항 저장</b>을 눌러야 서버에 올라가요</span></div>
     </div>
     <div class="tscroll"><table class="table"><thead><tr><th>번호</th><th>부스명</th><th>운영</th><th>분류</th><th>구역</th><th>소개</th><th>유튜브 영상</th><th>PDF 자료</th><th>사진 URL</th><th></th></tr></thead><tbody>
       ${S.booths.map((b, i) => `<tr data-i="${i}">
@@ -1836,36 +1828,35 @@ function admBooths(){
     catch(err){ toast(err.message || '업로드 실패'); }
   });
   $$('[data-up]').forEach(b => b.onclick = () => move(+b.dataset.up, -1)); $$('[data-down]').forEach(b => b.onclick = () => move(+b.dataset.down, 1));
-  /* 엑셀 붙여넣기: 탭(엑셀 복사) 또는 쉼표(CSV) 구분. 열 순서 번호·부스명·운영기관·분류·소개(·구역). 번호로 기존 부스와 합침 */
-  const catByText = t => { t = String(t || '').trim(); if(!t) return null; const c = CATS.find(c => c.name === t || c.id === t) || CATS.find(c => c.name.includes(t) || t.includes(c.name.slice(0, 3))); return c ? c.id : null; };
-  const parsePaste = txt => {
-    const rows = txt.includes('\t') ? txt.split(/\r?\n/).map(l => l.split('\t').map(x => x.trim())) : parseCSV(txt);
-    const out = []; for(const r of rows){ if(!r.some(x => x)) continue; if(/번호|부스명|부스\s*명/.test(r[0] + (r[1] || '')) && !/^\d/.test(r[0])) continue; const n = String(r[0]).replace(/\.0$/, '').trim(); if(!n) continue; out.push({ n, name: r[1] || '', org: r[2] || '', cat: catByText(r[3]), desc: r[4] || '', zone: r[5] ? (ZONES.find(z => z.name === r[5] || z.id === r[5] || z.name.includes(r[5]))?.id ?? null) : null }); }
-    return out;
-  };
-  let pasted = [];
-  const previewPaste = () => {
-    pasted = parsePaste($('#bPasteText').value); const cur = collect(); const have = new Set(cur.map(b => b.n));
-    const upd = pasted.filter(p => have.has(p.n)), add = pasted.filter(p => !have.has(p.n)), noCat = pasted.filter(p => p.cat === null && $('#bPasteText').value.includes('\t') );
-    $('#bPasteApply').disabled = !pasted.length;
-    $('#bPastePreview').innerHTML = pasted.length ? `<div class="small" style="line-height:1.7"><b>${pasted.length}줄</b> 읽음 · 기존 부스 갱신 <b>${upd.length}</b> · 새 부스 추가 <b>${add.length}</b>${add.length ? ` (${add.slice(0, 8).map(p => esc(p.n)).join(', ')}${add.length > 8 ? '…' : ''})` : ''}${cur.length + add.length > CONFIG.boothMax ? `<br><span style="color:var(--coral)">부스가 ${CONFIG.boothMax}개를 넘어요</span>` : ''}</div>
-      <div class="tscroll" style="max-height:220px"><table class="table"><thead><tr><th>번호</th><th>부스명</th><th>운영</th><th>분류</th><th>소개</th></tr></thead><tbody>${pasted.slice(0, 50).map(p => `<tr><td class="num">${esc(p.n)}</td><td>${esc(p.name)}</td><td class="muted">${esc(p.org)}</td><td>${p.cat ? esc(catOf(p.cat).name) : '<span class="muted">(유지)</span>'}</td><td class="muted" style="max-width:360px;white-space:normal">${esc(p.desc.slice(0, 80))}${p.desc.length > 80 ? '…' : ''}</td></tr>`).join('')}</tbody></table>${pasted.length > 50 ? `<div class="small muted" style="padding:6px">… 외 ${pasted.length - 50}줄</div>` : ''}</div>` : '<div class="small muted">붙여넣으면 여기서 미리 보여요</div>';
-  };
-  $('#bPaste').onclick = () => { $('#bPastePanel').hidden = false; $('#bPasteText').focus(); previewPaste(); };
-  $('#bPasteClose').onclick = () => { $('#bPastePanel').hidden = true; };
-  $('#bPasteText').oninput = previewPaste;
-  $('#bPasteApply').onclick = () => {
-    const list = collect(); const byN = Object.fromEntries(list.map(b => [b.n, b]));
-    let upd = 0, add = 0;
-    for(const p of pasted){
-      const b = byN[p.n];
-      if(b){ if(p.name) b.name = p.name; if(p.org) b.org = p.org; if(p.cat) b.cat = p.cat; if(p.desc) b.desc = p.desc; if(p.zone !== null && p.zone !== undefined) b.zone = p.zone; upd++; }
-      else { if(list.length >= CONFIG.boothMax) break; list.push({ id: 'b' + p.n, n: p.n, name: p.name, cat: p.cat || 'etc', org: p.org, zone: p.zone || '', desc: p.desc, video: '', pdf: '', img: '' }); add++; }
+  /* 엑셀(xlsx) 양식: 열 너비·제목 줄 고정·분류/구역 드롭다운·소개 줄바꿈. 담당자가 엑셀에서 바로 채워서 다시 올리는 용도. ExcelJS 는 눌렀을 때만 CDN 에서 로드 */
+  const loadExcelJS = () => window.ExcelJS ? Promise.resolve() : new Promise((res, rej) => { const el = document.createElement('script'); el.src = 'https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js'; el.onload = res; el.onerror = () => rej(new Error('엑셀 라이브러리를 못 불러왔어요 (인터넷 연결 확인)')); document.head.appendChild(el); });
+  const XCOLS = [['번호', 7], ['부스명', 34], ['운영기관', 22], ['분류', 15], ['구역', 24], ['소개', 60], ['유튜브', 28], ['PDF', 28], ['사진', 28]];
+  $('#bXlsx').onclick = async () => {
+    try{ toast('엑셀 만드는 중…'); await loadExcelJS(); }catch(e){ return toast(e.message); }
+    const wb = new ExcelJS.Workbook(); const ws = wb.addWorksheet('부스', { views: [{ state: 'frozen', ySplit: 1 }] });
+    ws.columns = XCOLS.map(([h, w]) => ({ header: h, width: w }));
+    collect().forEach(b => ws.addRow([b.n, b.name, b.org, catOf(b.cat).name, zoneOf(b.zone).name, b.desc || '', b.video || '', b.pdf || '', b.img || '']));
+    const hdr = ws.getRow(1); hdr.font = { bold: true, color: { argb: 'FFFFFFFF' } }; hdr.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF151A2D' } }; hdr.alignment = { vertical: 'middle', horizontal: 'center' }; hdr.height = 24;
+    ws.eachRow((row, i) => { if(i === 1) return; row.alignment = { vertical: 'top', wrapText: true }; row.getCell(1).alignment = { vertical: 'top', horizontal: 'center' }; });
+    const last = Math.max(ws.rowCount, 2) + 200;   // 아래로 200줄 여유까지 드롭다운
+    for(let r = 2; r <= last; r++){
+      ws.getCell(`D${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: [`"${CATS.map(c => c.name).join(',')}"`], showErrorMessage: true, errorTitle: '분류', error: '목록에서 골라주세요' };
+      ws.getCell(`E${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: [`"${ZONES.map(z => z.name).join(',')}"`], showErrorMessage: true, errorTitle: '구역', error: '목록에서 골라주세요' };
     }
-    S.booths = list; toast(`${upd}개 갱신, ${add}개 추가 — 저장을 눌러야 반영돼요`); renderAdmin('booths');
+    ws.autoFilter = 'A1:I1';
+    const guide = wb.addWorksheet('안내'); guide.getColumn(1).width = 90;
+    ['이 파일을 채워서 관리자 › 부스 › 엑셀·CSV 불러오기 로 올리면 부스 목록이 통째로 바뀝니다.', '', '• 번호: 숫자 또는 본1·네1 같은 문자. 비우면 그 줄은 무시. 같은 번호가 두 개면 올릴 때 막힘', '• 분류·구역: 셀을 누르면 드롭다운이 나와요. 비우면 분류는 "상상그이상", 구역은 "트랙 둘레"', '• 소개: 길어도 돼요. 줄바꿈은 Alt+Enter', '• 유튜브·PDF·사진: 링크만. PDF·사진 파일 업로드는 관리자 화면의 [파일] 버튼으로', '• 표 순서 = 지도 순서 (같은 구역 안에서). 트랙 둘레는 정문 오른쪽부터 시계방향', '', `분류: ${CATS.map(c => c.name).join(' / ')}`, `구역: ${ZONES.map(z => z.name).join(' / ')}`].forEach(t => guide.addRow([t]));
+    guide.getRow(1).font = { bold: true };
+    const buf = await wb.xlsx.writeBuffer(); const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })); a.download = '부스목록.xlsx'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   };
+  /* xlsx 읽기: '부스' 시트(없으면 첫 시트) 2행부터. 셀이 하이퍼링크·서식 텍스트면 글자만 */
+  const cellText = v => v == null ? '' : typeof v === 'object' ? (v.text ?? (v.richText ? v.richText.map(r => r.text).join('') : v.result ?? v.hyperlink ?? '')) : String(v);
+  const readXlsx = async f => { await loadExcelJS(); const wb = new ExcelJS.Workbook(); await wb.xlsx.load(await f.arrayBuffer()); const ws = wb.getWorksheet('부스') || wb.worksheets[0]; const rows = []; ws.eachRow((row, i) => { if(i === 1) return; rows.push(Array.from({ length: 9 }, (_, c) => cellText(row.getCell(c + 1).value).trim())); }); return rows; };
   $('#bCsv').onclick = () => download('booths.csv', '\ufeff' + [['번호', '부스명', '운영기관', '분류', '구역', '소개', '유튜브', 'PDF', '사진']].concat(collect().map(b => [b.n, b.name, b.org, catOf(b.cat).name, zoneOf(b.zone).name, b.desc || '', b.video || '', b.pdf || '', b.img || ''])).map(r => r.map(csv).join(',')).join('\n'));
-  $('#bImp').onchange = async e => { const f = e.target.files[0]; if(!f) return; const rows = parseCSV(await f.text()).slice(1).filter(r => r[0]); if(!rows.length) return toast('읽을 행이 없어요');
+  $('#bImp').onchange = async e => { const f = e.target.files[0]; if(!f) return; e.target.value = '';
+    let rows; try{ rows = (/\.xlsx$/i.test(f.name) ? await readXlsx(f) : parseCSV(await f.text()).slice(1)).filter(r => r[0]); }catch(err){ return toast(err.message || '파일을 읽지 못했어요'); }
+    if(!rows.length) return toast('읽을 행이 없어요');
+    { const seen = new Set(); for(const r of rows){ if(seen.has(r[0])) return toast(`부스 번호 ${r[0]}이(가) 두 번 있어요`); seen.add(r[0]); } }
     if(rows.length > CONFIG.boothMax) return toast(`부스는 최대 ${CONFIG.boothMax}개까지예요 (${rows.length}개)`);
     S.booths = rows.map(r => ({ id: 'b' + r[0], n: r[0], name: r[1] || '', org: r[2] || '', cat: (CATS.find(c => c.name === r[3]) || CATS.find(c => c.id === 'etc')).id,
       zone: (ZONES.find(z => z.name === r[4] || z.id === r[4]) || ZONES[0]).id, desc: r[5] || '', video: r[6] || '', pdf: r[7] || '', img: r[8] || '' })); await DB.saveBooths(S.booths); toast(`${rows.length}개 부스를 불러왔어요`); renderAdmin('booths'); };
