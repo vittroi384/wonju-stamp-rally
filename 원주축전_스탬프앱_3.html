@@ -1796,9 +1796,18 @@ function admBooths(){
   admShell('booths', `
     <div class="row" style="flex-wrap:wrap;gap:8px">
       <button class="btn sm" id="bAdd">+ 부스 추가</button>
+      <button class="btn sm sun" id="bPaste">📋 엑셀에서 붙여넣기</button>
       <button class="btn sm line" id="bCsv">CSV로 내려받기</button>
       <label class="btn sm line" style="cursor:pointer">CSV 불러오기<input type="file" accept=".csv,text/csv" id="bImp" hidden></label>
       <span class="small muted">${S.booths.length}/${CONFIG.boothMax}개 · 같은 구역 안에서는 표 순서가 지도 순서예요 (트랙 둘레는 정문 오른쪽부터 시계방향)</span>
+    </div>
+    <div class="card" id="bPastePanel" hidden style="display:flex;flex-direction:column;gap:10px">
+      <div class="h-sec" style="margin:0">엑셀에서 붙여넣기 <span class="muted small">· 주최측 부스 표를 그대로 복사해서 넣으면 번호 기준으로 합쳐져요</span></div>
+      <p class="small muted" style="line-height:1.7;margin:0">엑셀에서 <b>번호 · 부스명 · 운영기관 · 분류 · 소개</b> 순서로 열을 복사(Ctrl+C)해 아래에 붙여넣기(Ctrl+V). 제목 줄이 있어도 되고, 분류·소개는 비워도 돼요.<br>
+        분류는 <b>원리의정원 / 대담한갤러리 / 한바탕놀이터 / 상상공작소 / 상상그이상</b> 중 하나(일부만 써도 인식). 번호가 같은 부스는 이름·기관·분류·소개만 바뀌고 구역·영상·PDF·사진은 그대로예요. 없는 번호는 새로 추가.</p>
+      <textarea class="inp" id="bPasteText" style="min-height:140px;font-size:13px;font-family:ui-monospace,monospace" placeholder="1&#9;다니엘 전지 만들기&#9;OO여고&#9;원리의정원&#9;화학 전지를 직접 만들어 봅니다&#10;2&#9;마리모의 정체&#9;OO여고&#9;대담한갤러리&#9;..."></textarea>
+      <div id="bPastePreview"></div>
+      <div class="row"><button class="btn blue sm" id="bPasteApply" disabled>표에 반영</button><button class="btn line sm" id="bPasteClose">닫기</button><span class="small muted">반영 후에도 아래 <b>변경사항 저장</b>을 눌러야 서버에 올라가요</span></div>
     </div>
     <div class="tscroll"><table class="table"><thead><tr><th>번호</th><th>부스명</th><th>운영</th><th>분류</th><th>구역</th><th>소개</th><th>유튜브 영상</th><th>PDF 자료</th><th>사진 URL</th><th></th></tr></thead><tbody>
       ${S.booths.map((b, i) => `<tr data-i="${i}">
@@ -1827,6 +1836,34 @@ function admBooths(){
     catch(err){ toast(err.message || '업로드 실패'); }
   });
   $$('[data-up]').forEach(b => b.onclick = () => move(+b.dataset.up, -1)); $$('[data-down]').forEach(b => b.onclick = () => move(+b.dataset.down, 1));
+  /* 엑셀 붙여넣기: 탭(엑셀 복사) 또는 쉼표(CSV) 구분. 열 순서 번호·부스명·운영기관·분류·소개(·구역). 번호로 기존 부스와 합침 */
+  const catByText = t => { t = String(t || '').trim(); if(!t) return null; const c = CATS.find(c => c.name === t || c.id === t) || CATS.find(c => c.name.includes(t) || t.includes(c.name.slice(0, 3))); return c ? c.id : null; };
+  const parsePaste = txt => {
+    const rows = txt.includes('\t') ? txt.split(/\r?\n/).map(l => l.split('\t').map(x => x.trim())) : parseCSV(txt);
+    const out = []; for(const r of rows){ if(!r.some(x => x)) continue; if(/번호|부스명|부스\s*명/.test(r[0] + (r[1] || '')) && !/^\d/.test(r[0])) continue; const n = String(r[0]).replace(/\.0$/, '').trim(); if(!n) continue; out.push({ n, name: r[1] || '', org: r[2] || '', cat: catByText(r[3]), desc: r[4] || '', zone: r[5] ? (ZONES.find(z => z.name === r[5] || z.id === r[5] || z.name.includes(r[5]))?.id ?? null) : null }); }
+    return out;
+  };
+  let pasted = [];
+  const previewPaste = () => {
+    pasted = parsePaste($('#bPasteText').value); const cur = collect(); const have = new Set(cur.map(b => b.n));
+    const upd = pasted.filter(p => have.has(p.n)), add = pasted.filter(p => !have.has(p.n)), noCat = pasted.filter(p => p.cat === null && $('#bPasteText').value.includes('\t') );
+    $('#bPasteApply').disabled = !pasted.length;
+    $('#bPastePreview').innerHTML = pasted.length ? `<div class="small" style="line-height:1.7"><b>${pasted.length}줄</b> 읽음 · 기존 부스 갱신 <b>${upd.length}</b> · 새 부스 추가 <b>${add.length}</b>${add.length ? ` (${add.slice(0, 8).map(p => esc(p.n)).join(', ')}${add.length > 8 ? '…' : ''})` : ''}${cur.length + add.length > CONFIG.boothMax ? `<br><span style="color:var(--coral)">부스가 ${CONFIG.boothMax}개를 넘어요</span>` : ''}</div>
+      <div class="tscroll" style="max-height:220px"><table class="table"><thead><tr><th>번호</th><th>부스명</th><th>운영</th><th>분류</th><th>소개</th></tr></thead><tbody>${pasted.slice(0, 50).map(p => `<tr><td class="num">${esc(p.n)}</td><td>${esc(p.name)}</td><td class="muted">${esc(p.org)}</td><td>${p.cat ? esc(catOf(p.cat).name) : '<span class="muted">(유지)</span>'}</td><td class="muted" style="max-width:360px;white-space:normal">${esc(p.desc.slice(0, 80))}${p.desc.length > 80 ? '…' : ''}</td></tr>`).join('')}</tbody></table>${pasted.length > 50 ? `<div class="small muted" style="padding:6px">… 외 ${pasted.length - 50}줄</div>` : ''}</div>` : '<div class="small muted">붙여넣으면 여기서 미리 보여요</div>';
+  };
+  $('#bPaste').onclick = () => { $('#bPastePanel').hidden = false; $('#bPasteText').focus(); previewPaste(); };
+  $('#bPasteClose').onclick = () => { $('#bPastePanel').hidden = true; };
+  $('#bPasteText').oninput = previewPaste;
+  $('#bPasteApply').onclick = () => {
+    const list = collect(); const byN = Object.fromEntries(list.map(b => [b.n, b]));
+    let upd = 0, add = 0;
+    for(const p of pasted){
+      const b = byN[p.n];
+      if(b){ if(p.name) b.name = p.name; if(p.org) b.org = p.org; if(p.cat) b.cat = p.cat; if(p.desc) b.desc = p.desc; if(p.zone !== null && p.zone !== undefined) b.zone = p.zone; upd++; }
+      else { if(list.length >= CONFIG.boothMax) break; list.push({ id: 'b' + p.n, n: p.n, name: p.name, cat: p.cat || 'etc', org: p.org, zone: p.zone || '', desc: p.desc, video: '', pdf: '', img: '' }); add++; }
+    }
+    S.booths = list; toast(`${upd}개 갱신, ${add}개 추가 — 저장을 눌러야 반영돼요`); renderAdmin('booths');
+  };
   $('#bCsv').onclick = () => download('booths.csv', '\ufeff' + [['번호', '부스명', '운영기관', '분류', '구역', '소개', '유튜브', 'PDF', '사진']].concat(collect().map(b => [b.n, b.name, b.org, catOf(b.cat).name, zoneOf(b.zone).name, b.desc || '', b.video || '', b.pdf || '', b.img || ''])).map(r => r.map(csv).join(',')).join('\n'));
   $('#bImp').onchange = async e => { const f = e.target.files[0]; if(!f) return; const rows = parseCSV(await f.text()).slice(1).filter(r => r[0]); if(!rows.length) return toast('읽을 행이 없어요');
     if(rows.length > CONFIG.boothMax) return toast(`부스는 최대 ${CONFIG.boothMax}개까지예요 (${rows.length}개)`);
