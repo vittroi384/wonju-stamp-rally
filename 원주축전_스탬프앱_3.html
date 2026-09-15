@@ -6,7 +6,8 @@
 <meta name="theme-color" content="#F2F3F7">
 <title>2026 원주 수학과학축전 · 부스 스탬프</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
-<script src="./qrcode.min.js"></script>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 100 100%27%3E%3Ctext y=%27.9em%27 font-size=%2790%27%3E%F0%9F%8D%81%3C/text%3E%3C/svg%3E">
+<script src="./qrcode.min.js?v=DEV"></script>   <!-- ?v= 는 배포 스크립트가 배포 시각으로 바꿈. js 는 1년 immutable 캐시라 이름(쿼리)이 바뀌어야 새 파일을 받음 -->
 <script>if(!window.QRCode) document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"><\/script>');</script>   <!-- 같은 폴더의 파일 먼저, 없으면 CDN -->
 <style>
 :root{
@@ -764,7 +765,8 @@ const SupabaseDB = {
      앱 안에서는 짧은 이름(n·cat·org·desc·video·pdf·img)을 씀 — 화면 코드 수백 곳이 짧은 이름을 쓰고, 화면엔 어차피 한글 라벨만 나가므로 */
   _b(r){ return {id:r.id,n:r.number,name:r.name,cat:r.category,org:r.organization,desc:r.description,zone:r.zone||'',video:r.video_url||'',pdf:r.pdf_url||'',img:r.image_url||''}; },
   async booths(){ const rows=await this._q('booths?select=*&order=sort_order'); return rows.length?rows.map(r=>this._b(r)):null; },
-  async saveBooths(list){ await this._adm('admin_save_booths',{rows:list.map((b,i)=>({id:b.id,number:b.n,name:b.name,category:b.cat,organization:b.org,description:b.desc,sort_order:i,zone:b.zone||'',video_url:b.video||'',pdf_url:b.pdf||'',image_url:b.img||''}))}); },
+  async saveBooths(list){ await this._adm('admin_save_booths',{rows:list.map((b,i)=>({id:b.id,number:b.n,name:b.name,category:b.cat,organization:b.org,description:b.desc,sort_order:i,zone:b.zone||'',video_url:b.video||'',pdf_url:b.pdf||'',image_url:b.img||''}))});
+    const data={...(S.settingsRaw||{}),boothsVersion:Date.now()}; await this.saveSettings(data); S.settingsRaw=data; await store.set('wj:booths_cache',{v:data.boothsVersion,list}); },   // 부스 버전 올림 → 방문객 폰 캐시 무효화
   /* 방문객 데이터는 전부 RPC. anon 키로 visitors/stamps 테이블을 직접 읽을 수 없음(명단 노출 차단). uuid 를 아는 사람 = 본인 */
   async getVisitor(id){ const r=await this._rpc('visitor_get',{vid:id}); return this._v(r[0]); },
   async createVisitor({name,school,grade,gender}){ const r=await this._rpc('visitor_create',{nm:name,school,grade:grade||'',gender:gender||''}); return this._v(r[0]); },
@@ -846,6 +848,14 @@ function applySettings(s){
 /* 설문 방식: 링크가 있으면 외부(구글폼) / 없고 문항이 있으면 앱 내 설문 / 둘 다 없으면 자기신고 버튼만 */
 const surveyMode = () => CONFIG.surveyUrl ? 'link' : SURVEY.length ? 'app' : 'none';
 async function loadSettings(){ try{ applySettings(await DB.settings()); }catch(e){} }
+/* 부스 목록 캐시 (폰 저장 wj:booths_cache = {v, list}). settings.boothsVersion 이 캐시와 같으면 서버 요청을 아예 안 보냄 —
+   리로드마다 4KB(gzip)/25KB(원본) 나가던 걸 0으로. 관리자가 부스를 저장하면 boothsVersion 이 올라가 다음 로드 때만 새로 받음 */
+async function loadBoothsCached(){
+  const v = S.settingsRaw?.boothsVersion;
+  if(v){ const c = await store.get('wj:booths_cache'); if(c && c.v === v && Array.isArray(c.list) && c.list.length){ S.booths = c.list; return; } }
+  await loadBooths();
+  if(v && S.booths.length) await store.set('wj:booths_cache', { v, list: S.booths });
+}
 /* 설문 링크. surveyCodeField(구글폼 entry.xxx)가 있으면 방문객 6자리 코드를 미리 채워 응답과 대조할 수 있게 한다 */
 function surveyLink(){
   let u = safeUrl(CONFIG.surveyUrl); if(!u) return '';
@@ -868,7 +878,7 @@ document.addEventListener('visibilitychange', async () => {
   if(document.visibilityState !== 'visible' || !S.me || S.me.surveyAt || !goalReached()) return;
   try{ const v = await DB.getVisitor(S.me.id); if(v && v.surveyAt){ S.me = v; await store.set('wj:me_cache', v); if(/^#\/my/.test(location.hash)) renderMy(); } }catch(e){}
 });
-setInterval(loadSettings, 5 * 60e3);   // 운영 중 바꾼 설정이 열린 폰에도 5분 안에 반영
+setInterval(async () => { const before = S.settingsRaw?.boothsVersion; await loadSettings(); if(S.settingsRaw?.boothsVersion !== before) await loadBoothsCached(); }, 5 * 60e3);   // 운영 중 바꾼 설정·부스가 열린 폰에도 5분 안에 반영
 /* QR 토큰 (부스 번호 → 토큰). QR 주소 ?b=7&t=xxxx 의 t. 서버가 검사하므로 없으면 도장이 안 찍힘 = 주소창에 번호만 쳐서 찍는 치팅 차단.
    등록 화면 갔다 와도 남게 sessionStorage. 관리자가 QR 시트를 열면 전체 토큰이 여기 들어와 테스트 번호 입력도 통과 */
 const qrTok = {
@@ -1686,7 +1696,7 @@ const scanner = { stream: null, raf: 0, on: false };
 function loadJsQR(){                                             // 같은 서버의 jsQR.js 먼저, 없으면 CDN
   if(window.jsQR) return Promise.resolve();
   const load = src => new Promise((ok, no) => { const el = document.createElement('script'); el.src = src; el.onload = ok; el.onerror = no; document.head.appendChild(el); });
-  return load('./jsQR.js').catch(() => load('https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js'));   // cdnjs 의 jsQR 1.4.0 경로는 404 라 jsdelivr 로
+  return load('./jsQR.js?v=DEV').catch(() => load('https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js'));   // cdnjs 의 jsQR 1.4.0 경로는 404 라 jsdelivr 로
 }
 /* QR 내용 → 부스 번호. 우리 QR 주소(?b=번호&t=토큰)면 토큰을 qrTok 에 저장하고 번호 반환. '7'·'부스 7' 같은 문자열도 허용(구형 QR) */
 function parseBoothQR(text){
@@ -2092,7 +2102,7 @@ function download(name, text){ const a = document.createElement('a'); a.href = U
    ===================================================================== */
 (async function boot(){
   if(DB === SupabaseDB && adminAuth.pw()) S.admin = true;   // 새로고침해도 관리자 유지 (탭 닫으면 사라짐). 비번이 바뀌었으면 첫 관리자 RPC 에서 로그아웃됨
-  await Promise.all([loadBooths(), loadSettings()]);
+  await loadSettings(); await loadBoothsCached();   // 설정 먼저(부스 버전 포함) → 버전 같으면 부스 요청 생략
   await loadMe();
   flushPending();
   // QR 딥링크: ?b=07&t=토큰 → 스탬프 화면. 토큰은 세션에 두고 주소창에서 쿼리는 지워서 새로고침 시 재진입을 막는다.

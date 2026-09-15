@@ -98,6 +98,7 @@ flowchart LR
 - **한 파일 구조** — CONFIG → UTIL → STORAGE → DATA LAYER(LocalDB / SupabaseDB, 같은 인터페이스) → 상태 → 지도 기하 → 라우터 → 화면 → 스캐너 → 관리자 → BOOT. `CONFIG.supabaseUrl` 을 비우면 브라우저 저장소만으로 동작(데모).
 - **설정은 서버에** — 행사명·완주 개수·설문 문항·공지·일정을 관리자가 저장하면 열린 폰에도 5분 안에 반영.
 - **대시보드는 요청 하나** — `admin_dashboard` RPC 가 집계 전부를 jsonb 로 (이름 없음). 15초 갱신에 요청 1개.
+- **무료 한도 안에서 5만 명** — js 는 파일명 버전(`?v=배포시각`) + 1년 immutable 캐시, HTML 만 no-cache, favicon 은 인라인, 부스 목록은 `settings.boothsVersion` 으로 폰에 캐시. 재방문 한 번 = Vercel 요청 1건 · Supabase 1~3건(각 1KB 미만). Vercel Edge Requests 100만/월, Supabase egress 5GB 기준으로 여유.
 - **지도는 코드로** — 이미지 없이 스타디움 기하(직선+반원)를 계산해 SVG 로. 부스 번호·구역만 바꾸면 자리가 따라옴.
 
 ## 기술 스택
@@ -107,7 +108,7 @@ flowchart LR
 | 프런트 | Vanilla JS, 단일 HTML, 인라인 SVG | 빌드 없이 파일 하나. 담당자가 그대로 열어볼 수 있음 |
 | QR | jsQR(카메라) · qrcode.js(교환권·인쇄) | 로컬 파일 우선, 없으면 CDN 폴백 |
 | DB / API | Supabase Postgres + PostgREST + plpgsql RPC | Auth 없이 anon 키 하나. 쓰기·개인정보는 전부 `security definer` RPC 뒤 |
-| 호스팅 | Vercel 정적 | 파일 4개 업로드가 전부 |
+| 호스팅 | Vercel 정적 | 파일 4개 업로드가 전부. `vercel.json` 에 캐시 헤더(js immutable / html no-cache) |
 | 테스트 | Playwright(Chrome) e2e · Node 부하/지속 스크립트 | 실서버로 등록→도장→설문→교환권→관리자까지 |
 
 ## 보안·개인정보
@@ -125,14 +126,16 @@ flowchart LR
 | 모양 | N명이 3초 안에 동시 등록+도장 7개 | 초당 4명 도착 × 10분, 실제 RPC 흐름(토큰·90초 간격) + 대시보드 15초 폴링 |
 | 결과 | 800명 동시까지 에러 0 · p95 < 1s, 2000명은 66% 타임아웃 | 방문객 2,344명 · 요청 11,558건 · **에러 0 · p50 53ms · p95 64ms**, 10분간 지연 상승 없음 |
 
-행사 실부하(하루 5만 명 = 초당 2~3명 등록)보다 높은 부하를 10분간 버텨 무료 플랜으로 충분하다고 판단. 위험은 개막 직후 순간 폭주뿐.
+행사 실부하(하루 5만 명 = 초당 2~3명 등록)보다 높은 부하를 10분간 버텨 무료 플랜으로 충분하다고 판단. 위험은 개막 직후 순간 폭주뿐 — 그건 행사 며칠 전 Supabase Pro + 컴퓨트 Micro 로 올려두는 것으로 대비(컴퓨트 변경 시 약 2분 다운타임이라 당일 아침엔 하지 않음).
+
+**요청 수·전송량 (재방문 1회, Chrome 실측)**: Vercel HTML 1건(js 는 디스크 캐시) · Supabase 설정 1건(등록자는 내 정보·내 도장 포함 3건) · 404 없음. 5만 명 × 리로드 10회 ≈ Vercel 65만 요청, Supabase 전송 수백 MB.
 
 ## 설치
 
 1. **Supabase** 프로젝트 생성 → SQL Editor 에 `supabase_setup.sql` 통째로 붙여넣고 Run (다시 실행해도 됨).
 2. `원주축전_스탬프앱_3.html` 의 `CONFIG.supabaseUrl` · `supabaseAnonKey` 채우기 (`운영대시보드.html` 도 같은 값).
 3. 관리자 `#/admin` (초기 비번 `1234`) → 데이터 탭에서 비번 변경 → 부스 탭에서 저장(서버로 올라가며 QR 토큰 발급) → QR 시트 인쇄.
-4. 배포: `배포.ps1` (deploy/ 갱신 후 `vercel deploy --prod`). 배포 주소가 바뀌면 QR 재인쇄.
+4. 배포: `배포.ps1` (deploy/ 갱신 → `?v=DEV` 를 배포 시각으로 치환 → `vercel deploy --prod`). js 가 1년 캐시라 이 버전 치환이 있어야 수정본이 폰에 내려감. 배포 주소가 바뀌면 QR 재인쇄.
 
 로컬에서 그냥 열어보려면 `CONFIG.supabaseUrl` 을 비우면 됨 — 브라우저 저장소로 동작하고 관리자 › 데이터에 데모 데이터 버튼이 생김. `CONFIG.testStampInput: true` 면 카메라 대신 부스 번호 입력창(https 없는 로컬용, 배포 스크립트가 false 로 바꿈).
 

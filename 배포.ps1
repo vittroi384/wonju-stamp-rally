@@ -7,6 +7,7 @@ if(-not $root){ $root = (Get-Location).Path }
 $utf8 = New-Object Text.UTF8Encoding $false
 $src = Get-Content "$root\원주축전_스탬프앱_3.html" -Raw -Encoding UTF8
 $src = $src -replace 'testStampInput: true,', 'testStampInput: false,'
+$src = $src -replace '\?v=DEV', ('?v=' + (Get-Date -Format 'yyyyMMddHHmm'))   # js 캐시 무효화용 버전 (js 는 1년 immutable 캐시)
 [IO.File]::WriteAllText("$root\deploy\index.html", $src, $utf8)
 Copy-Item "$root\운영대시보드.html" "$root\deploy\dashboard.html"
 Copy-Item "$root\jsQR.js", "$root\qrcode.min.js" "$root\deploy\"

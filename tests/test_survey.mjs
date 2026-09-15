@@ -74,7 +74,7 @@ await l.goto('file:///' + DIR + '원주축전_스탬프앱_3.html'); await l.wai
 await l.evaluate(() => location.hash = '#/admin'); await l.waitForSelector('#pw'); await l.fill('#pw', '1234'); await l.keyboard.press('Enter'); await l.waitForFunction(() => S.admin); await l.waitForSelector('.stats');
 await l.evaluate(() => location.hash = '#/admin/survey'); await l.waitForSelector('#sqLoad'); await l.click('#sqLoad'); await l.waitForFunction(() => !/불러오는 중/.test($('#sqRes').textContent), null, { timeout: 25000 });
 const msg = await l.evaluate(() => $('#sqRes').textContent);
-check('SQL 9절 안내 문구', /9절/.test(msg), msg.slice(0, 80));
+check('실서버 설문 탭 결과 로드 (SQL 9절 적용 후)', !/9절|404|실패/.test(msg), msg.slice(0, 80));   // 9절 적용 전엔 안내 문구, 적용 후엔 집계
 await live.close();
 
 await b.close();
