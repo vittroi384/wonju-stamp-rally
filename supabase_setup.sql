@@ -94,12 +94,11 @@ $$;
 grant execute on function visitor_survey_done(uuid) to anon;
 
 -- 4. 관리자 RPC ---------------------------------------------------------
--- 내부용: 비번 틀리면 예외. 틀릴 때 0.5초 지연(무차별 대입 완화)
+-- 내부용: 비번 틀리면 예외. (처음엔 틀릴 때 pg_sleep 0.5초였으나 연결을 붙들고 있어 오히려 DoS 통로 → 11절에서 실패 횟수 잠금으로 교체)
 create or replace function admin_ok(pw text) returns void
 language plpgsql security definer set search_path = public, extensions as $$
 begin
   if not exists (select 1 from admin_secret where pw_hash = crypt(pw, pw_hash)) then
-    perform pg_sleep(0.5);
     raise exception 'ADMIN_UNAUTHORIZED';
   end if;
 end $$;
@@ -194,7 +193,7 @@ declare last_at timestamptz; gap int := stamp_gap_sec(); wait int; row_json json
 begin
   if exists (select 1 from stamps where visitor_id = vid and booth_id = bid) then return jsonb_build_object('dup', true); end if;
   if not exists (select 1 from booth_tokens where booth_id = bid and token = tok) then
-    perform pg_sleep(0.3); raise exception 'BAD_TOKEN';
+    raise exception 'BAD_TOKEN';   -- 지연 없음(11절 참고). 토큰은 32자 무작위라 추측 불가
   end if;
   select max(created_at) into last_at from stamps where visitor_id = vid;
   if last_at is not null and last_at > now() - make_interval(secs => gap) then
@@ -238,12 +237,11 @@ create or replace function visitor_get(vid uuid) returns setof visitors
 language sql security definer set search_path = public, extensions stable as $$ select * from visitors where id = vid; $$;
 create or replace function visitor_stamps(vid uuid) returns setof stamps
 language sql security definer set search_path = public, extensions stable as $$ select * from stamps where visitor_id = vid order by created_at; $$;
--- 기록 이어받기: 6자리 코드(uuid 끝 6자리, 내 스탬프 화면에 표시) + 이름이 맞으면 그 방문객. 틀리면 0.3초 지연
+-- 기록 이어받기: 6자리 코드(uuid 끝 6자리, 내 스탬프 화면에 표시) + 이름이 맞으면 그 방문객. (틀릴 때 0.3초 지연은 11절에서 제거)
 create or replace function visitor_recover(code text, nm text) returns setof visitors
 language plpgsql security definer set search_path = public, extensions as $$
 begin
   return query select * from visitors v where right(replace(v.id::text, '-', ''), 6) = lower(trim(code)) and v.name = trim(nm) limit 1;
-  if not found then perform pg_sleep(0.3); end if;
 end $$;
 grant execute on function visitor_create(text, text, text, text), visitor_get(uuid), visitor_stamps(uuid), visitor_recover(text, text) to anon;
 
@@ -382,3 +380,82 @@ begin
   return res;
 end $$;
 grant execute on function admin_dashboard(text) to anon;
+
+-- 11. 관리자 비번 실패 잠금 (2026-09-15) ---------------------------------------------
+-- pg_sleep 지연은 DB 연결을 0.3~0.5초씩 붙들어서, 틀린 비번·토큰을 일부러 퍼부으면 연결 풀(무료 60개)이 먼저 바닥남 → 전부 제거.
+-- 대신 admin_login 실패를 세어 10분 안 10회 넘으면 1분 잠금(잠긴 동안은 해시 계산 없이 즉시 거절).
+--  * 잠금은 로그인(admin_login)만 셈. 다른 관리자 RPC 에 틀린 비번을 넣으면 ADMIN_UNAUTHORIZED 로 즉시 거절되지만 횟수는 안 셈
+--    (예외로 끝나는 함수는 안에서 한 update 도 같이 되돌려져서 기록이 남지 않음). 비번이 8자 이상이면 무차별 대입은 어차피 불가.
+--  * 잠긴 동안은 맞는 비번도 거절됨(ADMIN_LOCKED:남은초). 관리자가 여럿이라 한 명이 10번 틀리면 1분 기다리면 됨.
+--  * 강제 해제: update admin_login_fail set locked_until = null, fails = 0 where id = 1;
+--  * 시도 이력 보기: select * from admin_login_fail;
+create table if not exists admin_login_fail (
+  id int primary key default 1 check (id = 1),
+  fails int not null default 0,              -- 현재 창(10분) 안 실패 수
+  window_start timestamptz,                  -- 창 시작
+  locked_until timestamptz,                  -- 잠금 해제 시각
+  last_fail_at timestamptz,
+  total_fails bigint not null default 0,     -- 누적 실패(참고용)
+  total_locks int not null default 0
+);
+insert into admin_login_fail (id) values (1) on conflict (id) do nothing;
+alter table admin_login_fail enable row level security;   -- 정책 없음 = API 로는 못 봄
+
+create or replace function admin_locked_secs() returns int
+language sql security definer set search_path = public, extensions stable as $$
+  select coalesce(ceil(extract(epoch from (locked_until - now())))::int, 0) from admin_login_fail where id = 1 and locked_until > now();
+$$;
+revoke all on function admin_locked_secs() from public, anon;
+
+-- 모든 관리자 RPC 의 검사: 잠겨 있으면 해시 계산 없이 즉시 거절
+create or replace function admin_ok(pw text) returns void
+language plpgsql security definer set search_path = public, extensions as $$
+declare secs int;
+begin
+  secs := admin_locked_secs();
+  if secs > 0 then raise exception 'ADMIN_LOCKED:%', secs; end if;
+  if not exists (select 1 from admin_secret where pw_hash = crypt(pw, pw_hash)) then
+    raise exception 'ADMIN_UNAUTHORIZED';
+  end if;
+end $$;
+revoke all on function admin_ok(text) from public, anon;
+
+-- 로그인: 맞으면 true(실패 수 0), 틀리면 false 를 돌려주며 실패 수 기록(예외가 아니라서 기록이 남음). 10회째면 잠금
+create or replace function admin_login(pw text) returns boolean
+language plpgsql security definer set search_path = public, extensions as $$
+declare secs int; f admin_login_fail;
+begin
+  secs := admin_locked_secs();
+  if secs > 0 then raise exception 'ADMIN_LOCKED:%', secs; end if;
+  if exists (select 1 from admin_secret where pw_hash = crypt(pw, pw_hash)) then
+    update admin_login_fail set fails = 0, window_start = null where id = 1 and fails > 0;
+    return true;
+  end if;
+  update admin_login_fail set
+    fails        = case when window_start is null or window_start < now() - interval '10 min' then 1 else fails + 1 end,
+    window_start = case when window_start is null or window_start < now() - interval '10 min' then now() else window_start end,
+    last_fail_at = now(), total_fails = total_fails + 1
+  where id = 1 returning * into f;
+  if f.fails >= 10 then
+    update admin_login_fail set locked_until = now() + interval '1 min', fails = 0, window_start = null, total_locks = total_locks + 1 where id = 1;
+  end if;
+  return false;
+end $$;
+grant execute on function admin_login(text) to anon;
+
+-- 12. 부스별 참여자 명단 (2026-09-15) ---------------------------------------------
+-- 관리자 › 현황 부스 줄 / 운영 대시보드 부스 표 줄을 누르면 그 부스에 도장 찍은 방문객(시각·이름·학교·학년·성별). 최근순, 1000행 페이징
+create or replace function admin_booth_visitors(pw text, bid text, off int default 0, lim int default 1000)
+returns table (visitor_id uuid, name text, school text, grade text, gender text, stamped_at timestamptz, n bigint)
+language plpgsql security definer set search_path = public, extensions as $$
+begin
+  perform admin_ok(pw);
+  return query
+    select v.id, v.name, v.school, v.grade, v.gender, s.created_at,
+           (select count(*) from stamps x where x.visitor_id = v.id) as n     -- 그 사람 도장 총 개수
+    from stamps s join visitors v on v.id = s.visitor_id
+    where s.booth_id = bid
+    order by s.created_at desc offset off limit lim;
+end $$;
+grant execute on function admin_booth_visitors(text, text, int, int) to anon;
+

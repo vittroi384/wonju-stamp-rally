@@ -317,6 +317,7 @@ select.inp.sm{padding-right:30px;background-position:right 10px center}
 .table th{text-align:left;font-size:12px;color:var(--ink-3);font-weight:700;padding:12px 14px;background:var(--card-2);white-space:nowrap}
 .table td{padding:11px 14px;border-top:1px solid var(--line-2);vertical-align:middle}
 .table .num{font-weight:900;font-variant-numeric:tabular-nums}
+.table tr.rowbtn{cursor:pointer}.table tr.rowbtn:hover td,.table tr.rowbtn:focus-visible td{background:var(--card-2)}
 .bar{height:6px;border-radius:3px;background:var(--line-2);overflow:hidden;min-width:60px}
 .bar i{display:block;height:100%;background:var(--blue);border-radius:3px}
 .tscroll{overflow-x:auto;border-radius:var(--r)}
@@ -348,7 +349,7 @@ select.inp.sm{padding-right:30px;background-position:right 10px center}
 @media print{
   @page{size:A4;margin:0}                    /* 여백 0 = 브라우저가 찍는 날짜·제목·주소·쪽번호가 사라짐 */
   body{background:#fff}
-  .topbar,.tabbar,.adm-nav,.no-print,.toast{display:none!important}
+  .topbar,.tabbar,.adm-nav,.no-print,.toast,.sheet,.sheet-scrim,#scan{display:none!important}   /* 시트(부스 참여자 명단 등)·스캐너는 인쇄에서 제외 */
   .content{padding:0;gap:0}
   .frame{max-width:none}
   /* 세로 A4 를 위아래로 반 → 가로로 놓는 반 장(210×148mm) 두 개. QR 왼쪽, 번호·이름 오른쪽. 2개마다 강제 쪽 나눔.
@@ -463,7 +464,7 @@ select.inp.sm{padding-right:30px;background-position:right 10px center}
               앱 내 설문(2026-09-15): 설문 링크가 비어 있으면 #/survey 에서 SURVEY 문항(관리자 › 설문, settings.survey)에 답함
                 → DB.submitSurvey(visitor_survey_submit RPC: 완주 확인 후 survey_answers 저장 + survey_done_at) → 교환권
      [선물]   운영본부가 관리자 › 선물 수령에서 코드로 찾아 DB.setGift → 서버 gift_received_at
-     [관리자] 비번 → adminAuth.login(admin_login RPC) → 통과한 비번을 sessionStorage 에 들고 모든 관리자 RPC 에 동봉(_adm)
+     [관리자] 비번 → adminAuth.login(admin_login RPC) → 통과한 비번을 sessionStorage 에 들고 모든 관리자 RPC 에 동봉(_adm). 10분 안 10회 틀리면 서버가 1분 잠금(ADMIN_LOCKED)
               읽기도 전부 비번 RPC (anon 키로는 방문객 데이터를 못 읽음 — 개인정보 보호)
      [설정]   관리자 › 행사 설정 → DB.saveSettings → 서버 settings(jsonb 1행) → 모든 폰이 부팅 때·5분마다 loadSettings 로 받아 CONFIG 에 덮음
      [부스]   앱에 내장된 SEED_BOOTHS 가 기본. 관리자 › 부스에서 저장하면 서버 booths 로 (이후엔 서버 것이 우선). QR 시트를 열면 부스별 토큰 발급
@@ -674,6 +675,7 @@ async function resolveFileUrl(u){ u = String(u || '').trim(); if(!u) return ''; 
    stats             관리자 현황      {visitors,active,stamps,perBooth,perHour,achievers}
    allVisitors/allStamps 관리자 CSV   전체 (1000행씩 페이징)
    findVisitor       관리자           이름·학교·코드 검색 (완주 전 포함)
+   boothVisitors     관리자           한 부스에 도장 찍은 방문객 명단 (admin_booth_visitors RPC, 최근순)
    adminAddStamp     관리자           수동 도장 (토큰·간격 검사 없음)
    purgeVisitors     관리자           방문객·도장 전부 삭제
    setPassword       관리자           비번 변경 (Supabase 만)
@@ -701,6 +703,7 @@ const LocalDB = {
   async saveBooths(list){ await store.set('wj:booths',list); },
   async getVisitor(id){ const d=await this._all(); return d.visitors.find(v=>v.id===id)||null; },
   async recover(code,name){ const d=await this._all(); return d.visitors.find(v=>shortCode(v.id)===code.trim().toUpperCase()&&v.name===name.trim())||null; },
+  async boothVisitors(boothId){ const d=await this._all(); const cnt={}; d.stamps.forEach(s=>cnt[s.visitorId]=(cnt[s.visitorId]||0)+1); const vm=Object.fromEntries(d.visitors.map(v=>[v.id,v])); return d.stamps.filter(s=>s.boothId===boothId).sort((a,b)=>b.at-a.at).map(s=>({...vm[s.visitorId],stampedAt:s.at,n:cnt[s.visitorId]||0})); },
   async findVisitor(q){ const d=await this._all(); const cnt={}; d.stamps.forEach(s=>cnt[s.visitorId]=(cnt[s.visitorId]||0)+1); q=q.toLowerCase(); return d.visitors.filter(v=>v.name.toLowerCase().includes(q)||(v.school||'').toLowerCase().includes(q)||shortCode(v.id).toLowerCase()===q).slice(0,50).map(v=>({...v,n:cnt[v.id]||0})); },
   async adminAddStamp(visitorId,boothId){ const d=await this._all(); if(d.stamps.some(s=>s.visitorId===visitorId&&s.boothId===boothId)) return {ok:false,dup:true}; const s={id:uuid(),visitorId,boothId,at:Date.now()}; d.stamps.push(s); await this._save(d); return {ok:true,stamp:s}; },
   async createVisitor({name,school,grade,gender}){ const d=await this._all(); const v={id:uuid(),name,school,grade:grade||'',gender:gender||'',consentedAt:Date.now(),createdAt:Date.now(),surveyAt:null,giftAt:null}; d.visitors.push(v); await this._save(d); return v; },
@@ -751,7 +754,7 @@ const SupabaseDB = {
     catch(e){ throw new Error(e.name==='AbortError'?'서버 응답이 늦어요 (시간 초과)':'통신 실패'); }
     finally{ clearTimeout(tm); }
     if(r.status===409) return {conflict:true};
-    if(!r.ok){ let msg=''; try{ msg=(await r.json()).message||''; }catch(e){} if(/ADMIN_UNAUTHORIZED/.test(msg)){ adminAuth.logout(); S.admin=false; throw new Error('비밀번호가 달라요'); } if(/PASSWORD_TOO_SHORT/.test(msg)) throw new Error('8자 이상으로 해주세요'); throw new Error(`Supabase ${r.status}${msg?' · '+msg:''}`); }
+    if(!r.ok){ let msg=''; try{ msg=(await r.json()).message||''; }catch(e){} if(/ADMIN_UNAUTHORIZED/.test(msg)){ adminAuth.logout(); S.admin=false; throw new Error('비밀번호가 달라요'); } if(/ADMIN_LOCKED/.test(msg)){ const sec=+(msg.match(/ADMIN_LOCKED:(\d+)/)||[])[1]||60; throw new Error(`비밀번호를 여러 번 틀려서 ${sec}초 동안 잠겼어요`); } if(/PASSWORD_TOO_SHORT/.test(msg)) throw new Error('8자 이상으로 해주세요'); throw new Error(`Supabase ${r.status}${msg?' · '+msg:''}`); }
     const cr=r.headers.get('content-range'); if(cr&&cr.includes('/')){ const total=+cr.split('/')[1]; if(!isNaN(total)){ const k=path.startsWith('visitors?')?'visitors':path.startsWith('visitor_stats?n=gte.1')?'active':path.startsWith('stamps?')?'stamps':null; if(k) this._cnt[k]=total; } }
     const txt=await r.text(); return txt?JSON.parse(txt):null;   // 204·빈 본문 대응
   },
@@ -786,6 +789,7 @@ const SupabaseDB = {
   async allStamps(){ return (await this._admPages('admin_stamps')).map(this._s); },
   async allVisitors(){ return (await this._admPages('admin_visitors')).map(this._v); },
   async findVisitor(q){ return (await this._adm('admin_find_visitor',{q})).map(r=>({...this._v(r),n:r.n})); },
+  async boothVisitors(boothId){ return (await this._admPages('admin_booth_visitors',{bid:boothId})).map(r=>({id:r.visitor_id,name:r.name,school:r.school,grade:r.grade||'',gender:r.gender||'',stampedAt:+new Date(r.stamped_at),n:+r.n})); },
   async adminAddStamp(visitorId,boothId){ const r=await this._adm('admin_add_stamp',{vid:visitorId,bid:boothId}); return r.dup?{ok:false,dup:true}:{ok:true,stamp:this._s(r.stamp)}; },
   async setGift(visitorId,on=true){ await this._adm('admin_set_gift',{vid:visitorId,given:!!on}); },
   async setSurvey(visitorId){ await this._rpc('visitor_survey_done',{vid:visitorId}); },   // anon 호출 가능한 RPC. 최초 1회만 기록
@@ -1076,7 +1080,7 @@ function shell(tab, title, body, opts={}){
   window.scrollTo(0, 0);
 }
 function openSheet(html){ $('#sheet').innerHTML = '<div class="grip"></div>' + html; $('#sheet').classList.add('show'); $('#sheetScrim').classList.add('show'); }
-function closeSheet(){ $('#sheet').classList.remove('show'); $('#sheetScrim').classList.remove('show'); }
+function closeSheet(){ $('#sheet').classList.remove('show'); $('#sheetScrim').classList.remove('show'); setTimeout(() => { if(!$('#sheet').classList.contains('show')) $('#sheet').innerHTML = ''; }, 350); }   // 닫힌 시트 내용은 비움 (인쇄·다음 열기 대비)
 $('#sheetScrim').onclick = closeSheet;
 
 /* =====================================================================
@@ -1834,9 +1838,24 @@ function admDash(st){
         <p class="desc small" style="line-height:1.7">참여 부스 <b>${active}/${S.booths.length}</b> · 가장 붐비는 시간 <b>${hours[perHour.indexOf(Math.max(...perHour))]}시</b><br>${ranked[0]?.n ? `최다 방문 <b>${esc(ranked[0].b.n)} ${esc(ranked[0].b.name)}</b> (${ranked[0].n})<br>` : ''}${ranked.filter(r => r.n === 0).length ? `아직 방문 없음 <b>${ranked.filter(r => r.n === 0).length}곳</b>` : '모든 부스에 방문 기록이 있어요'}</p>
         <button class="btn sm soft" style="margin-top:12px" onclick="route()">↻ 새로고침</button></div>
     </div>
+    <p class="desc small" style="margin:14px 2px 6px">부스 줄을 누르면 그 부스에 도장 찍은 방문객 명단이 떠요</p>
     <div class="tscroll"><table class="table"><thead><tr><th>#</th><th>부스</th><th>운영</th><th>스탬프</th><th></th><th>최근</th></tr></thead><tbody>
-      ${ranked.map((r, i) => { const c = catOf(r.b.cat); return `<tr><td class="muted">${i + 1}</td><td><span class="pill" style="background:${c.color}1a;color:${c.color}"><span class="dot"></span>${esc(r.b.n)}</span> <b>${esc(r.b.name)}</b></td><td class="muted">${esc(r.b.org)}</td><td class="num">${r.n}</td><td><div class="bar"><i style="width:${r.n / maxB * 100}%"></i></div></td><td class="muted">${r.last ? fmtTime(r.last) : '—'}</td></tr>`; }).join('')}
+      ${ranked.map((r, i) => { const c = catOf(r.b.cat); return `<tr class="rowbtn" data-bv="${esc(r.b.id)}" tabindex="0"><td class="muted">${i + 1}</td><td><span class="pill" style="background:${c.color}1a;color:${c.color}"><span class="dot"></span>${esc(r.b.n)}</span> <b>${esc(r.b.name)}</b></td><td class="muted">${esc(r.b.org)}</td><td class="num">${r.n}</td><td><div class="bar"><i style="width:${r.n / maxB * 100}%"></i></div></td><td class="muted">${r.last ? fmtTime(r.last) : '—'}</td></tr>`; }).join('')}
     </tbody></table></div>`);
+  $$('[data-bv]').forEach(tr => { const open = () => admBoothVisitors(tr.dataset.bv); tr.onclick = open; tr.onkeydown = e => { if(e.key === 'Enter') open(); }; });
+}
+/* 부스 참여자 명단 시트: 시각·이름·학교·학년·성별·그 사람 도장 수. 이름·학교 검색 */
+async function admBoothVisitors(boothId){
+  const b = S.booths.find(x => x.id === boothId); if(!b) return;
+  openSheet(`<div class="h-sec" style="margin:6px 0 4px">${esc(b.n)} ${esc(b.name)}</div><p class="desc small">불러오는 중…</p>`);
+  let rows; try{ rows = await DB.boothVisitors(boothId); }catch(e){ return openSheet(`<div class="h-sec">${esc(b.n)} ${esc(b.name)}</div><p class="desc small">${esc(e.message)}</p>`); }
+  const draw = q => { q = (q || '').trim().toLowerCase(); const list = q ? rows.filter(v => (v.name || '').toLowerCase().includes(q) || (v.school || '').toLowerCase().includes(q)) : rows;
+    $('#bvList').innerHTML = list.length ? `<div class="tscroll"><table class="table"><thead><tr><th>시각</th><th>이름</th><th>학교</th><th>학년</th><th>성별</th><th>도장</th></tr></thead><tbody>${list.map(v => `<tr><td class="muted">${fmtTime(v.stampedAt)}</td><td><b>${esc(v.name || '')}</b></td><td>${esc(v.school || '')}</td><td>${esc(v.grade || '')}</td><td>${esc(v.gender || '')}</td><td class="num">${v.n}</td></tr>`).join('')}</tbody></table></div>` : '<p class="desc small" style="padding:8px 2px">없어요</p>';
+    $('#bvCnt').textContent = q ? `${list.length}명 / 전체 ${rows.length}명` : `${rows.length}명 · 최근순`; };
+  openSheet(`<div class="h-sec" style="margin:6px 0 2px">${esc(b.n)} ${esc(b.name)}</div><div class="desc small" id="bvCnt"></div>
+    <input class="inp" id="bvQ" placeholder="이름·학교 검색" style="margin:10px 0" autocomplete="off">
+    <div id="bvList"></div>`);
+  draw(''); $('#bvQ').oninput = e => draw(e.target.value);
 }
 /* 선물 수령: 완주자 목록에서 코드·이름·학교로 찾아 수령 처리/취소. 아래 카드는 전체 방문객 찾기(코드 안내)·수동 도장 */
 function admGift(st){

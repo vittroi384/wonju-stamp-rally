@@ -1,10 +1,11 @@
 // 지속(soak) 테스트: 행사 당일처럼 방문객이 꾸준히 들어와 등록→(걷기)→도장 7개(서버 90초 간격 준수)→설문 완료 를 반복.
 // 폭주 테스트(load.mjs, 2026-09-14)가 "한꺼번에 N명"이었다면 이건 "N분 동안 초당 r명"이 계속 들어오는 상황. 1분 단위로 지연·에러를 기록.
-// 사용: node soak.mjs [분=10] [초당 도착=4]    결과: ../지속테스트_YYYY-MM-DD.json
+// 사용: node soak.mjs [분=10] [초당 도착=4] [이름 접두어=지속]    결과: ../지속테스트_YYYY-MM-DD.json
+// ★ 끝나도 테스트 데이터는 지우지 않음(실서버 전체 삭제 금지). 관리자 › 데이터 › 전부 삭제로 정리
 import { writeFileSync } from 'node:fs';
 const U = 'https://YOUR-PROJECT.supabase.co', K = 'YOUR_SUPABASE_ANON_KEY', PW = '1234';
 const H = { apikey: K, Authorization: `Bearer ${K}`, 'Content-Type': 'application/json' };
-const MIN = +(process.argv[2] || 10), RATE = +(process.argv[3] || 4), GOAL = 7, GAP = 92;
+const MIN = +(process.argv[2] || 10), RATE = +(process.argv[3] || 4), PREFIX = process.argv[4] || '지속', GOAL = 7, GAP = 92;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const rnd = (a, b) => a + Math.random() * (b - a);
 const samples = []; const T0 = Date.now();
@@ -31,7 +32,7 @@ let spawning = true, active = 0, finished = 0, spawned = 0;
 async function visitor(i){
   active++;
   try{
-    const v = await rpc('register', 'visitor_create', { nm: '지속' + i, school: '테스트초', grade: '초' + (1 + i % 6), gender: i % 2 ? '남' : '여' });
+    const v = await rpc('register', 'visitor_create', { nm: PREFIX + i, school: '테스트초', grade: '초' + (1 + i % 6), gender: i % 2 ? '남' : '여' });
     const vid = v.body?.[0]?.id; if(!vid) return;
     const picked = new Set(); let n = 0;
     await sleep(rnd(15000, 45000));   // 첫 부스까지 걷기
@@ -46,9 +47,9 @@ async function visitor(i){
   }finally{ active--; finished++; }
 }
 // 운영본부 대시보드 15초 폴링 (기본 모드: 뷰 + RPC 4개)
-async function dashboard(){
+async function dashboard(){   // 운영 대시보드 2대가 15초마다 admin_dashboard 1개씩
   const t0 = performance.now();
-  await Promise.all([rpc('dash', 'admin_counts', { pw: PW }), call('dash', 'booth_stats?select=*'), call('dash', 'hourly_stats?select=*'), rpc('dash', 'admin_visitor_stats', { pw: PW, min_n: GOAL, off: 0, lim: 1000 })]);
+  await Promise.all([rpc('dash', 'admin_dashboard', { pw: PW }), rpc('dash', 'admin_dashboard', { pw: PW })]);
   return performance.now() - t0;
 }
 const pct = (a, p) => { if(!a.length) return 0; const s = [...a].sort((x, y) => x - y); return s[Math.min(s.length - 1, Math.floor(p * s.length))]; };
@@ -82,8 +83,8 @@ const okLat = all.filter(s => s.ok).map(s => s.ms);
 const summary = { date: new Date().toISOString(), minutes: MIN, arrivalsPerSec: RATE, visitors: spawned, finishedVisitors: finished, requests: all.length, errors: errs.length, errRate: +(100 * errs.length / all.length).toFixed(2), errCodes,
   p50: +pct(okLat, .5).toFixed(0), p95: +pct(okLat, .95).toFixed(0), p99: +pct(okLat, .99).toFixed(0), max: +Math.max(...okLat).toFixed(0), avgRps: +(all.length / (MIN * 60)).toFixed(1), peakRps: Math.max(...buckets.map(b => b.rps)),
   dashP50: +pct(dashTimes.map(x => x.ms), .5).toFixed(0), dashMax: +Math.max(0, ...dashTimes.map(x => x.ms)).toFixed(0), buckets };
-const out = `C:/dev/stamp-rally-v3/지속테스트_${new Date().toISOString().slice(0, 10)}.json`;
+const out = `C:/dev/stamp-rally-v3/지속테스트_${new Date().toISOString().slice(0, 10)}_${MIN}분_${RATE}ps.json`;
 writeFileSync(out, JSON.stringify(summary, null, 1));
 console.log(JSON.stringify({ ...summary, buckets: undefined }));
 console.log('saved', out);
-await rpc('setup', 'admin_reset', { pw: PW }); console.log('테스트 데이터 삭제 완료');
+console.log(`테스트 데이터(${PREFIX}0~${spawned - 1}) 는 남겨둠 — 관리자 › 데이터 › 전부 삭제로 정리`);
