@@ -332,6 +332,12 @@ select.inp.sm{padding-right:30px;background-position:right 10px center}
 .qrc .n{font-size:20px;font-weight:900}
 .qrc .t{font-size:11.5px;font-weight:700;color:var(--ink-2);line-height:1.3;margin-top:2px}
 .qrc .u{font-size:9px;color:var(--ink-3);margin-top:6px;word-break:break-all}
+.qrc{--c:var(--ink);border-top:4px solid var(--c)}
+.qrc .qrpill{display:inline-flex;align-items:center;gap:5px;font-size:10px;font-weight:800;color:var(--c);background:color-mix(in srgb,var(--c) 12%,#fff);border-radius:999px;padding:2px 8px;margin-bottom:4px}
+.qrc .qrpill .dot{width:6px;height:6px;border-radius:50%;background:var(--c)}
+.qrc .n small{display:block;font-size:9px;letter-spacing:.14em;color:var(--ink-3);font-weight:800}
+.qrc .n.entry{font-size:18px;letter-spacing:.1em;color:var(--c)}
+.qrc .qrhow,.qrc .qrbrand{display:none}
 .dz{border:1.5px dashed var(--coral);background:var(--coral-soft);border-radius:var(--r);padding:16px}
 .dz .t{font-weight:800;color:#B32C3A}
 .dz p{font-size:13px;color:var(--ink-2);line-height:1.55;margin-top:4px}
@@ -345,14 +351,27 @@ select.inp.sm{padding-right:30px;background-position:right 10px center}
   .topbar,.tabbar,.adm-nav,.no-print,.toast{display:none!important}
   .content{padding:0;gap:0}
   .frame{max-width:none}
-  /* 세로 A4 를 위아래로 반 → 가로로 놓는 반 장(210×148mm) 두 개. QR 왼쪽, 번호·이름 오른쪽. 2개마다 강제 쪽 나눔 */
+  /* 세로 A4 를 위아래로 반 → 가로로 놓는 반 장(210×148mm) 두 개. QR 왼쪽, 번호·이름 오른쪽. 2개마다 강제 쪽 나눔.
+     분류 색(--c)으로 왼쪽 띠·번호 배지·테두리를 칠함. 배경색이 인쇄되도록 print-color-adjust */
+  *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
   .qrgrid{display:grid;grid-template-columns:1fr;gap:0;padding:0}
-  .qrc{box-sizing:border-box;height:148.5mm;margin:0;padding:12mm 16mm;border:0!important;border-radius:0;display:flex;flex-direction:row;align-items:center;justify-content:flex-start;gap:14mm;text-align:left;break-inside:avoid;page-break-inside:avoid}
+  .qrc{box-sizing:border-box;position:relative;height:148.5mm;margin:0;padding:11mm 12mm 11mm 20mm;border:0!important;border-radius:0;display:flex;flex-direction:row;align-items:center;gap:9mm;text-align:left;break-inside:avoid;page-break-inside:avoid;overflow:hidden;background:#fff}
+  .qrc::before{content:"";position:absolute;left:0;top:0;bottom:0;width:11mm;background:var(--c)}                                  /* 왼쪽 색 띠 */
+  .qrc::after{content:"";position:absolute;right:-30mm;top:-30mm;width:80mm;height:80mm;border-radius:50%;background:var(--c);opacity:.08}   /* 오른쪽 위 은은한 원 */
   .qrc:nth-child(odd){border-bottom:1px dashed #999!important}   /* 가운데 자르는 선 */
   .qrc:nth-child(even){break-after:page;page-break-after:always}
-  .qrc .qr{width:112mm;height:112mm;margin:0;padding:0;flex:0 0 auto}
-  .qrc .qrtxt{flex:1;min-width:0}
-  .qrc .n[style]{font-size:22pt!important}   /* 입장 카드 */
+  .qrc .qr{width:94mm;height:94mm;margin:0;padding:3.5mm;flex:0 0 auto;background:#fff;border:1.2mm solid var(--c);border-radius:7mm;box-sizing:border-box}
+  .qrc .qrtxt{flex:1;min-width:0;position:relative;display:flex;flex-direction:column;justify-content:center;height:100%}
+  .qrc .qrpill{font-size:12pt;padding:1.5mm 5mm;gap:2.5mm;margin-bottom:4mm;background:color-mix(in srgb,var(--c) 14%,#fff)}
+  .qrc .qrpill .dot{width:3mm;height:3mm}
+  .qrc .n{display:inline-block;align-self:flex-start;font-size:44pt;line-height:1;font-weight:900;color:#fff;background:var(--c);border-radius:5mm;padding:3mm 7mm 3.5mm;min-width:22mm;text-align:center}
+  .qrc .n small{font-size:9pt;letter-spacing:.2em;color:#fff;opacity:.85;margin-bottom:1mm}
+  .qrc .n.entry{font-size:24pt;letter-spacing:.14em;color:#fff}
+  .qrc .t{font-size:19pt;font-weight:900;margin-top:4mm;line-height:1.3;color:var(--ink);word-break:keep-all;overflow-wrap:anywhere}
+  .qrc .u{font-size:12pt;margin-top:2mm;color:var(--ink-2);word-break:keep-all;overflow-wrap:anywhere}
+  .qrc .qrhow{display:block;margin-top:auto;padding-top:5mm;font-size:10.5pt;font-weight:700;color:var(--ink-2);line-height:1.4;word-break:keep-all}
+  .qrc .qrhow b{color:var(--c)}
+  .qrc .qrbrand{display:block;margin-top:1.5mm;font-size:8.5pt;color:var(--ink-3);letter-spacing:.02em;word-break:keep-all}
   .qrc .n{font-size:64pt;line-height:1;font-weight:900}
   .qrc .t{font-size:20pt;margin-top:4mm;line-height:1.3}
   .qrc .u{font-size:13pt;margin-top:3mm;word-break:keep-all}
@@ -1903,8 +1922,8 @@ function admQR(){
       <div class="grow"><b>부스 QR 인쇄 시트</b><div class="small muted" style="margin-top:3px">QR 주소: <code>${esc(base)}?b=부스번호&t=토큰</code> — 토큰이 있어야 도장이 찍혀요(번호만 쳐서 찍는 치팅 차단). 도메인이 바뀌면 재인쇄해야 해요. 인쇄 전에 주소를 확정하세요.</div><div class="small" id="qrStatus" style="margin-top:3px"></div></div>
       <button class="btn sm" onclick="print()">인쇄</button></div>
     <div class="qrgrid">
-      <div class="qrc" style="border:2px solid var(--ink)"><div class="qr" id="qr-entry"></div><div class="qrtxt"><div class="n" style="font-size:15px">입장 · 안내판용</div><div class="t">등록 화면으로 바로 이동</div><div class="u">${esc(base)}?join</div></div></div>
-      ${S.booths.map(b => `<div class="qrc"><div class="qr" id="qr-${b.id}"></div><div class="qrtxt"><div class="n">${esc(b.n)}</div><div class="t">${esc(b.name)}</div><div class="u">${esc(b.org)}</div></div></div>`).join('')}</div>`);
+      <div class="qrc entry" style="--c:var(--blue)"><div class="qr" id="qr-entry"></div><div class="qrtxt"><div class="qrpill"><span class="dot"></span>입장 · 안내판용</div><div class="n entry">START</div><div class="t">QR을 찍고 등록하면<br>스탬프 랠리 시작!</div><div class="u">${esc(base)}?join</div><div class="qrhow">📱 휴대폰 카메라로 QR을 찍어주세요</div><div class="qrbrand">${esc(CONFIG.eventTitle)} · 부스 스탬프 랠리</div></div></div>
+      ${S.booths.map(b => { const c = catOf(b.cat); return `<div class="qrc" style="--c:${c.color}"><div class="qr" id="qr-${b.id}"></div><div class="qrtxt"><div class="qrpill"><span class="dot"></span>${esc(c.name)}</div><div class="n"><small>BOOTH</small>${esc(b.n)}</div><div class="t">${esc(b.name)}</div><div class="u">${esc(b.org)}</div><div class="qrhow">📱 QR을 찍으면 도장이 <b>쾅!</b> ${CONFIG.stampGoal}개 모으면 선물</div><div class="qrbrand">${esc(CONFIG.eventTitle)} · 부스 스탬프 랠리</div></div></div>`; }).join('')}</div>`);
   (async () => {
     let toks = {};
     if(DB === SupabaseDB){   // 서버 토큰. 부스가 아직 서버에 없으면(내장 시드 상태) 먼저 저장해서 발급받음
