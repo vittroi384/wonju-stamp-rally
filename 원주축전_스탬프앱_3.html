@@ -1828,7 +1828,7 @@ function admBooths(){
     catch(err){ toast(err.message || '업로드 실패'); }
   });
   $$('[data-up]').forEach(b => b.onclick = () => move(+b.dataset.up, -1)); $$('[data-down]').forEach(b => b.onclick = () => move(+b.dataset.down, 1));
-  /* 엑셀(xlsx) 양식: 열 너비·제목 줄 고정·분류/구역 드롭다운·소개 줄바꿈. 담당자가 엑셀에서 바로 채워서 다시 올리는 용도. ExcelJS 는 눌렀을 때만 CDN 에서 로드 */
+  /* 엑셀(xlsx) 양식: 열 너비·제목 줄 고정·소개 줄바꿈. 담당자가 엑셀에서 바로 채워서 다시 올리는 용도. ExcelJS 는 눌렀을 때만 CDN 에서 로드 */
   const loadExcelJS = () => window.ExcelJS ? Promise.resolve() : new Promise((res, rej) => { const el = document.createElement('script'); el.src = 'https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js'; el.onload = res; el.onerror = () => rej(new Error('엑셀 라이브러리를 못 불러왔어요 (인터넷 연결 확인)')); document.head.appendChild(el); });
   const XCOLS = [['번호', 7], ['부스명', 34], ['운영기관', 22], ['분류', 15], ['구역', 24], ['소개', 60], ['유튜브', 28], ['PDF', 28], ['사진', 28]];
   $('#bXlsx').onclick = async () => {
@@ -1838,14 +1838,9 @@ function admBooths(){
     collect().forEach(b => ws.addRow([b.n, b.name, b.org, catOf(b.cat).name, zoneOf(b.zone).name, b.desc || '', b.video || '', b.pdf || '', b.img || '']));
     const hdr = ws.getRow(1); hdr.font = { bold: true, color: { argb: 'FFFFFFFF' } }; hdr.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF151A2D' } }; hdr.alignment = { vertical: 'middle', horizontal: 'center' }; hdr.height = 24;
     ws.eachRow((row, i) => { if(i === 1) return; row.alignment = { vertical: 'top', wrapText: true }; row.getCell(1).alignment = { vertical: 'top', horizontal: 'center' }; });
-    const last = Math.max(ws.rowCount, 2) + 200;   // 아래로 200줄 여유까지 드롭다운
-    for(let r = 2; r <= last; r++){
-      ws.getCell(`D${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: [`"${CATS.map(c => c.name).join(',')}"`], showErrorMessage: true, errorTitle: '분류', error: '목록에서 골라주세요' };
-      ws.getCell(`E${r}`).dataValidation = { type: 'list', allowBlank: true, formulae: [`"${ZONES.map(z => z.name).join(',')}"`], showErrorMessage: true, errorTitle: '구역', error: '목록에서 골라주세요' };
-    }
     ws.autoFilter = 'A1:I1';
     const guide = wb.addWorksheet('안내'); guide.getColumn(1).width = 90;
-    ['이 파일을 채워서 관리자 › 부스 › 엑셀·CSV 불러오기 로 올리면 부스 목록이 통째로 바뀝니다.', '', '• 번호: 숫자 또는 본1·네1 같은 문자. 비우면 그 줄은 무시. 같은 번호가 두 개면 올릴 때 막힘', '• 분류·구역: 셀을 누르면 드롭다운이 나와요. 비우면 분류는 "상상그이상", 구역은 "트랙 둘레"', '• 소개: 길어도 돼요. 줄바꿈은 Alt+Enter', '• 유튜브·PDF·사진: 링크만. PDF·사진 파일 업로드는 관리자 화면의 [파일] 버튼으로', '• 표 순서 = 지도 순서 (같은 구역 안에서). 트랙 둘레는 정문 오른쪽부터 시계방향', '', `분류: ${CATS.map(c => c.name).join(' / ')}`, `구역: ${ZONES.map(z => z.name).join(' / ')}`].forEach(t => guide.addRow([t]));
+    ['이 파일을 채워서 관리자 › 부스 › 엑셀·CSV 불러오기 로 올리면 부스 목록이 통째로 바뀝니다.', '', '• 번호: 숫자 또는 본1·네1 같은 문자. 비우면 그 줄은 무시. 같은 번호가 두 개면 올릴 때 막힘', '• 분류·구역: 아래 목록의 이름 그대로 적어요. 비우면 분류는 "상상그이상", 구역은 "트랙 둘레"', '• 소개: 길어도 돼요. 줄바꿈은 Alt+Enter', '• 유튜브·PDF·사진: 링크만. PDF·사진 파일 업로드는 관리자 화면의 [파일] 버튼으로', '• 표 순서 = 지도 순서 (같은 구역 안에서). 트랙 둘레는 정문 오른쪽부터 시계방향', '', `분류: ${CATS.map(c => c.name).join(' / ')}`, `구역: ${ZONES.map(z => z.name).join(' / ')}`].forEach(t => guide.addRow([t]));
     guide.getRow(1).font = { bold: true };
     const buf = await wb.xlsx.writeBuffer(); const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })); a.download = '부스목록.xlsx'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   };
