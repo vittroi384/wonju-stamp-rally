@@ -366,7 +366,7 @@ select.inp.sm{padding-right:30px;background-position:right 10px center}
   .qrc .qrpill .dot{width:3mm;height:3mm}
   .qrc .n{display:inline-block;align-self:flex-start;font-size:44pt;line-height:1;font-weight:900;color:#fff;background:var(--c);border-radius:5mm;padding:3mm 4mm 3.5mm;width:34mm;box-sizing:border-box;text-align:center}
   .qrc .n small{font-size:9pt;letter-spacing:.2em;color:#fff;opacity:.85;margin-bottom:1mm}
-  .qrc .n.entry{font-size:22pt;letter-spacing:.12em;color:#fff;padding-top:5mm;padding-bottom:5mm}
+  .qrc .n.entry{font-size:20pt;letter-spacing:.1em;color:#fff;width:auto;min-width:34mm;padding:5mm 8mm;white-space:nowrap}
   .qrc .t{font-size:19pt;font-weight:900;margin-top:4mm;line-height:1.3;color:var(--ink);word-break:keep-all;overflow-wrap:anywhere}
   .qrc .u{font-size:12pt;margin-top:2mm;color:var(--ink-2);word-break:keep-all;overflow-wrap:anywhere}
   .qrc .qrhow{display:block;margin-top:auto;padding-top:5mm;font-size:10.5pt;font-weight:700;color:var(--ink-2);line-height:1.4;word-break:keep-all}
@@ -1914,21 +1914,6 @@ function admBooths(){
     S.booths = rows.map(r => ({ id: 'b' + r[0], n: r[0], name: r[1] || '', org: r[2] || '', cat: matchCategory(r[3], 'etc', true),
       zone: (ZONES.find(z => z.name === r[4] || z.id === r[4]) || ZONES[0]).id, desc: r[5] || '', video: r[6] || '', pdf: r[7] || '', img: r[8] || '' })); await DB.saveBooths(S.booths); await saveCategories(S.booths); toast(`${rows.length}개 부스를 불러왔어요`); renderAdmin('booths'); };
 }
-/* 꾸민 QR: qrcode.js 로 모듈 배열만 얻고 캔버스에 직접 그린다. 데이터 모듈 = 둥근 점(진한 남색), 세 귀퉁이 파인더 = 분류 색.
-   모듈 크기의 92% 로 그려 점 사이 틈이 있어도 스캐너가 읽는 범위(테스트에서 jsQR 로 96개 전부 디코드 확인). 여백(quiet zone) 2모듈 */
-function styledQR(container, text, color){
-  const tmp = document.createElement('div'); const q = new QRCode(tmp, { text, width: 64, height: 64, correctLevel: QRCode.CorrectLevel.M });
-  const m = q._oQRCode, n = m.getModuleCount(), size = 1024, quiet = 2, cell = size / (n + quiet * 2);
-  const cv = document.createElement('canvas'); cv.width = cv.height = size; const ctx = cv.getContext('2d');
-  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, size, size);
-  const rr = (x, y, w, h, r, fill) => { ctx.fillStyle = fill; ctx.beginPath(); ctx.roundRect(x, y, w, h, r); ctx.fill(); };
-  const inFinder = (r, c) => (r < 7 && c < 7) || (r < 7 && c >= n - 7) || (r >= n - 7 && c < 7);
-  const d = cell * 0.92, off = (cell - d) / 2;
-  for(let r = 0; r < n; r++) for(let c = 0; c < n; c++) if(!inFinder(r, c) && m.isDark(r, c)) rr((c + quiet) * cell + off, (r + quiet) * cell + off, d, d, d * 0.38, '#151A2D');
-  [[0, 0], [0, n - 7], [n - 7, 0]].forEach(([r, c]) => { const x = (c + quiet) * cell, y = (r + quiet) * cell;
-    rr(x, y, 7 * cell, 7 * cell, 1.8 * cell, color); rr(x + cell, y + cell, 5 * cell, 5 * cell, 1.1 * cell, '#fff'); rr(x + 2 * cell, y + 2 * cell, 3 * cell, 3 * cell, 0.8 * cell, color); });
-  container.innerHTML = ''; container.appendChild(cv); container.title = text;
-}
 /* QR 인쇄 시트. 부스별 QR 주소 = base?b=번호&t=토큰. 토큰은 DB.boothTokens (부스가 서버에 없으면 먼저 저장해 발급). 같은 탭의 테스트 번호 입력도 통과되게 qrTok 에 넣음 */
 function admQR(){
   const base = location.origin + location.pathname;
@@ -1950,8 +1935,8 @@ function admQR(){
       }catch(e){ $('#qrStatus').innerHTML = `<span style="color:var(--coral)">토큰을 못 받았어요: ${esc(e.message)} — 이 상태로 인쇄하면 도장이 안 찍혀요</span>`; }
     }
     if(!window.QRCode) return;
-    styledQR($('#qr-entry'), `${base}?join`, '#2D5BFF');
-    S.booths.forEach(b => styledQR($('#qr-' + b.id), `${base}?b=${encodeURIComponent(b.n)}${toks[b.id] ? '&t=' + toks[b.id] : ''}`, catOf(b.cat).color));
+    new QRCode($('#qr-entry'), { text: `${base}?join`, width: 256, height: 256, correctLevel: QRCode.CorrectLevel.M });
+    S.booths.forEach(b => new QRCode($('#qr-' + b.id), { text: `${base}?b=${encodeURIComponent(b.n)}${toks[b.id] ? '&t=' + toks[b.id] : ''}`, width: 256, height: 256, correctLevel: QRCode.CorrectLevel.M }));
   })();
 }
 /* 행사 설정 폼. 저장 → DB.saveSettings → applySettings 로 즉시 반영. 일정·자료는 '한 줄에 하나, | 로 구분' 텍스트를 파싱 */
