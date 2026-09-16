@@ -8,11 +8,11 @@ const b = await chromium.launch({ channel: 'chrome' }); const p = await b.newPag
 await p.goto('file:///' + DIR + 'tests/_local.html'); await p.waitForFunction(() => S.booths.length > 0 && document.querySelector('#main'));
 await p.evaluate(() => location.hash = '#/admin'); await p.waitForSelector('#pw'); await p.fill('#pw', '1234'); await p.keyboard.press('Enter'); await p.waitForFunction(() => S.admin); await p.waitForSelector('.stats');
 await p.evaluate(() => location.hash = '#/admin/booths'); await p.waitForSelector('[data-media]');
-check('표 머리 = 자료 열 하나', await p.evaluate(() => $$('thead th').map(t => t.textContent).join('|')) === '|번호|부스명|운영|분류|구역|소개|자료|');
-check('행마다 칩 3개 + 편집', await p.evaluate(() => $$('tr[data-i="0"] .mchip').length === 3 && !!$('tr[data-i="0"] [data-media]')));
-check('처음엔 칩 모두 꺼짐', await p.evaluate(() => $$('tr[data-i="0"] .mchip.on').length === 0));
-const tableW = await p.evaluate(() => $('.table').scrollWidth); console.log('  표 너비', tableW);
-await p.click('tr[data-i="0"] [data-media]'); await p.waitForSelector('#sheet.show #mOk');
+check('카드 목록(표 아님), 옆으로 안 넘침', await p.evaluate(() => !$('.table') && $$('#bList .brow').length === S.booths.length && $('#bList').scrollWidth <= $('#bList').clientWidth));
+check('행마다 칩 3개 + 편집', await p.evaluate(() => $$('.brow[data-i="0"] .mchip').length === 3 && !!$('.brow[data-i="0"] [data-media]')));
+check('처음엔 칩 모두 꺼짐', await p.evaluate(() => $$('.brow[data-i="0"] .mchip.on').length === 0));
+console.log('  목록 너비', await p.evaluate(() => $('#bList').scrollWidth + ' / 화면 ' + innerWidth));
+await p.click('.brow[data-i="0"] [data-media]'); await p.waitForSelector('#sheet.show #mOk');
 check('시트 제목에 번호·이름', await p.evaluate(() => /^1 · /.test($('#sheet .h-sec').textContent)));
 check('영상 미리보기 안내', await p.evaluate(() => /주소를 넣으면/.test($('#mVideoPv').textContent)));
 await p.fill('#mVideo', 'https://youtu.be/dQw4w9WgXcQ'); await sleep(100);
@@ -31,15 +31,15 @@ await p.waitForFunction(() => $('#mImg').value.startsWith('local:')); await slee
 check('사진 올리면 주소 채워지고 미리보기', await p.evaluate(() => !!$('#mImgPv img') && !$('#mImgClear').hidden));
 await p.click('#mOk'); await sleep(400);
 check('시트 닫힘', await p.evaluate(() => !$('#sheet').classList.contains('show')));
-check('행 hidden 값 반영', await p.evaluate(() => { const tr = $('tr[data-i="0"]'); return $('[data-f=video]', tr).value === 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' && $('[data-f=pdf]', tr).value === 'https://example.com/a.pdf' && $('[data-f=img]', tr).value.startsWith('local:'); }));
-check('칩 3개 켜짐', await p.evaluate(() => $$('tr[data-i="0"] .mchip.on').length === 3));
+check('행 hidden 값 반영', await p.evaluate(() => { const tr = $('.brow[data-i="0"]'); return $('[data-f=video]', tr).value === 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' && $('[data-f=pdf]', tr).value === 'https://example.com/a.pdf' && $('[data-f=img]', tr).value.startsWith('local:'); }));
+check('칩 3개 켜짐', await p.evaluate(() => $$('.brow[data-i="0"] .mchip.on').length === 3));
 // 다른 셀 편집 유지되는지 + 저장
-await p.fill('tr[data-i="1"] [data-f=name]', '이름바꿈'); await p.click('tr[data-i="1"] [data-media]'); await p.waitForSelector('#sheet.show #mOk'); await p.click('#mOk'); await sleep(400);
-check('시트 열고 닫아도 다른 셀 편집 유지', await p.evaluate(() => $('tr[data-i="1"] [data-f=name]').value === '이름바꿈'));
+await p.fill('.brow[data-i="1"] [data-f=name]', '이름바꿈'); await p.click('.brow[data-i="1"] [data-media]'); await p.waitForSelector('#sheet.show #mOk'); await p.click('#mOk'); await sleep(400);
+check('시트 열고 닫아도 다른 셀 편집 유지', await p.evaluate(() => $('.brow[data-i="1"] [data-f=name]').value === '이름바꿈'));
 await p.click('#bSave'); await sleep(500);
-check('저장 후 값 유지·칩 켜짐', await p.evaluate(() => S.booths[0].video.includes('dQw4w9WgXcQ') && S.booths[0].pdf === 'https://example.com/a.pdf' && S.booths[1].name === '이름바꿈' && $$('tr[data-i="0"] .mchip.on').length === 3));
+check('저장 후 값 유지·칩 켜짐', await p.evaluate(() => S.booths[0].video.includes('dQw4w9WgXcQ') && S.booths[0].pdf === 'https://example.com/a.pdf' && S.booths[1].name === '이름바꿈' && $$('.brow[data-i="0"] .mchip.on').length === 3));
 // 다시 열면 값이 들어 있는지
-await p.click('tr[data-i="0"] [data-media]'); await p.waitForSelector('#sheet.show #mOk'); await sleep(300);
+await p.click('.brow[data-i="0"] [data-media]'); await p.waitForSelector('#sheet.show #mOk'); await sleep(300);
 check('재편집 시 값 채워짐', await p.evaluate(() => $('#mVideo').value.includes('dQw4w9WgXcQ') && $('#mPdf').value === 'https://example.com/a.pdf' && !!$('#mImgPv img')));
 await p.screenshot({ path: 'C:/Users/jjook/AppData/Local/Temp/claude/C--dev/70bba92c-1743-4543-8c0c-20fe1e790450/scratchpad/media_sheet.png' });
 await p.evaluate(() => closeSheet()); await sleep(400);
