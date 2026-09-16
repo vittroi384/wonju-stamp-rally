@@ -67,5 +67,5 @@ await d.evaluate(({ booths }) => {
   $('#login').hidden = true; $('#dash').hidden = false; $('#logout').hidden = false; D.basic = false; D.data = data; render(data);
 }, { booths });
 await sleep(800); await d.screenshot({ path: OUT + 'dashboard.png', clip: { x: 0, y: 0, width: 1600, height: 925 } });   // 상단(KPI·히트맵·추이)만
-await d.locator('.card.c12').screenshot({ path: OUT + 'dashboard-table.png' });
+await d.locator('.card.c12:not([hidden])').first().screenshot({ path: OUT + 'dashboard-table.png' });
 await b.close(); fs.unlinkSync(DIR + 'tests/_local.html'); console.log('done →', OUT);
