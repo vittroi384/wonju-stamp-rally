@@ -1,7 +1,8 @@
 // 관리자 비번 실패 잠금 (실서버, 11절 적용 후). 틀린 비번 10번 → 1분 잠김 → 맞는 비번도 거절 → 풀린 뒤 정상. 데이터 변경 없음
 // 사용: node test_lockout.mjs <맞는 비번>
 const fs = await import('fs'); const src = fs.readFileSync('C:/dev/stamp-rally-v3/원주축전_스탬프앱_3.html', 'utf8');
-const URL_ = src.match(/supabaseUrl: '([^']+)'/)[1], KEY = src.match(/supabaseAnonKey: '([^']+)'/)[1], PW = process.argv[2] || '1234';
+const URL_ = src.match(/supabaseUrl: '([^']+)'/)[1], KEY = src.match(/supabaseAnonKey: '([^']+)'/)[1], PW = process.argv[2] || process.env.ADMIN_PW;
+if(!PW){ console.error('비번 필요: node tests/test_lockout.mjs 비번  또는 $env:ADMIN_PW'); process.exit(1); }
 const fails = []; const check = (n, ok, x = '') => { console.log((ok ? '  ✓ ' : '  ✗ ') + n + (x ? ' — ' + x : '')); if(!ok) fails.push(n); };
 async function rpc(fn, args){ const t0 = performance.now(); const r = await fetch(`${URL_}/rest/v1/rpc/${fn}`, { method: 'POST', headers: { apikey: KEY, Authorization: 'Bearer ' + KEY, 'Content-Type': 'application/json' }, body: JSON.stringify(args) }); const ms = Math.round(performance.now() - t0); const txt = await r.text(); let b = null; try{ b = JSON.parse(txt); }catch(e){} return { ok: r.ok, body: b, msg: b?.message || '', ms }; }
 const sleep = ms => new Promise(r => setTimeout(r, ms));

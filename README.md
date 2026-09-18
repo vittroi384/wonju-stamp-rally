@@ -157,11 +157,12 @@ assets/                    README 스크린샷 (전부 더미 데이터)
 | 명령 | 설명 |
 |---|---|
 | `cd tests && npm i playwright` | 테스트 준비 (Chrome 채널 사용) |
+| `$env:ADMIN_PW="관리자비번"` | 실서버 테스트(test_v3 · test_live_survey · soak · shots 대시보드) 전에 한 번. 없으면 바로 종료 |
 | `node tests/test_v3.mjs` | 실서버 e2e: 설문 타이머·복귀 링크·탭 동기화·행사 설정·대시보드 |
 | `node tests/test_survey.mjs` | 로컬 모드 e2e: 앱 내 설문 제출·관리자 문항 편집·결과·CSV |
 | `node tests/test_gift_scan.mjs` · `test_booth_visitors.mjs` | 로컬 모드 e2e: 교환권 QR 연속 스캔 · 부스별 참여자 명단(현황 시트·대시보드 카드) |
 | `node tests/test_seed.mjs` | 부스 시드 버전 매칭 · CDN 우선 로드 · CDN 차단/무응답 폴백 |
-| `node tests/test_lockout.mjs <비번>` | 실서버: 로그인 10회 실패 → 1분 잠금 → 해제 (지연 없음 확인) |
+| `node tests/test_lockout.mjs <비번>` (또는 ADMIN_PW) | 실서버: 로그인 10회 실패 → 1분 잠금 → 해제 (지연 없음 확인) |
 | `node tests/soak.mjs [분] [초당 도착] [접두어]` | 지속 테스트 → `지속테스트_날짜.json`, 이어서 `node tests/soakchart.mjs` 로 PNG. 테스트 데이터는 남김 |
 
 ### 설계 메모

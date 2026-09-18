@@ -1,6 +1,7 @@
 // 화면 스크린샷 (로컬 모드): 완주 카드 → 앱 내 설문 → 교환권 / 관리자 설문 탭(편집·결과) / 대시보드
 import { chromium } from 'playwright';
 import fs from 'fs';
+const PW = process.env.ADMIN_PW; if(!PW){ console.error('ADMIN_PW 환경변수에 관리자 비번 넣고 실행:  $env:ADMIN_PW="비번"; node tests/파일.mjs'); process.exit(1); }   // 대시보드는 실서버 로그인. 앱 쪽은 로컬 모드라 CONFIG.adminPassword(1234) 그대로
 const DIR = 'C:/dev/stamp-rally-v3/', OUT = DIR + 'tests/out/';
 const src = fs.readFileSync(DIR + '원주축전_스탬프앱_3.html', 'utf8');
 fs.writeFileSync(DIR + 'tests/_local.html', src.replace("supabaseUrl: 'https://YOUR-PROJECT.supabase.co'", "supabaseUrl: ''").replace(/\.\/qrcode\.min\.js|\.\/jsQR\.js/g, m => '..' + m.slice(1)));
@@ -41,7 +42,7 @@ await a.screenshot({ path: OUT + 'a5_관리자_설문탭.png', fullPage: true })
 await ctx.close();
 // 대시보드 (실서버, 기본 모드)
 const d = await b.newContext({ viewport: { width: 1600, height: 1000 } }); const dp = await d.newPage();
-await dp.goto('file:///' + DIR + '운영대시보드.html'); await dp.waitForSelector('#pw'); await dp.fill('#pw', '1234'); await dp.click('#pwGo');
+await dp.goto('file:///' + DIR + '운영대시보드.html'); await dp.waitForSelector('#pw'); await dp.fill('#pw', PW); await dp.click('#pwGo');
 await dp.waitForFunction(() => !$('#dash').hidden && $('#kpis').children.length > 0, null, { timeout: 20000 }); await sleep(800);
 await dp.screenshot({ path: OUT + 'a6_대시보드.png', fullPage: true });
 await b.close(); fs.unlinkSync(DIR + 'tests/_local.html'); console.log('done');

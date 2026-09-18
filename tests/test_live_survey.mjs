@@ -1,7 +1,8 @@
 // 실서버: 앱 내 설문 제출(visitor_survey_submit) + 관리자 설문 결과 + 대시보드 풀 모드
 import { chromium } from 'playwright';
 const DIR='C:/dev/stamp-rally-v3/', APP='file:///'+DIR+'원주축전_스탬프앱_3.html', DASH='file:///'+DIR+'운영대시보드.html';
-const U='https://YOUR-PROJECT.supabase.co', K='YOUR_SUPABASE_ANON_KEY', PW='1234';
+const U='https://YOUR-PROJECT.supabase.co', K='YOUR_SUPABASE_ANON_KEY';
+const PW = process.env.ADMIN_PW; if(!PW){ console.error('ADMIN_PW 환경변수에 관리자 비번 넣고 실행:  $env:ADMIN_PW="비번"; node tests/파일.mjs'); process.exit(1); }
 const H={apikey:K,Authorization:`Bearer ${K}`,'Content-Type':'application/json'};
 const rpc=async(fn,b)=>{const r=await fetch(`${U}/rest/v1/rpc/${fn}`,{method:'POST',headers:H,body:JSON.stringify(b)});const t=await r.text();return {ok:r.ok,body:t?JSON.parse(t):null};};
 const fails=[],errs=[]; const check=(n,ok,x='')=>{console.log((ok?'  ✓ ':'  ✗ ')+n+(x?' — '+x:'')); if(!ok) fails.push(n);};

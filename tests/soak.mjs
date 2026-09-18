@@ -3,7 +3,8 @@
 // 사용: node soak.mjs [분=10] [초당 도착=4] [이름 접두어=지속]    결과: ../지속테스트_YYYY-MM-DD.json
 // ★ 끝나도 테스트 데이터는 지우지 않음(실서버 전체 삭제 금지). 관리자 › 데이터 › 전부 삭제로 정리
 import { writeFileSync } from 'node:fs';
-const U = 'https://YOUR-PROJECT.supabase.co', K = 'YOUR_SUPABASE_ANON_KEY', PW = '1234';
+const U = 'https://YOUR-PROJECT.supabase.co', K = 'YOUR_SUPABASE_ANON_KEY';
+const PW = process.env.ADMIN_PW; if(!PW){ console.error('ADMIN_PW 환경변수에 관리자 비번 넣고 실행:  $env:ADMIN_PW="비번"; node tests/파일.mjs'); process.exit(1); }
 const H = { apikey: K, Authorization: `Bearer ${K}`, 'Content-Type': 'application/json' };
 const MIN = +(process.argv[2] || 10), RATE = +(process.argv[3] || 4), PREFIX = process.argv[4] || '지속', GOAL = 7, GAP = 92;
 const sleep = ms => new Promise(r => setTimeout(r, ms));
