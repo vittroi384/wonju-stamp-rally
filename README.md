@@ -33,7 +33,7 @@
     <td align="center"><img src="assets/register.png" width="150"><br><sub><b>등록</b><br>학교·학년·이름·성별</sub></td>
     <td align="center"><img src="assets/map-phone.png" width="150"><br><sub><b>지도</b><br>실제 배치도·핀치줌</sub></td>
     <td align="center"><img src="assets/map-route.png" width="150"><br><sub><b>가는 길</b><br>정문→부스, 가까운 출구</sub></td>
-    <td align="center"><img src="assets/booth.png" width="150"><br><sub><b>부스 소개</b><br>영상·PDF·도장 상태</sub></td>
+    <td align="center"><img src="assets/booth.png" width="150"><br><sub><b>부스 소개</b><br>영상·PDF·운영 시간·대상</sub></td>
   </tr>
   <tr>
     <td align="center"><img src="assets/my-stamps-done.png" width="150"><br><sub><b>완주</b><br>7개 모으면 설문 안내</sub></td>
@@ -57,8 +57,12 @@
     <td><img src="assets/admin-survey.png"><br><sub><b>설문</b> — 문항 편집(5가지 유형) + 결과 집계 + CSV</sub></td>
   </tr>
   <tr>
-    <td><img src="assets/admin-booths.png"><br><sub><b>부스</b> — 표 편집·순서·CSV·PDF/사진 업로드</sub></td>
+    <td><img src="assets/admin-booths.png"><br><sub><b>부스</b> — 카드 편집·순서·엑셀·PDF/사진, 운영 시간·시간대 전환·대상(초등/중고등)</sub></td>
     <td><img src="assets/admin-qr.png"><br><sub><b>QR 시트</b> — 부스별 토큰 포함 QR, A4 인쇄</sub></td>
+  </tr>
+  <tr>
+    <td><img src="assets/admin-map.png"><br><sub><b>지도</b> — 화장실·휴지통 표시를 탭으로 놓고 지움, 방문객 지도에 바로 반영</sub></td>
+    <td><img src="assets/admin-status.png"><br><sub><b>운영 상태</b> — 쉬는 부스를 한 화면에서 골라 적용, 방문객 폰엔 흐리게</sub></td>
   </tr>
   <tr>
     <td><img src="assets/admin-event.png"><br><sub><b>행사 설정</b> — 행사명·완주 개수·설문·긴급 공지·일정, 열린 폰에 5분 내 반영</sub></td>

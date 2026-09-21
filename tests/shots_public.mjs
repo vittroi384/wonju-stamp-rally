@@ -16,6 +16,9 @@ await p.evaluate(() => location.hash = '#/register'); await p.waitForSelector('#
 await p.click('#rLevel button[data-l="초"]'); await p.click('#rGrade button[data-n="4"]'); await p.fill('#rSchool', '가온초'); await p.fill('#rName', '김하늘');
 await p.screenshot({ path: OUT + 'register.png' });
 await p.click('#rGender button[data-g="여"]'); await p.check('#rConsent'); await p.click('#rGo'); await p.waitForFunction(() => S.me && S.me.id); await sleep(2600);   // 환영 토스트 사라질 때까지
+// 새 기능 더미: 운영 시간·시간대 전환·대상·쉬는 중·화장실/휴지통 (2026-09-21)
+await p.evaluate(async () => { S.booths[11].hours = '10:00~16:00'; S.booths[11].target = 'elem'; S.booths[4].target = 'secondary'; S.booths[20].variant = { at: '13:00', name: '오후 체험 부스', org: '', cat: '', desc: '' }; S.booths[6].hours = '13:00~16:00'; await DB.saveBooths(S.booths);
+  const data = { ...(S.settingsRaw || {}), closedBooths: [S.booths[2].id, S.booths[8].id], facilities: [{ id: 'f1', type: 'wc', label: '화장실', x: 90, y: 905 }, { id: 'f2', type: 'bin', label: '휴지통', x: 1210, y: 905 }, { id: 'f3', type: 'wc', label: '화장실', x: 1215, y: 115 }] }; await DB.saveSettings(data); S.settingsRaw = data; });
 await p.evaluate(() => location.hash = '#/map'); await p.waitForSelector('#mapSvg'); await sleep(900); await p.screenshot({ path: OUT + 'map-phone.png' });
 await p.evaluate(() => location.hash = '#/map/12'); await sleep(1200); await p.screenshot({ path: OUT + 'map-route.png' });
 await p.evaluate(() => location.hash = '#/booth/12'); await sleep(500); await p.screenshot({ path: OUT + 'booth.png' });
@@ -40,6 +43,8 @@ await a.evaluate(() => location.hash = '#/admin'); await a.waitForSelector('#pw'
 await a.evaluate(() => location.hash = '#/admin/gift'); await a.waitForSelector('#gBody tr'); await sleep(2500); await a.screenshot({ path: OUT + 'admin-gift.png', clip: { x: 0, y: 0, width: 1280, height: 800 } });
 await a.evaluate(() => location.hash = '#/admin/dash'); await a.waitForSelector('.stats'); await sleep(600); await a.screenshot({ path: OUT + 'admin-dash.png', clip: { x: 0, y: 0, width: 1280, height: 800 } });
 await a.evaluate(() => location.hash = '#/admin/booths'); await a.waitForSelector('#bSave'); await sleep(400); await a.screenshot({ path: OUT + 'admin-booths.png', clip: { x: 0, y: 0, width: 1280, height: 800 } });
+await a.evaluate(() => location.hash = '#/admin/map'); await a.waitForSelector('#facTools'); await a.waitForSelector('#mapSvg'); await sleep(900); await a.screenshot({ path: OUT + 'admin-map.png', clip: { x: 0, y: 0, width: 1280, height: 800 } });
+await a.evaluate(() => location.hash = '#/admin/booths'); await a.waitForSelector('#bStatus'); await a.click('#bStatus'); await a.waitForSelector('#stGrid'); await sleep(500); await a.screenshot({ path: OUT + 'admin-status.png', clip: { x: 0, y: 0, width: 1280, height: 800 } }); await a.evaluate(() => closeSheet()); await sleep(300);
 await a.evaluate(() => location.hash = '#/admin/qr'); await a.waitForSelector('.qrgrid'); await sleep(1200); await a.screenshot({ path: OUT + 'admin-qr.png', clip: { x: 0, y: 0, width: 1280, height: 800 } });
 await a.evaluate(() => location.hash = '#/admin/event'); await a.waitForSelector('#evSave'); await sleep(300); await a.screenshot({ path: OUT + 'admin-event.png', clip: { x: 0, y: 0, width: 1280, height: 800 } });
 await a.evaluate(() => location.hash = '#/admin/survey'); await a.waitForSelector('#sqSave'); await a.click('#sqLoad'); await sleep(2500); await a.screenshot({ path: OUT + 'admin-survey.png', clip: { x: 0, y: 0, width: 1280, height: 800 } });
