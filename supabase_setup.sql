@@ -477,3 +477,22 @@ begin
   perform ensure_booth_tokens();
 end $$;
 grant execute on function admin_save_booths(text, jsonb) to anon;
+
+-- 14. 부스 시간대 전환 (2026-09-21) ---------------------------------------------
+-- 한 자리가 시각에 따라 다른 부스가 되는 경우(오전 운영본부 → 오후 체험 부스). 번호·QR·도장은 하나.
+-- time_variant = {"at":"13:00","name":"…","org":"…","cat":"…","desc":"…"} — 앱이 그 시각부터 이 내용으로 보여줌. 비우면 전환 없음.
+alter table booths add column if not exists time_variant jsonb;
+
+create or replace function admin_save_booths(pw text, rows jsonb) returns void
+language plpgsql security definer set search_path = public, extensions as $$
+begin
+  perform admin_ok(pw);
+  delete from booths where true;
+  insert into booths (id, number, name, category, organization, description, sort_order, zone, video_url, pdf_url, image_url, operating_hours, time_variant)
+  select r.id, r.number, r.name, r.category, r.organization, r.description, r.sort_order,
+         coalesce(r.zone, ''), coalesce(r.video_url, ''), coalesce(r.pdf_url, ''), coalesce(r.image_url, ''), coalesce(r.operating_hours, ''), r.time_variant
+  from jsonb_to_recordset(rows) as r(id text, number text, name text, category text, organization text, description text, sort_order int,
+                                     zone text, video_url text, pdf_url text, image_url text, operating_hours text, time_variant jsonb);
+  perform ensure_booth_tokens();
+end $$;
+grant execute on function admin_save_booths(text, jsonb) to anon;
