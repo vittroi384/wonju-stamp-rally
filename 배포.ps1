@@ -15,7 +15,7 @@ try {
   $ver = (Invoke-RestMethod -Uri "$url/rest/v1/settings?id=eq.1&select=data" -Headers $h)[0].data.boothsVersion
   $rows = Invoke-RestMethod -Uri "$url/rest/v1/booths?select=*&order=sort_order" -Headers $h
   if ($ver -and $rows.Count -gt 0) {
-    $seed = @($rows | ForEach-Object { [ordered]@{ id = $_.id; n = $_.number; name = $_.name; cat = $_.category; org = $_.organization; zone = $_.zone; desc = $_.description; video = $_.video_url; pdf = $_.pdf_url; img = $_.image_url } })
+    $seed = @($rows | ForEach-Object { [ordered]@{ id = $_.id; n = $_.number; name = $_.name; cat = $_.category; org = $_.organization; zone = $_.zone; desc = $_.description; video = $_.video_url; pdf = $_.pdf_url; img = $_.image_url; hours = $_.operating_hours } })
     $json = ($seed | ConvertTo-Json -Compress -Depth 4)
     if ($seed.Count -eq 1) { $json = "[$json]" }
     $src = [regex]::Replace($src, 'const SEED_BOOTHS = \[.*?\];', ('const SEED_BOOTHS = ' + $json.Replace('$', '$$') + ';'), 'Singleline')

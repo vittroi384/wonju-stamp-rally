@@ -459,3 +459,21 @@ begin
 end $$;
 grant execute on function admin_booth_visitors(text, text, int, int) to anon;
 
+-- 13. 부스 운영 시간 (2026-09-21) ---------------------------------------------
+-- 오전엔 운영본부로 쓰다 오후에 부스가 되는 자리처럼 시간이 정해진 부스용. '13:00~16:00' 글자 그대로 저장, 비우면 종일.
+-- 앱은 목록·소개에 표시하고 지금 시각 기준 '13:00부터 운영 / 운영 중 / 운영 끝남' 을 붙임. 도장 자체를 막지는 않음.
+alter table booths add column if not exists operating_hours text default '';
+
+create or replace function admin_save_booths(pw text, rows jsonb) returns void
+language plpgsql security definer set search_path = public, extensions as $$
+begin
+  perform admin_ok(pw);
+  delete from booths where true;
+  insert into booths (id, number, name, category, organization, description, sort_order, zone, video_url, pdf_url, image_url, operating_hours)
+  select r.id, r.number, r.name, r.category, r.organization, r.description, r.sort_order,
+         coalesce(r.zone, ''), coalesce(r.video_url, ''), coalesce(r.pdf_url, ''), coalesce(r.image_url, ''), coalesce(r.operating_hours, '')
+  from jsonb_to_recordset(rows) as r(id text, number text, name text, category text, organization text, description text, sort_order int,
+                                     zone text, video_url text, pdf_url text, image_url text, operating_hours text);
+  perform ensure_booth_tokens();
+end $$;
+grant execute on function admin_save_booths(text, jsonb) to anon;

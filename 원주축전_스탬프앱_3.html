@@ -96,7 +96,7 @@ select.inp.sm{padding-right:30px;background-position:right 10px center}
 .brow .l1,.brow .l2{display:flex;gap:6px;align-items:center;flex-wrap:wrap;min-width:0}
 .brow .inp.sm{padding:7px 10px;font-size:13.5px}
 .brow .f-n{flex:0 0 58px} .brow .f-name{flex:1 1 170px;font-weight:700} .brow .f-org{flex:0 1 140px}
-.brow .f-cat{flex:0 1 130px} .brow .f-zone{flex:0 1 180px} .brow .f-desc{flex:1 1 220px}
+.brow .f-cat{flex:0 1 130px} .brow .f-zone{flex:0 1 180px} .brow .f-hours{flex:0 1 150px} .brow .f-desc{flex:1 1 220px}
 .brow .acts{display:flex;gap:5px;align-items:center;margin-left:auto;flex-wrap:nowrap}
 .brow.dragging{opacity:.55;background:var(--blue-soft)}
 @media(max-width:600px){.brow .f-org,.brow .f-cat,.brow .f-zone{flex:1 1 40%}.brow .acts{margin-left:0;width:100%;justify-content:flex-end}}   /* 폰: 운영기관은 한 줄, 분류·구역은 반반 */
@@ -119,8 +119,8 @@ select.inp.sm{padding-right:30px;background-position:right 10px center}
 .sc-count .n{font-size:38px;font-weight:900;letter-spacing:-.04em;line-height:1}
 .sc-count .n small{font-size:16px;color:rgba(255,255,255,.55);font-weight:700;letter-spacing:0}
 .sc-count .l{font-size:11px;color:rgba(255,255,255,.55);font-weight:700;margin-top:2px}
-.slots{display:flex;justify-content:space-between;gap:8px;margin-top:18px}
-.slot{flex:1;aspect-ratio:1;max-width:66px;border-radius:50%;border:2px dashed rgba(255,255,255,.28);display:grid;place-items:center;position:relative;font-size:11px;font-weight:800;color:rgba(255,255,255,.35)}
+.slots{display:grid;grid-template-columns:repeat(var(--cols,7),1fr);gap:8px;margin-top:18px;justify-items:center}
+.slot{width:100%;aspect-ratio:1;max-width:66px;border-radius:50%;border:2px dashed rgba(255,255,255,.28);display:grid;place-items:center;position:relative;font-size:11px;font-weight:800;color:rgba(255,255,255,.35)}
 .slot.ink{border:0;background:var(--sun);color:var(--ink);box-shadow:0 6px 14px rgba(255,200,61,.35);transform:rotate(-8deg);animation:stampIn .5s cubic-bezier(.2,1.6,.4,1) both}
 .slot.ink .num{font-size:15px;font-weight:900;letter-spacing:-.02em}
 .slot.ink::after{content:"";position:absolute;inset:4px;border:1.5px dashed rgba(21,26,45,.35);border-radius:50%}
@@ -142,6 +142,7 @@ select.inp.sm{padding-right:30px;background-position:right 10px center}
 .bname{font-size:15px;font-weight:800;letter-spacing:-.01em;line-height:1.3}
 .borg{font-size:12.5px;color:var(--ink-3);margin-top:2px;font-weight:600}
 .bcat{font-size:11px;font-weight:800;color:var(--c);margin-top:3px}
+.bhours{font-size:11px;font-weight:700;color:var(--ink-3);margin-top:3px}.bhours.before{color:var(--coral)}.bhours.open{color:var(--blue)}
 .bgo{color:var(--ink-3);flex-shrink:0}
 .bgo svg{width:18px;height:18px}
 .searchbar{display:flex;align-items:center;gap:9px;background:var(--card);border-radius:999px;padding:0 16px;height:46px;box-shadow:var(--sh-1)}
@@ -778,9 +779,9 @@ const SupabaseDB = {
   _s(r){ return {id:r.id,visitorId:r.visitor_id,boothId:r.booth_id,at:+new Date(r.created_at)}; },
   /* booths 테이블 ↔ 앱 부스 객체. DB 컬럼은 풀네임(number·category·organization·description·sort_order·video_url·pdf_url·image_url),
      앱 안에서는 짧은 이름(n·cat·org·desc·video·pdf·img)을 씀 — 화면 코드 수백 곳이 짧은 이름을 쓰고, 화면엔 어차피 한글 라벨만 나가므로 */
-  _b(r){ return {id:r.id,n:r.number,name:r.name,cat:r.category,org:r.organization,desc:r.description,zone:r.zone||'',video:r.video_url||'',pdf:r.pdf_url||'',img:r.image_url||''}; },
+  _b(r){ return {id:r.id,n:r.number,name:r.name,cat:r.category,org:r.organization,desc:r.description,zone:r.zone||'',video:r.video_url||'',pdf:r.pdf_url||'',img:r.image_url||'',hours:r.operating_hours||''}; },
   async booths(){ const rows=await this._q('booths?select=*&order=sort_order'); return rows.length?rows.map(r=>this._b(r)):null; },
-  async saveBooths(list){ await this._adm('admin_save_booths',{rows:list.map((b,i)=>({id:b.id,number:b.n,name:b.name,category:b.cat,organization:b.org,description:b.desc,sort_order:i,zone:b.zone||'',video_url:b.video||'',pdf_url:b.pdf||'',image_url:b.img||''}))});
+  async saveBooths(list){ await this._adm('admin_save_booths',{rows:list.map((b,i)=>({id:b.id,number:b.n,name:b.name,category:b.cat,organization:b.org,description:b.desc,sort_order:i,zone:b.zone||'',video_url:b.video||'',pdf_url:b.pdf||'',image_url:b.img||'',operating_hours:b.hours||''}))});
     const data={...(S.settingsRaw||{}),boothsVersion:Date.now()}; await this.saveSettings(data); S.settingsRaw=data; await store.set('wj:booths_cache',{v:data.boothsVersion,list}); },   // 부스 버전 올림 → 방문객 폰 캐시 무효화
   /* 방문객 데이터는 전부 RPC. anon 키로 visitors/stamps 테이블을 직접 읽을 수 없음(명단 노출 차단). uuid 를 아는 사람 = 본인 */
   async getVisitor(id){ const r=await this._rpc('visitor_get',{vid:id}); return this._v(r[0]); },
@@ -911,7 +912,7 @@ function progress(){ return Math.min(S.myStamps.length, CONFIG.stampGoal); }
 function goalReached(){ return S.myStamps.length >= CONFIG.stampGoal; }
 
 /* 부팅: 부스 목록. 서버(또는 로컬 저장)에 저장된 게 있으면 그것, 없으면 파일에 내장된 SEED_BOOTHS. demoBoothCount 가 크면 데모 부스로 채움 */
-const seedToBooth = b => ({ id: b.id || 'b' + b.n, n: b.n, name: b.name, cat: b.cat, org: b.org, zone: b.zone || '', desc: b.desc || DESC_BY_CAT[b.cat], video: b.video || '', pdf: b.pdf || '', img: b.img || '' });
+const seedToBooth = b => ({ id: b.id || 'b' + b.n, n: b.n, name: b.name, cat: b.cat, org: b.org, zone: b.zone || '', desc: b.desc || DESC_BY_CAT[b.cat], video: b.video || '', pdf: b.pdf || '', img: b.img || '', hours: b.hours || '' });
 async function loadBooths(){
   let saved = null;
   try{ saved = await DB.booths(); }catch(e){ console.warn('부스 목록을 서버에서 못 읽음 → 내장 목록 사용', e.message); }   // 서버 장애·컬럼 불일치 때도 앱은 뜨게
@@ -1098,13 +1099,15 @@ $('#sheetScrim').onclick = closeSheet;
 /* =====================================================================
    SCREENS — visitor
    ===================================================================== */
+/* 도장 칸 한 줄 개수: 7개 이하는 한 줄, 그 이상은 두 줄로 반씩(10 → 5+5, 8 → 4+4, 9 → 5+4) */
+function slotCols(goal){ return goal > 7 ? Math.ceil(goal / 2) : goal; }
 /* 홈·내 스탬프 상단의 도장 카드. 미등록 / 진행 중 / 완주(설문 전·후) / 수령 완료 상태별 문구와 버튼 */
 function stampCardHTML(){
   const goal = CONFIG.stampGoal, n = S.myStamps.length, done = goalReached();
   if(!S.me) return `
     <div class="stampcard">
       <div class="sc-top"><div><div class="sc-hello">스탬프 랠리</div><div class="sc-title">부스 <b>${goal}곳</b> 체험하고<br>선물 받아가세요</div></div></div>
-      <div class="slots">${Array.from({length: goal}, (_, i) => `<div class="slot">${i + 1}</div>`).join('')}</div>
+      <div class="slots" style="--cols:${slotCols(goal)}">${Array.from({length: goal}, (_, i) => `<div class="slot">${i + 1}</div>`).join('')}</div>
       <div class="sc-foot">학교·학년·이름만 적으면 시작돼요 <button class="btn sun sm" onclick="go('/register')">시작하기</button></div>
     </div>`;
   const local = allStampsLocal();
@@ -1123,15 +1126,24 @@ function stampCardHTML(){
         <div><div class="sc-hello">${esc(S.me.name)}님의 스탬프</div><div class="sc-title">${title}</div></div>
         <div class="sc-count"><div class="n">${Math.min(local.length, goal)}<small>/${goal}</small></div><div class="l">${local.length > goal ? `총 ${local.length}곳 방문` : '모은 도장'}</div></div>
       </div>
-      <div class="slots">${slots}</div>
+      <div class="slots" style="--cols:${slotCols(goal)}">${slots}</div>
       <div class="sc-foot">${foot}</div>
     </div>`;
 }
+/* 부스 운영 시간 '13:00~16:00'(구분자 ~ - – 아무거나) 해석. 지금 시각 기준 before(시작 전)·open(운영 중)·after(끝남). 형식이 안 맞으면 글자 그대로만 보여줌 */
+function hoursState(b){
+  const t = (b.hours || '').trim(); if(!t) return null;
+  const m = t.match(/(\d{1,2}):(\d{2})\s*[~\-–]\s*(\d{1,2}):(\d{2})/); if(!m) return { text: t, state: '' };
+  const now = new Date(), cur = now.getHours() * 60 + now.getMinutes(), st = +m[1] * 60 + +m[2], en = +m[3] * 60 + +m[4];
+  const state = cur < st ? 'before' : cur >= en ? 'after' : 'open';
+  return { text: t, state, start: `${m[1].padStart(2, '0')}:${m[2]}`, label: state === 'before' ? `${+m[1]}:${m[2]}부터 운영` : state === 'after' ? '운영 끝남' : '운영 중' };
+}
+function hoursChipHTML(b){ const h = hoursState(b); return h ? `<div class="bhours ${h.state}">🕒 ${esc(h.text)}${h.label ? ' · ' + h.label : ''}</div>` : ''; }
 function boothItemHTML(b){
   const c = catOf(b.cat), done = stampedIds().has(b.id);
   return `<button class="bitem" style="--c:${c.color}" onclick="go('/booth/${b.n}')">
     <div class="bnum ${done ? 'done' : ''}">${esc(b.n)}</div>
-    <div class="grow"><div class="bname">${esc(b.name)}</div><div class="borg">${esc(b.org)}</div><div class="bcat">${esc(c.name)}</div></div>
+    <div class="grow"><div class="bname">${esc(b.name)}</div><div class="borg">${esc(b.org)}</div><div class="bcat">${esc(c.name)}</div>${hoursChipHTML(b)}</div>
     <span class="bgo">${I.chev}</span></button>`;
 }
 function filteredBooths(){
@@ -1256,7 +1268,7 @@ function renderBooth(n){
     </div>
     ${b.img ? `<img class="bimg" id="bImg" alt="${esc(b.name)} 부스 사진" hidden>` : ''}
     <div class="card"><div class="kv"><div><div class="k">체험 소개</div></div><p class="desc">${esc(b.desc || DESC_BY_CAT[b.cat])}</p>
-      <div class="k" style="margin-top:4px">위치</div><div class="v" style="font-size:14px">${esc(zoneOf(b.zone).name)} <button class="more" style="border:0;background:none;color:var(--blue);font-weight:800;font-size:13px;padding:0 4px" onclick="go('/map/${b.n}')">지도 ›</button></div></div></div>
+      <div class="k" style="margin-top:4px">위치</div><div class="v" style="font-size:14px">${esc(zoneOf(b.zone).name)} <button class="more" style="border:0;background:none;color:var(--blue);font-weight:800;font-size:13px;padding:0 4px" onclick="go('/map/${b.n}')">지도 ›</button></div>${b.hours ? `<div class="k" style="margin-top:4px">운영 시간</div><div class="v" style="font-size:14px">${esc(b.hours)}${(() => { const h = hoursState(b); return h && h.label ? ` <span class="bhours ${h.state}" style="display:inline;margin:0">· ${h.label}</span>` : ''; })()}</div>` : ''}</div></div>
     ${ytId(b.video) ? `<div class="card tight"><div class="kv"><div class="k">체험 영상</div><div class="yt"><iframe src="https://www.youtube-nocookie.com/embed/${ytId(b.video)}?rel=0" title="${esc(b.name)} 영상" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div></div></div>` : ''}
     ${b.pdf ? `<a class="btn line full" id="bPdf" target="_blank" rel="noopener" hidden>${I.doc} 부스 자료 PDF 보기</a>` : ''}
     <div class="stampstate ${st ? 'done' : ''}">
@@ -1965,6 +1977,7 @@ function admBooths(){
         <div class="l2">
           <input class="inp sm f-cat" value="${esc(catOf(b.cat).name)}" data-f="cat" placeholder="분류" title="없는 이름을 적으면 새 분류가 생겨요">
           <select class="inp sm f-zone" data-f="zone" title="구역">${ZONES.map(z => `<option value="${z.id}" ${z.id === (b.zone || '') ? 'selected' : ''}>${z.name}</option>`).join('')}</select>
+          <input class="inp sm f-hours" value="${esc(b.hours || '')}" data-f="hours" placeholder="운영 시간 (비우면 종일)" title="예: 13:00~16:00 — 오후에만 여는 부스. 방문객 목록·소개에 표시돼요">
           <input class="inp sm f-desc" value="${esc(b.desc || '')}" data-f="desc" placeholder="소개 (방문객 부스 소개 화면에 나와요)"></div></div>`).join('')}
     </div>
     <div class="row no-print"><button class="btn blue" id="bSave">변경사항 저장</button><span class="small muted">저장 전엔 지도에 반영되지 않아요</span></div>`);
@@ -1979,7 +1992,7 @@ function admBooths(){
     if(prev !== JSON.stringify(cats)){ const data = { ...(S.settingsRaw || {}), categories: cats }; await DB.saveSettings(data); S.settingsRaw = data; }
   };
   $('#bSave').onclick = async () => { const list = collect(); const seen = new Set(); for(const b of list){ if(!b.n || !b.name) return toast('번호와 이름은 비울 수 없어요'); if(seen.has(b.n)) return toast(`부스 번호 ${b.n}이(가) 중복돼요`); seen.add(b.n); } S.booths = list; await DB.saveBooths(list); await saveCategories(list); toast('저장했어요'); renderAdmin('booths'); };
-  $('#bAdd').onclick = () => { const list = collect(); if(list.length >= CONFIG.boothMax) return toast(`부스는 최대 ${CONFIG.boothMax}개까지예요`); const n = String(Math.max(0, ...list.map(b => parseInt(b.n) || 0)) + 1).padStart(2, '0'); list.push({ id: 'b' + n + '-' + Date.now().toString(36), n, name: '', cat: 'etc', org: '', zone: '', desc: '', video: '', pdf: '', img: '' }); S.booths = list; renderAdmin('booths'); setTimeout(() => $$('#bList .brow').pop()?.querySelector('[data-f=name]').focus(), 50); };
+  $('#bAdd').onclick = () => { const list = collect(); if(list.length >= CONFIG.boothMax) return toast(`부스는 최대 ${CONFIG.boothMax}개까지예요`); const n = String(Math.max(0, ...list.map(b => parseInt(b.n) || 0)) + 1).padStart(2, '0'); list.push({ id: 'b' + n + '-' + Date.now().toString(36), n, name: '', cat: 'etc', org: '', zone: '', desc: '', video: '', pdf: '', img: '', hours: '' }); S.booths = list; renderAdmin('booths'); setTimeout(() => $$('#bList .brow').pop()?.querySelector('[data-f=name]').focus(), 50); };
   $$('[data-del]').forEach(b => b.onclick = () => { const list = collect(); if(!confirm(`${list[b.dataset.del].n} 부스를 삭제할까요? 저장을 눌러야 반영돼요.`)) return; list.splice(b.dataset.del, 1); S.booths = list; renderAdmin('booths'); });
   /* 순서: 왼쪽 ≡ 를 끌어서(pointer 이벤트, 마우스·터치 공통) 행을 옮기고, 놓으면 표의 행 순서대로 S.booths 를 다시 만듦. [번호순 정렬]은 번호(숫자 먼저, 본1·네1 같은 글자 번호는 뒤) 순 */
   const reorderFromDom = () => { const list = collect(); S.booths = $$('#bList .brow').map(tr => list[+tr.dataset.i]); renderAdmin('booths'); };
@@ -2047,31 +2060,31 @@ function admBooths(){
   $$('[data-media]').forEach(el => el.onclick = () => openMediaSheet(+el.dataset.media));
   /* 엑셀(xlsx) 양식: 열 너비·제목 줄 고정·소개 줄바꿈. 담당자가 엑셀에서 바로 채워서 다시 올리는 용도. ExcelJS 는 눌렀을 때만 CDN 에서 로드 */
   const loadExcelJS = () => window.ExcelJS ? Promise.resolve() : new Promise((res, rej) => { const el = document.createElement('script'); el.src = 'https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js'; el.onload = res; el.onerror = () => rej(new Error('엑셀 라이브러리를 못 불러왔어요 (인터넷 연결 확인)')); document.head.appendChild(el); });
-  const XCOLS = [['번호', 7], ['부스명', 34], ['운영기관', 22], ['분류', 15], ['구역', 24], ['소개', 60], ['유튜브', 28], ['PDF', 28], ['사진', 28]];
+  const XCOLS = [['번호', 7], ['부스명', 34], ['운영기관', 22], ['분류', 15], ['구역', 24], ['소개', 60], ['유튜브', 28], ['PDF', 28], ['사진', 28], ['운영시간', 14]];
   $('#bXlsx').onclick = async () => {
     try{ toast('엑셀 만드는 중…'); await loadExcelJS(); }catch(e){ return toast(e.message); }
     const wb = new ExcelJS.Workbook(); const ws = wb.addWorksheet('부스', { views: [{ state: 'frozen', ySplit: 1 }] });
     ws.columns = XCOLS.map(([h, w]) => ({ header: h, width: w }));
-    collect().forEach(b => ws.addRow([b.n, b.name, b.org, catOf(b.cat).name, zoneOf(b.zone).name, b.desc || '', b.video || '', b.pdf || '', b.img || '']));
+    collect().forEach(b => ws.addRow([b.n, b.name, b.org, catOf(b.cat).name, zoneOf(b.zone).name, b.desc || '', b.video || '', b.pdf || '', b.img || '', b.hours || '']));
     const hdr = ws.getRow(1); hdr.font = { bold: true, color: { argb: 'FFFFFFFF' } }; hdr.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF151A2D' } }; hdr.alignment = { vertical: 'middle', horizontal: 'center' }; hdr.height = 24;
     ws.eachRow((row, i) => { if(i === 1) return; row.alignment = { vertical: 'top', wrapText: true }; row.getCell(1).alignment = { vertical: 'top', horizontal: 'center' }; });
-    ws.autoFilter = 'A1:I1';
+    ws.autoFilter = 'A1:J1';
     const guide = wb.addWorksheet('안내'); guide.getColumn(1).width = 90;
-    ['이 파일을 채워서 관리자 › 부스 › 엑셀·CSV 불러오기 로 올리면 부스 목록이 통째로 바뀝니다.', '', '• 번호: 숫자 또는 본1·네1 같은 문자. 비우면 그 줄은 무시. 같은 번호가 두 개면 올릴 때 막힘', '• 분류: 아래 목록의 이름(일부만 써도 됨). 목록에 없는 이름을 적으면 새 분류로 추가돼요. 비우면 "상상그이상"', '• 구역: 아래 목록 중 하나. 비우면 "트랙 둘레"', '• 소개: 길어도 돼요. 줄바꿈은 Alt+Enter', '• 유튜브·PDF·사진: 링크만. PDF·사진 파일 업로드는 관리자 화면의 [파일] 버튼으로', '• 표 순서 = 지도 순서 (같은 구역 안에서). 트랙 둘레는 정문 오른쪽부터 시계방향', '', `분류: ${CATS.map(c => c.name).join(' / ')}`, `구역: ${ZONES.map(z => z.name).join(' / ')}`].forEach(t => guide.addRow([t]));
+    ['이 파일을 채워서 관리자 › 부스 › 엑셀·CSV 불러오기 로 올리면 부스 목록이 통째로 바뀝니다.', '', '• 번호: 숫자 또는 본1·네1 같은 문자. 비우면 그 줄은 무시. 같은 번호가 두 개면 올릴 때 막힘', '• 분류: 아래 목록의 이름(일부만 써도 됨). 목록에 없는 이름을 적으면 새 분류로 추가돼요. 비우면 "상상그이상"', '• 구역: 아래 목록 중 하나. 비우면 "트랙 둘레"', '• 소개: 길어도 돼요. 줄바꿈은 Alt+Enter', '• 유튜브·PDF·사진: 링크만. PDF·사진 파일 업로드는 관리자 화면의 [파일] 버튼으로', '• 운영시간: 오후에만 여는 부스처럼 시간이 정해진 경우만 13:00~16:00 형식으로. 비우면 종일', '• 표 순서 = 지도 순서 (같은 구역 안에서). 트랙 둘레는 정문 오른쪽부터 시계방향', '', `분류: ${CATS.map(c => c.name).join(' / ')}`, `구역: ${ZONES.map(z => z.name).join(' / ')}`].forEach(t => guide.addRow([t]));
     guide.getRow(1).font = { bold: true };
     const buf = await wb.xlsx.writeBuffer(); const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })); a.download = '부스목록.xlsx'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   };
   /* xlsx 읽기: '부스' 시트(없으면 첫 시트) 2행부터. 셀이 하이퍼링크·서식 텍스트면 글자만 */
   const cellText = v => v == null ? '' : typeof v === 'object' ? (v.text ?? (v.richText ? v.richText.map(r => r.text).join('') : v.result ?? v.hyperlink ?? '')) : String(v);
-  const readXlsx = async f => { await loadExcelJS(); const wb = new ExcelJS.Workbook(); await wb.xlsx.load(await f.arrayBuffer()); const ws = wb.getWorksheet('부스') || wb.worksheets[0]; const rows = []; ws.eachRow((row, i) => { if(i === 1) return; rows.push(Array.from({ length: 9 }, (_, c) => cellText(row.getCell(c + 1).value).trim())); }); return rows; };
-  $('#bCsv').onclick = () => download('booths.csv', '\ufeff' + [['번호', '부스명', '운영기관', '분류', '구역', '소개', '유튜브', 'PDF', '사진']].concat(collect().map(b => [b.n, b.name, b.org, catOf(b.cat).name, zoneOf(b.zone).name, b.desc || '', b.video || '', b.pdf || '', b.img || ''])).map(r => r.map(csv).join(',')).join('\n'));
+  const readXlsx = async f => { await loadExcelJS(); const wb = new ExcelJS.Workbook(); await wb.xlsx.load(await f.arrayBuffer()); const ws = wb.getWorksheet('부스') || wb.worksheets[0]; const rows = []; ws.eachRow((row, i) => { if(i === 1) return; rows.push(Array.from({ length: 10 }, (_, c) => cellText(row.getCell(c + 1).value).trim())); }); return rows; };
+  $('#bCsv').onclick = () => download('booths.csv', '\ufeff' + [['번호', '부스명', '운영기관', '분류', '구역', '소개', '유튜브', 'PDF', '사진', '운영시간']].concat(collect().map(b => [b.n, b.name, b.org, catOf(b.cat).name, zoneOf(b.zone).name, b.desc || '', b.video || '', b.pdf || '', b.img || '', b.hours || ''])).map(r => r.map(csv).join(',')).join('\n'));
   $('#bImp').onchange = async e => { const f = e.target.files[0]; if(!f) return; e.target.value = '';
     let rows; try{ rows = (/\.xlsx$/i.test(f.name) ? await readXlsx(f) : parseCSV(await f.text()).slice(1)).filter(r => r[0]); }catch(err){ return toast(err.message || '파일을 읽지 못했어요'); }
     if(!rows.length) return toast('읽을 행이 없어요');
     { const seen = new Set(); for(const r of rows){ if(seen.has(r[0])) return toast(`부스 번호 ${r[0]}이(가) 두 번 있어요`); seen.add(r[0]); } }
     if(rows.length > CONFIG.boothMax) return toast(`부스는 최대 ${CONFIG.boothMax}개까지예요 (${rows.length}개)`);
     S.booths = rows.map(r => ({ id: 'b' + r[0], n: r[0], name: r[1] || '', org: r[2] || '', cat: matchCategory(r[3], 'etc', true),
-      zone: (ZONES.find(z => z.name === r[4] || z.id === r[4]) || ZONES[0]).id, desc: r[5] || '', video: r[6] || '', pdf: r[7] || '', img: r[8] || '' })); await DB.saveBooths(S.booths); await saveCategories(S.booths); toast(`${rows.length}개 부스를 불러왔어요`); renderAdmin('booths'); };
+      zone: (ZONES.find(z => z.name === r[4] || z.id === r[4]) || ZONES[0]).id, desc: r[5] || '', video: r[6] || '', pdf: r[7] || '', img: r[8] || '', hours: r[9] || '' })); await DB.saveBooths(S.booths); await saveCategories(S.booths); toast(`${rows.length}개 부스를 불러왔어요`); renderAdmin('booths'); };
 }
 /* QR 인쇄 시트. 부스별 QR 주소 = base?b=번호&t=토큰. 토큰은 DB.boothTokens (부스가 서버에 없으면 먼저 저장해 발급). 같은 탭의 테스트 번호 입력도 통과되게 qrTok 에 넣음 */
 function admQR(){
