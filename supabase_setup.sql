@@ -496,3 +496,21 @@ begin
   perform ensure_booth_tokens();
 end $$;
 grant execute on function admin_save_booths(text, jsonb) to anon;
+
+-- 15. 부스 대상 (2026-09-21) ---------------------------------------------
+-- '' 전체 · 'elem' 초등 이하 · 'secondary' 중고등. 초등 이하 부스는 중고등학생(등록 구분 중·고) 폰에서 목록·지도에 안 보이고 도장도 안 찍힘(앱에서 판정). 성인·미등록은 전부 보임.
+alter table booths add column if not exists target_audience text default '';
+
+create or replace function admin_save_booths(pw text, rows jsonb) returns void
+language plpgsql security definer set search_path = public, extensions as $$
+begin
+  perform admin_ok(pw);
+  delete from booths where true;
+  insert into booths (id, number, name, category, organization, description, sort_order, zone, video_url, pdf_url, image_url, operating_hours, time_variant, target_audience)
+  select r.id, r.number, r.name, r.category, r.organization, r.description, r.sort_order,
+         coalesce(r.zone, ''), coalesce(r.video_url, ''), coalesce(r.pdf_url, ''), coalesce(r.image_url, ''), coalesce(r.operating_hours, ''), r.time_variant, coalesce(r.target_audience, '')
+  from jsonb_to_recordset(rows) as r(id text, number text, name text, category text, organization text, description text, sort_order int,
+                                     zone text, video_url text, pdf_url text, image_url text, operating_hours text, time_variant jsonb, target_audience text);
+  perform ensure_booth_tokens();
+end $$;
+grant execute on function admin_save_booths(text, jsonb) to anon;

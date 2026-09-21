@@ -143,6 +143,8 @@ select.inp.sm{padding-right:30px;background-position:right 10px center}
 .borg{font-size:12.5px;color:var(--ink-3);margin-top:2px;font-weight:600}
 .bcat{font-size:11px;font-weight:800;color:var(--c);margin-top:3px}
 .bhours{font-size:11px;font-weight:700;color:var(--ink-3);margin-top:3px}.bhours.before{color:var(--coral)}.bhours.open{color:var(--blue)}
+.btarget{display:inline-flex;align-items:center;margin-top:4px;padding:2px 8px;border-radius:999px;font-size:10.5px;font-weight:800;background:var(--sun-soft);color:var(--sun-ink)}
+.brow .tsel{display:inline-flex;border:1.5px solid var(--line);border-radius:10px;overflow:hidden;flex-shrink:0}.brow .tsel button{border:0;background:#fff;padding:5px 9px;font-size:11.5px;font-weight:800;color:var(--ink-3);cursor:pointer;white-space:nowrap}.brow .tsel button.on{background:var(--blue);color:#fff}
 .bgo{color:var(--ink-3);flex-shrink:0}
 .bgo svg{width:18px;height:18px}
 .searchbar{display:flex;align-items:center;gap:9px;background:var(--card);border-radius:999px;padding:0 16px;height:46px;box-shadow:var(--sh-1)}
@@ -779,9 +781,9 @@ const SupabaseDB = {
   _s(r){ return {id:r.id,visitorId:r.visitor_id,boothId:r.booth_id,at:+new Date(r.created_at)}; },
   /* booths 테이블 ↔ 앱 부스 객체. DB 컬럼은 풀네임(number·category·organization·description·sort_order·video_url·pdf_url·image_url),
      앱 안에서는 짧은 이름(n·cat·org·desc·video·pdf·img)을 씀 — 화면 코드 수백 곳이 짧은 이름을 쓰고, 화면엔 어차피 한글 라벨만 나가므로 */
-  _b(r){ return {id:r.id,n:r.number,name:r.name,cat:r.category,org:r.organization,desc:r.description,zone:r.zone||'',video:r.video_url||'',pdf:r.pdf_url||'',img:r.image_url||'',hours:r.operating_hours||'',variant:r.time_variant||null}; },
+  _b(r){ return {id:r.id,n:r.number,name:r.name,cat:r.category,org:r.organization,desc:r.description,zone:r.zone||'',video:r.video_url||'',pdf:r.pdf_url||'',img:r.image_url||'',hours:r.operating_hours||'',variant:r.time_variant||null,target:r.target_audience||''}; },
   async booths(){ const rows=await this._q('booths?select=*&order=sort_order'); return rows.length?rows.map(r=>this._b(r)):null; },
-  async saveBooths(list){ await this._adm('admin_save_booths',{rows:list.map((b,i)=>({id:b.id,number:b.n,name:b.name,category:b.cat,organization:b.org,description:b.desc,sort_order:i,zone:b.zone||'',video_url:b.video||'',pdf_url:b.pdf||'',image_url:b.img||'',operating_hours:b.hours||'',time_variant:b.variant||null}))});
+  async saveBooths(list){ await this._adm('admin_save_booths',{rows:list.map((b,i)=>({id:b.id,number:b.n,name:b.name,category:b.cat,organization:b.org,description:b.desc,sort_order:i,zone:b.zone||'',video_url:b.video||'',pdf_url:b.pdf||'',image_url:b.img||'',operating_hours:b.hours||'',time_variant:b.variant||null,target_audience:b.target||''}))});
     const data={...(S.settingsRaw||{}),boothsVersion:Date.now()}; await this.saveSettings(data); S.settingsRaw=data; await store.set('wj:booths_cache',{v:data.boothsVersion,list}); },   // 부스 버전 올림 → 방문객 폰 캐시 무효화
   /* 방문객 데이터는 전부 RPC. anon 키로 visitors/stamps 테이블을 직접 읽을 수 없음(명단 노출 차단). uuid 를 아는 사람 = 본인 */
   async getVisitor(id){ const r=await this._rpc('visitor_get',{vid:id}); return this._v(r[0]); },
@@ -850,6 +852,13 @@ const S = {
 function nowMin(){ const d = new Date(); return d.getHours() * 60 + d.getMinutes(); }
 function toMin(t){ const m = String(t || '').match(/(\d{1,2}):(\d{2})/); return m ? +m[1] * 60 + +m[2] : null; }
 function bv(b){ const v = b && b.variant; if(!v || toMin(v.at) === null || nowMin() < toMin(v.at)) return b; return { ...b, name: v.name || b.name, org: v.org || b.org, cat: v.cat || b.cat, desc: v.desc || b.desc, switched: true, baseName: b.name }; }
+/* 부스 대상: '' 전체 · elem 초등 이하 · secondary 중고등. 등록 구분(초/중/고/성인)으로 판정 — 성인·미등록은 전부 보임 */
+const TARGETS = [{ id: '', name: '전체' }, { id: 'elem', name: '초등 이하' }, { id: 'secondary', name: '중고등' }];
+function targetName(t){ return (TARGETS.find(x => x.id === (t || '')) || TARGETS[0]).name; }
+function parseTarget(txt){ const t = String(txt || '').trim(); if(!t) return ''; if(t.startsWith('elem') || t.includes('초') || t.includes('유')) return 'elem'; if(t.startsWith('sec') || t.includes('중') || t.includes('고')) return 'secondary'; return ''; }
+function myLevel(){ const g = (S.me && S.me.grade) || ''; return g.startsWith('초') ? 'elem' : (g.startsWith('중') || g.startsWith('고')) ? 'secondary' : ''; }
+function boothForMe(b){ const t = (b && b.target) || ''; if(!t || !S.me) return true; const L = myLevel(); return !L || L === t; }
+function targetChipHTML(b){ return b.target ? `<div><span class="btarget">${esc(targetName(b.target))} 대상</span></div>` : ''; }
 function boothByN(n){ return bv(S.booths.find(b => b.n === n)); }
 function admPath(sub){ return '/' + CONFIG.adminPath + (sub || ''); }
 /* 행사 설정: 관리자 › 행사 설정에서 저장한 값(서버 settings / 로컬 wj:settings)을 CONFIG·SCHEDULE·RESOURCES 위에 덮는다 */
@@ -916,7 +925,7 @@ function progress(){ return Math.min(S.myStamps.length, CONFIG.stampGoal); }
 function goalReached(){ return S.myStamps.length >= CONFIG.stampGoal; }
 
 /* 부팅: 부스 목록. 서버(또는 로컬 저장)에 저장된 게 있으면 그것, 없으면 파일에 내장된 SEED_BOOTHS. demoBoothCount 가 크면 데모 부스로 채움 */
-const seedToBooth = b => ({ id: b.id || 'b' + b.n, n: b.n, name: b.name, cat: b.cat, org: b.org, zone: b.zone || '', desc: b.desc || DESC_BY_CAT[b.cat], video: b.video || '', pdf: b.pdf || '', img: b.img || '', hours: b.hours || '', variant: b.variant || null });
+const seedToBooth = b => ({ id: b.id || 'b' + b.n, n: b.n, name: b.name, cat: b.cat, org: b.org, zone: b.zone || '', desc: b.desc || DESC_BY_CAT[b.cat], video: b.video || '', pdf: b.pdf || '', img: b.img || '', hours: b.hours || '', variant: b.variant || null, target: b.target || '' });
 async function loadBooths(){
   let saved = null;
   try{ saved = await DB.booths(); }catch(e){ console.warn('부스 목록을 서버에서 못 읽음 → 내장 목록 사용', e.message); }   // 서버 장애·컬럼 불일치 때도 앱은 뜨게
@@ -1151,15 +1160,15 @@ function boothItemHTML(b){
   const c = catOf(b.cat), done = stampedIds().has(b.id);
   return `<button class="bitem" style="--c:${c.color}" onclick="go('/booth/${b.n}')">
     <div class="bnum ${done ? 'done' : ''}">${esc(b.n)}</div>
-    <div class="grow"><div class="bname">${esc(b.name)}</div><div class="borg">${esc(b.org)}</div><div class="bcat">${esc(c.name)}</div>${hoursChipHTML(b)}</div>
+    <div class="grow"><div class="bname">${esc(b.name)}</div><div class="borg">${esc(b.org)}</div><div class="bcat">${esc(c.name)}</div>${hoursChipHTML(b)}${targetChipHTML(b)}</div>
     <span class="bgo">${I.chev}</span></button>`;
 }
 function filteredBooths(){
   const q = S.q.trim().toLowerCase();
-  return S.booths.map(bv).filter(b => !S.hiddenCats.has(b.cat) && (!q || b.name.toLowerCase().includes(q) || b.n.includes(q) || (b.org || '').toLowerCase().includes(q)));
+  return S.booths.map(bv).filter(b => boothForMe(b) && !S.hiddenCats.has(b.cat) && (!q || b.name.toLowerCase().includes(q) || b.n.includes(q) || (b.org || '').toLowerCase().includes(q)));
 }
 function catChipsHTML(){
-  return CATS.map(c => { const n = S.booths.filter(b => b.cat === c.id).length; if(!n) return ''; const on = !S.hiddenCats.has(c.id);
+  return CATS.map(c => { const n = S.booths.filter(b => b.cat === c.id && boothForMe(b)).length; if(!n) return ''; const on = !S.hiddenCats.has(c.id);
     return `<button class="chip ${on ? '' : 'off'}" data-cat="${c.id}" style="${on ? '' : 'opacity:.45'}"><span class="dot" style="background:${c.color}"></span>${esc(c.name)}<span class="n">${n}</span></button>`; }).join('');
 }
 function wireChips(root, after){
@@ -1272,7 +1281,7 @@ function renderBooth(n){
       <div class="num">BOOTH ${esc(b.n)}</div>
       <h1 class="name">${esc(b.name)}</h1>
       <div class="org">${esc(b.org)}</div>
-      <span class="pill"><span class="dot"></span>${esc(c.name)}</span>
+      <span class="pill"><span class="dot"></span>${esc(c.name)}</span>${b.target ? `<span class="pill" style="margin-left:6px">${esc(targetName(b.target))} 대상</span>` : ''}
     </div>
     ${b.img ? `<img class="bimg" id="bImg" alt="${esc(b.name)} 부스 사진" hidden>` : ''}
     <div class="card"><div class="kv"><div><div class="k">체험 소개</div></div><p class="desc">${esc(b.desc || DESC_BY_CAT[b.cat])}</p>
@@ -1283,7 +1292,7 @@ function renderBooth(n){
       <div class="ic">${st ? I.check : I.qr}</div>
       <div class="grow"><div class="t">${st ? '도장 찍음' : '부스 QR을 찍으면 도장이 찍혀요'}</div><div class="s">${st ? (st.pending ? '전송 대기 중 · 통신되면 자동 전송' : fmtTime(st.at) + ' 체험 완료') : '부스 앞 안내판의 QR을 폰 카메라로 스캔'}</div></div>
     </div>
-    ${st ? '' : `<button class="btn sun full" onclick="openScanner()">${I.qr} QR 찍고 도장 받기</button>`}
+    ${st ? '' : boothForMe(b) ? `<button class="btn sun full" onclick="openScanner()">${I.qr} QR 찍고 도장 받기</button>` : `<div class="notice">${I.bell}<span>${esc(targetName(b.target))} 친구들만 참여하는 부스예요</span></div>`}
     <button class="btn ${st ? '' : 'line'} full" onclick="go('/map/${b.n}')">${I.pin} 지도에서 위치 보기</button>
     ${S.admin ? `<button class="btn line full" onclick="go('/stamp/${b.n}')">${I.qr} QR 링크 미리보기 (관리자)</button>` : ''}`,
     { back: true });
@@ -1299,6 +1308,16 @@ function renderStamp(n){
   if(!S.me){ go('/register/' + encodeURIComponent('/stamp/' + n), true); return; }
   const c = catOf(b.cat);
   shell('/my', '', `<div class="stampscreen" id="stampArea"><div class="muted small">도장 찍는 중…</div></div>`, { noTop: true });
+  if(!boothForMe(b)){   // 대상(초등 이하 / 중고등)이 아닌 학생 → 도장 안 찍고 안내만
+    $('#stampArea').innerHTML = `
+      <div class="bigstamp dup"><div><div class="n">✋</div><div class="t">대상 아님</div></div></div>
+      <div>
+        <div class="stamp-h">${esc(targetName(b.target))} 친구들만 참여하는 부스예요</div>
+        <p class="stamp-p" style="margin-top:8px">이 부스는 ${esc(targetName(b.target))} 대상이라 도장이 찍히지 않아요. 다른 부스에서 도장을 모아보세요.</p>
+      </div>
+      <button class="btn sun full" style="max-width:340px" onclick="go('/')">부스 목록 보기</button>`;
+    return;
+  }
   (async () => {
     let res; const token = qrTok.get(b.n);
     if(stampedIds().has(b.id)) res = { ok: false, dup: true };                       // 이미 찍었거나 전송 대기 중
@@ -1676,7 +1695,7 @@ function openBoothSheet(id){
     <p class="desc small" style="margin:14px 0 16px">${esc(b.desc || DESC_BY_CAT[b.cat])}</p>
     <div class="row">
       ${st ? `<button class="btn sun full" onclick="go('/booth/${b.n}')">${I.check} 도장 찍음 · 자세히</button>`
-           : `<button class="btn sun full" onclick="closeSheet();openScanner()">${I.qr} QR 찍고 도장 받기</button>`}
+           : boothForMe(b) ? `<button class="btn sun full" onclick="closeSheet();openScanner()">${I.qr} QR 찍고 도장 받기</button>` : `<div class="notice" style="width:100%">${I.bell}<span>${esc(targetName(b.target))} 친구들만 참여하는 부스예요</span></div>`}
     </div>
     <div class="row" style="margin-top:8px">
       <button class="btn line full" onclick="startRoute('${id}','to')">${I.pin} 정문에서 가는 길</button>
@@ -1985,6 +2004,7 @@ function admBooths(){
         <div class="l2">
           <input class="inp sm f-cat" value="${esc(catOf(b.cat).name)}" data-f="cat" placeholder="분류" title="없는 이름을 적으면 새 분류가 생겨요">
           <select class="inp sm f-zone" data-f="zone" title="구역">${ZONES.map(z => `<option value="${z.id}" ${z.id === (b.zone || '') ? 'selected' : ''}>${z.name}</option>`).join('')}</select>
+          <input type="hidden" data-f="target" value="${esc(b.target || '')}"><div class="tsel" data-tsel="${i}" title="대상: 초등 이하로 두면 중고등학생 폰에는 안 보이고 도장도 안 찍혀요">${TARGETS.map(t => `<button type="button" class="${(b.target || '') === t.id ? 'on' : ''}" data-t="${t.id}">${t.name}</button>`).join('')}</div>
           <input type="hidden" data-f="hours" value="${esc(b.hours || '')}"><input type="hidden" data-f="variant" value="${esc(b.variant ? JSON.stringify(b.variant) : '')}">
           <span class="mchip ${b.hours ? 'on' : ''}" data-m="hours">🕒 ${esc(b.hours || '종일')}</span><span class="mchip ${b.variant ? 'on' : ''}" data-m="variant">🔁 ${b.variant ? esc(b.variant.at) + ' 전환' : '전환 없음'}</span><button class="btn xs soft" data-time="${i}" style="white-space:nowrap" title="운영 시간 · 시간대 전환">시간</button>
           <input class="inp sm f-desc" value="${esc(b.desc || '')}" data-f="desc" placeholder="소개 (방문객 부스 소개 화면에 나와요)"></div></div>`).join('')}
@@ -2001,7 +2021,7 @@ function admBooths(){
     if(prev !== JSON.stringify(cats)){ const data = { ...(S.settingsRaw || {}), categories: cats }; await DB.saveSettings(data); S.settingsRaw = data; }
   };
   $('#bSave').onclick = async () => { const list = collect(); const seen = new Set(); for(const b of list){ if(!b.n || !b.name) return toast('번호와 이름은 비울 수 없어요'); if(seen.has(b.n)) return toast(`부스 번호 ${b.n}이(가) 중복돼요`); seen.add(b.n); } S.booths = list; await DB.saveBooths(list); await saveCategories(list); toast('저장했어요'); renderAdmin('booths'); };
-  $('#bAdd').onclick = () => { const list = collect(); if(list.length >= CONFIG.boothMax) return toast(`부스는 최대 ${CONFIG.boothMax}개까지예요`); const n = String(Math.max(0, ...list.map(b => parseInt(b.n) || 0)) + 1).padStart(2, '0'); list.push({ id: 'b' + n + '-' + Date.now().toString(36), n, name: '', cat: 'etc', org: '', zone: '', desc: '', video: '', pdf: '', img: '', hours: '', variant: null }); S.booths = list; renderAdmin('booths'); setTimeout(() => $$('#bList .brow').pop()?.querySelector('[data-f=name]').focus(), 50); };
+  $('#bAdd').onclick = () => { const list = collect(); if(list.length >= CONFIG.boothMax) return toast(`부스는 최대 ${CONFIG.boothMax}개까지예요`); const n = String(Math.max(0, ...list.map(b => parseInt(b.n) || 0)) + 1).padStart(2, '0'); list.push({ id: 'b' + n + '-' + Date.now().toString(36), n, name: '', cat: 'etc', org: '', zone: '', desc: '', video: '', pdf: '', img: '', hours: '', variant: null, target: '' }); S.booths = list; renderAdmin('booths'); setTimeout(() => $$('#bList .brow').pop()?.querySelector('[data-f=name]').focus(), 50); };
   $$('[data-del]').forEach(b => b.onclick = () => { const list = collect(); if(!confirm(`${list[b.dataset.del].n} 부스를 삭제할까요? 저장을 눌러야 반영돼요.`)) return; list.splice(b.dataset.del, 1); S.booths = list; renderAdmin('booths'); });
   /* 순서: 왼쪽 ≡ 를 끌어서(pointer 이벤트, 마우스·터치 공통) 행을 옮기고, 놓으면 표의 행 순서대로 S.booths 를 다시 만듦. [번호순 정렬]은 번호(숫자 먼저, 본1·네1 같은 글자 번호는 뒤) 순 */
   const reorderFromDom = () => { const list = collect(); S.booths = $$('#bList .brow').map(tr => list[+tr.dataset.i]); renderAdmin('booths'); };
@@ -2109,26 +2129,27 @@ function admBooths(){
     };
   };
   $$('[data-time]').forEach(el => el.onclick = () => openTimeSheet(+el.dataset.time));
+  $$('[data-tsel]').forEach(box => $$('button', box).forEach(bt => bt.onclick = () => { $$('button', box).forEach(x => x.classList.toggle('on', x === bt)); $('[data-f=target]', box.closest('.brow')).value = bt.dataset.t; }));
   /* 엑셀(xlsx) 양식: 열 너비·제목 줄 고정·소개 줄바꿈. 담당자가 엑셀에서 바로 채워서 다시 올리는 용도. ExcelJS 는 눌렀을 때만 CDN 에서 로드 */
   const loadExcelJS = () => window.ExcelJS ? Promise.resolve() : new Promise((res, rej) => { const el = document.createElement('script'); el.src = 'https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js'; el.onload = res; el.onerror = () => rej(new Error('엑셀 라이브러리를 못 불러왔어요 (인터넷 연결 확인)')); document.head.appendChild(el); });
-  const XCOLS = [['번호', 7], ['부스명', 34], ['운영기관', 22], ['분류', 15], ['구역', 24], ['소개', 60], ['유튜브', 28], ['PDF', 28], ['사진', 28], ['운영시간', 14]];
+  const XCOLS = [['번호', 7], ['부스명', 34], ['운영기관', 22], ['분류', 15], ['구역', 24], ['소개', 60], ['유튜브', 28], ['PDF', 28], ['사진', 28], ['운영시간', 14], ['대상', 10]];
   $('#bXlsx').onclick = async () => {
     try{ toast('엑셀 만드는 중…'); await loadExcelJS(); }catch(e){ return toast(e.message); }
     const wb = new ExcelJS.Workbook(); const ws = wb.addWorksheet('부스', { views: [{ state: 'frozen', ySplit: 1 }] });
     ws.columns = XCOLS.map(([h, w]) => ({ header: h, width: w }));
-    collect().forEach(b => ws.addRow([b.n, b.name, b.org, catOf(b.cat).name, zoneOf(b.zone).name, b.desc || '', b.video || '', b.pdf || '', b.img || '', b.hours || '']));
+    collect().forEach(b => ws.addRow([b.n, b.name, b.org, catOf(b.cat).name, zoneOf(b.zone).name, b.desc || '', b.video || '', b.pdf || '', b.img || '', b.hours || '', targetName(b.target)]));
     const hdr = ws.getRow(1); hdr.font = { bold: true, color: { argb: 'FFFFFFFF' } }; hdr.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF151A2D' } }; hdr.alignment = { vertical: 'middle', horizontal: 'center' }; hdr.height = 24;
     ws.eachRow((row, i) => { if(i === 1) return; row.alignment = { vertical: 'top', wrapText: true }; row.getCell(1).alignment = { vertical: 'top', horizontal: 'center' }; });
-    ws.autoFilter = 'A1:J1';
+    ws.autoFilter = 'A1:K1';
     const guide = wb.addWorksheet('안내'); guide.getColumn(1).width = 90;
-    ['이 파일을 채워서 관리자 › 부스 › 엑셀·CSV 불러오기 로 올리면 부스 목록이 통째로 바뀝니다.', '', '• 번호: 숫자 또는 본1·네1 같은 문자. 비우면 그 줄은 무시. 같은 번호가 두 개면 올릴 때 막힘', '• 분류: 아래 목록의 이름(일부만 써도 됨). 목록에 없는 이름을 적으면 새 분류로 추가돼요. 비우면 "상상그이상"', '• 구역: 아래 목록 중 하나. 비우면 "트랙 둘레"', '• 소개: 길어도 돼요. 줄바꿈은 Alt+Enter', '• 유튜브·PDF·사진: 링크만. PDF·사진 파일 업로드는 관리자 화면의 [파일] 버튼으로', '• 운영시간: 오후에만 여는 부스처럼 시간이 정해진 경우만 13:00~16:00 형식으로. 비우면 종일', '• 표 순서 = 지도 순서 (같은 구역 안에서). 트랙 둘레는 정문 오른쪽부터 시계방향', '', `분류: ${CATS.map(c => c.name).join(' / ')}`, `구역: ${ZONES.map(z => z.name).join(' / ')}`].forEach(t => guide.addRow([t]));
+    ['이 파일을 채워서 관리자 › 부스 › 엑셀·CSV 불러오기 로 올리면 부스 목록이 통째로 바뀝니다.', '', '• 번호: 숫자 또는 본1·네1 같은 문자. 비우면 그 줄은 무시. 같은 번호가 두 개면 올릴 때 막힘', '• 분류: 아래 목록의 이름(일부만 써도 됨). 목록에 없는 이름을 적으면 새 분류로 추가돼요. 비우면 "상상그이상"', '• 구역: 아래 목록 중 하나. 비우면 "트랙 둘레"', '• 소개: 길어도 돼요. 줄바꿈은 Alt+Enter', '• 유튜브·PDF·사진: 링크만. PDF·사진 파일 업로드는 관리자 화면의 [파일] 버튼으로', '• 운영시간: 오후에만 여는 부스처럼 시간이 정해진 경우만 13:00~16:00 형식으로. 비우면 종일', '• 대상: 전체 / 초등 이하 / 중고등. 초등 이하로 적으면 중고등학생 폰에는 안 보이고 도장도 안 찍혀요 (비우면 전체)', '• 표 순서 = 지도 순서 (같은 구역 안에서). 트랙 둘레는 정문 오른쪽부터 시계방향', '', `분류: ${CATS.map(c => c.name).join(' / ')}`, `구역: ${ZONES.map(z => z.name).join(' / ')}`].forEach(t => guide.addRow([t]));
     guide.getRow(1).font = { bold: true };
     const buf = await wb.xlsx.writeBuffer(); const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })); a.download = '부스목록.xlsx'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
   };
   /* xlsx 읽기: '부스' 시트(없으면 첫 시트) 2행부터. 셀이 하이퍼링크·서식 텍스트면 글자만 */
   const cellText = v => v == null ? '' : typeof v === 'object' ? (v.text ?? (v.richText ? v.richText.map(r => r.text).join('') : v.result ?? v.hyperlink ?? '')) : String(v);
-  const readXlsx = async f => { await loadExcelJS(); const wb = new ExcelJS.Workbook(); await wb.xlsx.load(await f.arrayBuffer()); const ws = wb.getWorksheet('부스') || wb.worksheets[0]; const rows = []; ws.eachRow((row, i) => { if(i === 1) return; rows.push(Array.from({ length: 10 }, (_, c) => cellText(row.getCell(c + 1).value).trim())); }); return rows; };
-  $('#bCsv').onclick = () => download('booths.csv', '\ufeff' + [['번호', '부스명', '운영기관', '분류', '구역', '소개', '유튜브', 'PDF', '사진', '운영시간']].concat(collect().map(b => [b.n, b.name, b.org, catOf(b.cat).name, zoneOf(b.zone).name, b.desc || '', b.video || '', b.pdf || '', b.img || '', b.hours || ''])).map(r => r.map(csv).join(',')).join('\n'));
+  const readXlsx = async f => { await loadExcelJS(); const wb = new ExcelJS.Workbook(); await wb.xlsx.load(await f.arrayBuffer()); const ws = wb.getWorksheet('부스') || wb.worksheets[0]; const rows = []; ws.eachRow((row, i) => { if(i === 1) return; rows.push(Array.from({ length: 11 }, (_, c) => cellText(row.getCell(c + 1).value).trim())); }); return rows; };
+  $('#bCsv').onclick = () => download('booths.csv', '\ufeff' + [['번호', '부스명', '운영기관', '분류', '구역', '소개', '유튜브', 'PDF', '사진', '운영시간', '대상']].concat(collect().map(b => [b.n, b.name, b.org, catOf(b.cat).name, zoneOf(b.zone).name, b.desc || '', b.video || '', b.pdf || '', b.img || '', b.hours || '', targetName(b.target)])).map(r => r.map(csv).join(',')).join('\n'));
   $('#bImp').onchange = async e => { const f = e.target.files[0]; if(!f) return; e.target.value = '';
     let rows; try{ rows = (/\.xlsx$/i.test(f.name) ? await readXlsx(f) : parseCSV(await f.text()).slice(1)).filter(r => r[0]); }catch(err){ return toast(err.message || '파일을 읽지 못했어요'); }
     if(!rows.length) return toast('읽을 행이 없어요');
@@ -2136,7 +2157,7 @@ function admBooths(){
     if(rows.length > CONFIG.boothMax) return toast(`부스는 최대 ${CONFIG.boothMax}개까지예요 (${rows.length}개)`);
     const prevVariant = Object.fromEntries(S.booths.map(b => [b.n, b.variant || null]));   // 시간대 전환은 엑셀에 없으니 같은 번호의 기존 값 유지
     S.booths = rows.map(r => ({ id: 'b' + r[0], n: r[0], name: r[1] || '', org: r[2] || '', cat: matchCategory(r[3], 'etc', true),
-      zone: (ZONES.find(z => z.name === r[4] || z.id === r[4]) || ZONES[0]).id, desc: r[5] || '', video: r[6] || '', pdf: r[7] || '', img: r[8] || '', hours: r[9] || '', variant: prevVariant[r[0]] || null })); await DB.saveBooths(S.booths); await saveCategories(S.booths); toast(`${rows.length}개 부스를 불러왔어요`); renderAdmin('booths'); };
+      zone: (ZONES.find(z => z.name === r[4] || z.id === r[4]) || ZONES[0]).id, desc: r[5] || '', video: r[6] || '', pdf: r[7] || '', img: r[8] || '', hours: r[9] || '', variant: prevVariant[r[0]] || null, target: parseTarget(r[10]) })); await DB.saveBooths(S.booths); await saveCategories(S.booths); toast(`${rows.length}개 부스를 불러왔어요`); renderAdmin('booths'); };
 }
 /* QR 인쇄 시트. 부스별 QR 주소 = base?b=번호&t=토큰. 토큰은 DB.boothTokens (부스가 서버에 없으면 먼저 저장해 발급). 같은 탭의 테스트 번호 입력도 통과되게 qrTok 에 넣음 */
 function admQR(){
