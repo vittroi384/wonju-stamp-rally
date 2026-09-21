@@ -201,6 +201,11 @@ select.inp.sm{padding-right:30px;background-position:right 10px center}
 .tile.off{opacity:.45}
 .fac.usr circle{cursor:pointer}
 .bitem.off{opacity:.5}
+.stgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:6px;max-height:50vh;overflow:auto;padding:2px}
+.stchip{display:flex;flex-direction:column;align-items:flex-start;gap:3px;border:1.5px solid var(--line);border-radius:12px;padding:7px 9px;background:#fff;text-align:left;cursor:pointer;min-width:0}
+.stchip b{font-size:13px;color:#fff;background:var(--c);border-radius:8px;padding:1px 7px}
+.stchip span{font-size:11px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.stchip.off{opacity:.45;border-style:dashed;background:var(--card-2)}
 .tile.hi .bg{stroke:var(--ink);stroke-width:3.5;paint-order:stroke}
 .tile text{font-family:var(--sans);font-weight:900;fill:#fff;text-anchor:middle;dominant-baseline:central;pointer-events:none}
 .tile .lbl{opacity:0;transition:opacity .15s}
@@ -1995,7 +2000,7 @@ function admBooths(){
       <label class="btn sm line" style="cursor:pointer">엑셀·CSV 불러오기<input type="file" accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" id="bImp" hidden></label>
       <button class="btn xs soft" id="bCsv" title="예전 방식">CSV</button>
       <button class="btn sm line" id="bSort" title="표 순서를 부스 번호 순으로">번호순 정렬</button>
-      ${closedSet().size ? `<button class="btn sm line" id="bOpenAll" style="color:var(--coral)">쉬는 중 ${closedSet().size}개 모두 운영 중으로</button>` : ''}
+      <button class="btn sm line" id="bStatus" title="쉬는 부스를 한 화면에서 고르기">운영 상태</button>
       <span class="small muted">${S.booths.length}/${CONFIG.boothMax}개 · 같은 구역 안에서는 표 순서가 지도 순서예요 (트랙 둘레는 정문 오른쪽부터 시계방향) · 왼쪽 ≡ 를 끌어서 순서를 바꿔요<br>분류: ${CATS.map(c => c.name).join(' / ')} — 일부만 적어도 알아듣고, 없는 이름을 적으면 새 분류가 생겨요</span>
     </div>
     <div class="blist" id="bList">
@@ -2008,7 +2013,6 @@ function admBooths(){
           <div class="acts">
             <input type="hidden" data-f="video" value="${esc(b.video || '')}"><input type="hidden" data-f="pdf" value="${esc(b.pdf || '')}"><input type="hidden" data-f="img" value="${esc(b.img || '')}">
             <span class="mchip ${b.video ? 'on' : ''}" data-m="video">▶ 영상</span><span class="mchip ${b.pdf ? 'on' : ''}" data-m="pdf">PDF</span><span class="mchip ${b.img ? 'on' : ''}" data-m="img">사진</span>
-            <button class="btn xs ${closedSet().has(b.id) ? '' : 'line'}" data-open="${b.id}" style="white-space:nowrap;${closedSet().has(b.id) ? 'color:var(--coral)' : ''}" title="누르면 바로 바뀌어요 (저장 버튼 필요 없음)">${closedSet().has(b.id) ? '⏸ 쉬는 중' : '▶ 운영 중'}</button>
             <button class="btn xs soft" data-media="${i}" style="white-space:nowrap">편집</button>
             <button class="btn xs line" data-del="${i}" style="color:var(--coral);white-space:nowrap">삭제</button></div></div>
         <div class="l2">
@@ -2139,8 +2143,30 @@ function admBooths(){
     };
   };
   $$('[data-time]').forEach(el => el.onclick = () => openTimeSheet(+el.dataset.time));
-  $$('[data-open]').forEach(el => el.onclick = () => toggleClosed(el.dataset.open));
-  if($('#bOpenAll')) $('#bOpenAll').onclick = async () => { const data = { ...(S.settingsRaw || {}), closedBooths: [] }; try{ await DB.saveSettings(data); S.settingsRaw = data; toast('모두 운영 중으로 바꿨어요'); }catch(e){ return toast(e.message); } $$('[data-open]').forEach(el => { el.textContent = '▶ 운영 중'; el.classList.add('line'); el.style.color = ''; }); $('#bOpenAll').remove(); };
+  /* 운영 상태 한번에: 시트에 전체 부스 칩. 탭 → 쉬는 중 ↔ 운영 중, 모두 운영 중/쉬는 중, 찾기. [적용] 때 settings.closedBooths 한 번에 저장 */
+  const statusLabel = () => { const n = closedSet().size; return n ? `⏸ 쉬는 중 ${n}개 · 운영 상태` : '▶ 운영 상태 한번에'; };
+  const openStatusSheet = () => {
+    const closed = closedSet();
+    const chip = b => `<button type="button" class="stchip ${closed.has(b.id) ? 'off' : ''}" data-st="${esc(b.id)}" style="--c:${catOf(b.cat).color}"><b>${esc(b.n)}</b><span>${esc(b.name)}</span></button>`;
+    openSheet(`
+      <div class="h-sec" style="margin:0 0 4px">운영 상태 <span class="small muted" id="stCnt"></span></div>
+      <p class="small muted" style="margin:0 0 10px;line-height:1.5">눌러서 쉬는 중 ↔ 운영 중. 쉬는 부스는 방문객 폰에 흐리게 보여요(도장은 찍혀요). [적용]을 눌러야 저장돼요.</p>
+      <div class="row" style="gap:6px;margin-bottom:10px;flex-wrap:wrap"><button class="btn xs line" id="stAllOn">모두 운영 중</button><button class="btn xs line" id="stAllOff">모두 쉬는 중</button><input class="inp sm" id="stQ" placeholder="번호·이름 찾기" style="flex:1;min-width:120px"></div>
+      <div class="stgrid" id="stGrid">${S.booths.map(chip).join('')}</div>
+      <div class="row" style="gap:8px;margin-top:12px"><button class="btn blue" id="stOk" style="flex:1">적용</button><button class="btn line" onclick="closeSheet()">취소</button></div>`);
+    const cnt = () => { const n = $$('#stGrid .stchip.off').length; $('#stCnt').textContent = n ? `· 쉬는 중 ${n}개` : '· 모두 운영 중'; };
+    $$('#stGrid .stchip').forEach(el => el.onclick = () => { el.classList.toggle('off'); cnt(); });
+    $('#stAllOn').onclick = () => { $$('#stGrid .stchip').forEach(el => el.classList.remove('off')); cnt(); };
+    $('#stAllOff').onclick = () => { $$('#stGrid .stchip').forEach(el => el.classList.add('off')); cnt(); };
+    $('#stQ').oninput = e => { const q = e.target.value.trim().toLowerCase(); $$('#stGrid .stchip').forEach(el => { el.hidden = !!q && !el.textContent.toLowerCase().includes(q); }); };
+    $('#stOk').onclick = async () => {
+      const ids = $$('#stGrid .stchip.off').map(el => el.dataset.st); const data = { ...(S.settingsRaw || {}), closedBooths: ids };
+      try{ await DB.saveSettings(data); S.settingsRaw = data; }catch(e){ return toast(e.message); }
+      closeSheet(); toast(ids.length ? `쉬는 중 ${ids.length}개로 저장했어요` : '모두 운영 중으로 저장했어요'); $('#bStatus').textContent = statusLabel();
+    };
+    cnt();
+  };
+  $('#bStatus').textContent = statusLabel(); $('#bStatus').onclick = openStatusSheet;
   $$('[data-tsel]').forEach(box => $$('button', box).forEach(bt => bt.onclick = () => { $$('button', box).forEach(x => x.classList.toggle('on', x === bt)); $('[data-f=target]', box.closest('.brow')).value = bt.dataset.t; }));
   /* 엑셀(xlsx) 양식: 열 너비·제목 줄 고정·소개 줄바꿈. 담당자가 엑셀에서 바로 채워서 다시 올리는 용도. ExcelJS 는 눌렀을 때만 CDN 에서 로드 */
   const loadExcelJS = () => window.ExcelJS ? Promise.resolve() : new Promise((res, rej) => { const el = document.createElement('script'); el.src = 'https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js'; el.onload = res; el.onerror = () => rej(new Error('엑셀 라이브러리를 못 불러왔어요 (인터넷 연결 확인)')); document.head.appendChild(el); });
@@ -2205,14 +2231,6 @@ async function saveFacilities(list){
 /* 부스 운영 상태: settings.closedBooths(id 목록) 에 있으면 '쉬는 중'. 운영 시간 밖(hoursState before/after)도 흐리게. 도장은 막지 않음 */
 function closedSet(){ return new Set((S.settingsRaw && S.settingsRaw.closedBooths) || []); }
 function boothOpen(b){ if(!b) return true; if(closedSet().has(b.id)) return false; const h = hoursState(b); return !(h && (h.state === 'before' || h.state === 'after')); }
-async function toggleClosed(id){
-  const set = closedSet(); set.has(id) ? set.delete(id) : set.add(id);
-  const data = { ...(S.settingsRaw || {}), closedBooths: [...set] };
-  try{ await DB.saveSettings(data); S.settingsRaw = data; }catch(e){ return toast(e.message); }
-  const closed = set.has(id);
-  $$(`[data-open="${id}"]`).forEach(el => { el.textContent = closed ? '⏸ 쉬는 중' : '▶ 운영 중'; el.classList.toggle('line', !closed); el.style.color = closed ? 'var(--coral)' : ''; });
-  toast(closed ? '쉬는 중으로 바꿨어요 · 방문객 폰엔 흐리게 보여요' : '운영 중으로 바꿨어요');
-}
 /* QR 인쇄 시트. 부스별 QR 주소 = base?b=번호&t=토큰. 토큰은 DB.boothTokens (부스가 서버에 없으면 먼저 저장해 발급). 같은 탭의 테스트 번호 입력도 통과되게 qrTok 에 넣음 */
 function admQR(){
   const base = location.origin + location.pathname;
