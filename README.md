@@ -1,4 +1,4 @@
-# 🎪 부스 QR 스탬프 랠리
+# 부스 QR 스탬프 랠리
 
 ![Vanilla JS](https://img.shields.io/badge/Vanilla%20JS-single%20HTML-F7DF1E?logo=javascript&logoColor=black)
 ![Supabase](https://img.shields.io/badge/Supabase-Postgres%20%2B%20REST%20%2B%20RPC-3FCF8E?logo=supabase&logoColor=white)
