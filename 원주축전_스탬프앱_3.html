@@ -26,7 +26,7 @@
 }
 *{box-sizing:border-box}
 html,body{margin:0;height:100%}
-body{font-family:var(--sans);background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased;font-feature-settings:"tnum";overscroll-behavior:none}
+body{font-family:var(--sans);background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased;font-feature-settings:"tnum";overscroll-behavior:none;word-break:keep-all;overflow-wrap:anywhere}   /* 한글은 단어 중간에서 안 끊고 띄어쓰기에서만 줄바꿈 (한 단어가 칸보다 길면 그때만 끊음) */
 button{font-family:inherit;cursor:pointer;color:inherit}
 input,select,textarea{font-family:inherit;font-size:16px}
 a{color:inherit}
@@ -68,6 +68,7 @@ h1,h2,h3,h4,p{margin:0}
 .btn.line{background:#fff;color:var(--ink);box-shadow:inset 0 0 0 1.5px var(--line)}
 .btn.sm{padding:9px 14px;font-size:13px}
 .btn.xs{padding:6px 11px;font-size:12px}
+.btn.pair{padding:13px 8px;font-size:13.5px;gap:5px;white-space:nowrap;min-width:0}   /* 한 줄에 둘 나란히 (지도 시트 '정문에서 가는 길'·'가까운 출구') — 좁은 폰에서도 한 줄 유지 */
 .btn:disabled{opacity:.45;cursor:default}
 .btn svg{width:17px;height:17px}
 .field{display:flex;flex-direction:column;gap:7px}
@@ -1229,7 +1230,7 @@ function renderRegister(returnTo){
     <div class="reg-hero">
       <div class="eyebrow">${esc(CONFIG.eventTitle)}</div>
       <h1>부스 ${CONFIG.stampGoal}곳 돌고<br>선물 받아가기</h1>
-      <p>부스에 붙은 QR을 찍으면 도장이 찍혀요. 학교·학년·이름만 적으면 바로 시작할 수 있어요.</p>
+      <p>부스에 붙은 QR을 찍으면 도장이 찍혀요. <span style="white-space:nowrap">학교·학년·이름만</span> 적으면 바로 시작할 수 있어요.</p>
     </div>
     <div class="steps">
       <div class="step"><div class="ic">📱</div><div class="t">부스 QR 찍기</div><div class="s">폰 카메라로</div></div>
@@ -1237,7 +1238,7 @@ function renderRegister(returnTo){
       <div class="step"><div class="ic">🎁</div><div class="t">설문 후 선물</div><div class="s">운영본부에서</div></div>
     </div>
     <div class="card" style="display:flex;flex-direction:column;gap:14px">
-      <div class="field"><label id="rSchoolL">학교</label><input class="inp" id="rSchool" placeholder="원주중학교" maxlength="30" autocomplete="off"></div>
+      <div class="field"><label id="rSchoolL">학교</label><input class="inp" id="rSchool" placeholder="학교명" maxlength="30" autocomplete="off"></div>
       <div class="field"><label>구분</label><div class="gsel four" id="rLevel"><button type="button" data-l="초">초등</button><button type="button" data-l="중">중등</button><button type="button" data-l="고">고등</button><button type="button" data-l="성인">성인</button></div></div>
       <div class="field" id="rGradeF" hidden><label>학년</label><div class="gsel" id="rGrade"></div></div>
       <div class="field"><label>이름</label><input class="inp" id="rName" placeholder="홍길동" maxlength="20" autocomplete="off"></div>
@@ -1257,7 +1258,7 @@ function renderRegister(returnTo){
     $('#rGradeF').hidden = adult;
     $('#rGrade').innerHTML = adult ? '' : Array.from({ length: n }, (_, i) => `<button type="button" data-n="${i + 1}">${i + 1}학년</button>`).join('');
     $$('#rGrade button').forEach(g => g.onclick = () => { gradeNo = g.dataset.n; $$('#rGrade button').forEach(x => x.classList.toggle('on', x === g)); });
-    $('#rSchoolL').textContent = adult ? '소속 (선택)' : '학교'; $('#rSchool').placeholder = adult ? '학교·기관명 (없으면 비워도 돼요)' : { 초: '원주초등학교', 중: '원주중학교', 고: '원주고등학교' }[level];   // 성인은 학교 대신 소속, 비워도 됨
+    $('#rSchoolL').textContent = adult ? '소속 (선택)' : '학교'; $('#rSchool').placeholder = adult ? '학교·기관명 (없으면 비워도 돼요)' : '학교명';   // 성인은 학교 대신 소속, 비워도 됨
   });
   $('#rGo').onclick = async () => {
     const name = $('#rName').value.trim(), school = $('#rSchool').value.trim();
@@ -1710,8 +1711,8 @@ function openBoothSheet(id){
            : boothForMe(b) ? `<button class="btn sun full" onclick="closeSheet();openScanner()">${I.qr} QR 찍고 도장 받기</button>` : `<div class="notice" style="width:100%">${I.bell}<span>${esc(targetName(b.target))} 친구들만 참여하는 부스예요</span></div>`}
     </div>
     <div class="row" style="margin-top:8px">
-      <button class="btn line full" onclick="startRoute('${id}','to')">${I.pin} 정문에서 가는 길</button>
-      <button class="btn line full" onclick="startRoute('${id}','exit')">${I.exit} 가까운 출구</button>
+      <button class="btn line full pair" onclick="startRoute('${id}','to')">${I.pin} 정문에서 가는 길</button>
+      <button class="btn line full pair" onclick="startRoute('${id}','exit')">${I.exit} 가까운 출구</button>
     </div>
     <button class="btn soft sm full" style="margin-top:8px" onclick="go('/booth/${b.n}')">부스 소개 보기</button>`);
 }
