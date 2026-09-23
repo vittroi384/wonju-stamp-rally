@@ -289,6 +289,7 @@ async function loadSettings(){
     if(s.eventTitle) CONFIG.eventTitle = s.eventTitle; if(parseInt(s.stampGoal) >= 1) CONFIG.stampGoal = parseInt(s.stampGoal);
     if(Array.isArray(s.survey)) D.survey = s.survey; D.surveyLink = !!s.surveyUrl;
     if(Array.isArray(s.categories)) s.categories.forEach(c => { if(c && c.id && c.name && !CATS[c.id]) CATS[c.id] = { name: c.name, color: c.color || '#64748B' }; });   // 관리자가 추가한 분류
+    if(s.categoryColors && typeof s.categoryColors === 'object') Object.entries(s.categoryColors).forEach(([id, col]) => { if(CATS[id] && /^#[0-9a-f]{6}$/i.test(col)) CATS[id].color = col; });   // 관리자가 바꾼 분류 색
     $('#subtitle').textContent = `${CONFIG.eventTitle} · 운영본부${s.eventDate ? ' · ' + s.eventDate : ''}`;
   }catch(e){}
 }
