@@ -207,13 +207,12 @@ select.inp.sm{padding-right:30px;background-position:right 10px center}
 .stchip b{font-size:13px;color:#fff;background:var(--c);border-radius:8px;padding:1px 7px}
 .stchip span{font-size:11px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
 .stchip.off{opacity:.45;border-style:dashed;background:var(--card-2)}
-/* 분류 색 시트: 색 고르기 동그라미 · 이름 · 16진수 · 기본색 */
+/* 분류 색 시트: 색 고르기 동그라미 · 이름 · 기본색 */
 .crow{display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--line)}
 .crow input[type=color]{width:34px;height:34px;padding:0;border:2px solid var(--line);border-radius:50%;background:none;cursor:pointer;flex:none}
 .crow input[type=color]::-webkit-color-swatch-wrapper{padding:0}
 .crow input[type=color]::-webkit-color-swatch{border:none;border-radius:50%}
 .crow .cname{flex:1;font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.crow .chex{width:92px;font-family:ui-monospace,monospace;text-transform:uppercase;flex:none}
 .tile.hi .bg{stroke:var(--ink);stroke-width:3.5;paint-order:stroke}
 .tile text{font-family:var(--sans);font-weight:900;fill:#fff;text-anchor:middle;dominant-baseline:central;pointer-events:none}
 .tile .lbl{opacity:0;transition:opacity .15s}
@@ -2181,24 +2180,20 @@ function admBooths(){
     cnt();
   };
   $('#bStatus').textContent = statusLabel(); $('#bStatus').onclick = openStatusSheet;
-  /* 분류 색: 시트에 분류마다 색 고르기(type=color) + 16진수 칸 + [기본색]. [적용] 때 settings.categoryColors 에 기본색과 다른 것만 저장, 즉시 반영 */
+  /* 분류 색: 시트에 분류마다 색 동그라미(type=color, 눌러서 고르기) + [기본색]. [적용] 때 settings.categoryColors 에 기본색과 다른 것만 저장, 즉시 반영 */
   const openColorSheet = () => {
-    const row = c => `<div class="crow" data-cat="${esc(c.id)}"><input type="color" value="${c.color}"><span class="cname">${esc(c.name)}</span><input class="inp sm chex" value="${c.color}" maxlength="7" spellcheck="false"><button type="button" class="btn xs soft cdef" title="기본색 ${c.def}">기본색</button></div>`;
+    const row = c => `<div class="crow" data-cat="${esc(c.id)}"><input type="color" value="${c.color}" title="눌러서 색 고르기"><span class="cname">${esc(c.name)}</span><button type="button" class="btn xs soft cdef" title="기본색 ${c.def}">기본색</button></div>`;
     openSheet(`
       <div class="h-sec" style="margin:0 0 4px">분류 색</div>
-      <p class="small muted" style="margin:0 0 10px;line-height:1.5">동그라미를 눌러 색을 고르거나 16진수(#1FA97A)를 적어요. 홈 칩·지도·부스 화면·QR 인쇄물에 모두 반영돼요.</p>
+      <p class="small muted" style="margin:0 0 10px;line-height:1.5">동그라미를 눌러 색을 골라요. 홈 칩·지도·부스 화면·QR 인쇄물에 모두 반영돼요.</p>
       <div id="cGrid">${CATS.map(row).join('')}</div>
       <div class="row" style="gap:8px;margin-top:12px"><button class="btn blue" id="cOk" style="flex:1">적용</button><button class="btn line" id="cAllDef">모두 기본색</button><button class="btn line" onclick="closeSheet()">취소</button></div>`);
-    const setRow = (r, v) => { $('input[type=color]', r).value = v; $('.chex', r).value = v; };
-    $$('#cGrid .crow').forEach(r => {
-      $('input[type=color]', r).oninput = e => { $('.chex', r).value = e.target.value.toUpperCase(); };
-      $('.chex', r).oninput = e => { const v = e.target.value.trim(); if(isHex(v)) $('input[type=color]', r).value = v; };
-      $('.cdef', r).onclick = () => setRow(r, catOf(r.dataset.cat).def);
-    });
+    const setRow = (r, v) => { $('input[type=color]', r).value = v; };
+    $$('#cGrid .crow').forEach(r => { $('.cdef', r).onclick = () => setRow(r, catOf(r.dataset.cat).def); });
     $('#cAllDef').onclick = () => $$('#cGrid .crow').forEach(r => setRow(r, catOf(r.dataset.cat).def));
     $('#cOk').onclick = async () => {
       const colors = {};
-      for(const r of $$('#cGrid .crow')){ const v = $('.chex', r).value.trim().toUpperCase(); if(!isHex(v)) return toast(`${catOf(r.dataset.cat).name} 색이 16진수가 아니에요`); const c = catOf(r.dataset.cat); if(v !== c.def.toUpperCase()) colors[c.id] = v; }
+      for(const r of $$('#cGrid .crow')){ const v = $('input[type=color]', r).value.toUpperCase(); if(!isHex(v)) continue; const c = catOf(r.dataset.cat); if(v !== c.def.toUpperCase()) colors[c.id] = v; }
       const data = { ...(S.settingsRaw || {}), categoryColors: colors };
       try{ await DB.saveSettings(data); S.settingsRaw = data; }catch(e){ return toast(e.message); }
       CATS.forEach(c => c.color = colors[c.id] || c.def);
