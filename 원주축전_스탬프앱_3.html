@@ -163,7 +163,9 @@ select.inp.sm{padding-right:30px;background-position:right 10px center}
 .hero .org{font-size:13.5px;margin-top:8px;opacity:.9;font-weight:600}
 .hero .pill{background:rgba(255,255,255,.2);color:#fff;margin-top:14px}
 .desc{font-size:15px;line-height:1.7;color:var(--ink-2)}
-.bimg{width:100%;display:block;border-radius:var(--r);box-shadow:var(--sh-1);aspect-ratio:16/10;object-fit:cover;background:var(--card-2)}
+.bimg{width:100%;display:block;border-radius:var(--r);box-shadow:var(--sh-1);aspect-ratio:16/10;object-fit:cover;background:var(--card-2);cursor:zoom-in}
+.bimgwrap{position:relative}.bimgwrap .hint{position:absolute;right:10px;bottom:10px;background:rgba(0,0,0,.55);color:#fff;font-size:11px;font-weight:700;padding:4px 9px;border-radius:999px;pointer-events:none}
+.lightbox{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.93);display:none;align-items:center;justify-content:center;padding:16px;cursor:zoom-out}.lightbox.show{display:flex}.lightbox img{max-width:100%;max-height:100%;object-fit:contain;border-radius:10px;box-shadow:0 8px 40px rgba(0,0,0,.5)}.lightbox .x{position:absolute;top:calc(12px + var(--sat,0px));right:14px;width:40px;height:40px;border-radius:50%;border:0;background:rgba(255,255,255,.15);color:#fff;font-size:22px;line-height:40px;text-align:center}
 .yt{position:relative;aspect-ratio:16/9;border-radius:14px;overflow:hidden;background:#000}
 .yt iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
 .kv{display:flex;flex-direction:column;gap:10px}
@@ -459,6 +461,7 @@ select.inp.sm{padding-right:30px;background-position:right 10px center}
   <div class="scan-top"><button class="iconbtn" onclick="closeScanner()" aria-label="닫기">✕</button><div class="t">부스 QR 스캔</div></div>
   <div class="scan-frame"><i></i></div><div class="scan-msg" id="scanMsg"><b>부스 앞 QR을 네모 안에 맞춰주세요</b>인식되면 바로 도장이 찍혀요</div></div>
 <div class="toast" id="toast"></div>
+<div class="lightbox" id="lightbox" role="dialog" aria-label="사진 크게 보기"><button class="x" aria-label="닫기">×</button><img alt=""></div>
 <div class="confetti" id="confetti"></div>
 <script>
 /* =====================================================================
@@ -676,8 +679,9 @@ const fileStore = {
   async get(key){ const db = await this.db(); return new Promise((res, rej) => { const r = db.transaction('files').objectStore('files').get(key); r.onsuccess = () => res(r.result || null); r.onerror = () => rej(r.error); }); },
 };
 /* 관리자 › 부스 표의 [파일] 버튼. Supabase 면 Storage 버킷에 올리고 공개 URL 반환, 로컬이면 IndexedDB 에 넣고 'local:경로' 반환 */
+const safeKey = s => String(s || '').replace(/[^A-Za-z0-9_-]/g, c => '_' + c.codePointAt(0).toString(16));   // Storage 경로엔 영문·숫자만 (부스 id '본1' 같은 한글은 코드로 치환 → 'b_bcf81')
 async function uploadFile(file, boothId, kind){
-  const ext = (file.name.split('.').pop() || 'bin').toLowerCase().replace(/[^a-z0-9]/g, ''), path = `${boothId}/${kind}-${Date.now().toString(36)}.${ext}`;
+  const ext = (file.name.split('.').pop() || 'bin').toLowerCase().replace(/[^a-z0-9]/g, ''), path = `${safeKey(boothId) || 'booth'}/${kind}-${Date.now().toString(36)}.${ext}`;
   if(CONFIG.supabaseUrl){
     const r = await fetch(`${CONFIG.supabaseUrl}/storage/v1/object/${CONFIG.storageBucket}/${path}`, { method: 'POST', headers: { apikey: CONFIG.supabaseAnonKey, Authorization: `Bearer ${CONFIG.supabaseAnonKey}`, 'Content-Type': file.type || 'application/octet-stream' }, body: file });
     if(!r.ok) throw new Error(`업로드 실패 (${r.status})`);
@@ -1123,6 +1127,10 @@ function shell(tab, title, body, opts={}){
     </div></nav>`}`;
   window.scrollTo(0, 0);
 }
+/* 사진 크게 보기(라이트박스). 사진·배경·× 어디를 눌러도 닫힘, Esc 도 닫힘 */
+function openLightbox(src){ const lb = $('#lightbox'); $('img', lb).src = src; lb.classList.add('show'); }
+function closeLightbox(){ const lb = $('#lightbox'); lb.classList.remove('show'); $('img', lb).removeAttribute('src'); }
+$('#lightbox').onclick = closeLightbox; document.addEventListener('keydown', e => { if(e.key === 'Escape' && $('#lightbox').classList.contains('show')) closeLightbox(); });
 function openSheet(html){ $('#sheet').innerHTML = '<div class="grip"></div>' + html; $('#sheet').classList.add('show'); $('#sheetScrim').classList.add('show'); }
 function closeSheet(){ $('#sheet').classList.remove('show'); $('#sheetScrim').classList.remove('show'); setTimeout(() => { if(!$('#sheet').classList.contains('show')) $('#sheet').innerHTML = ''; }, 350); }   // 닫힌 시트 내용은 비움 (인쇄·다음 열기 대비)
 $('#sheetScrim').onclick = closeSheet;
@@ -1301,7 +1309,7 @@ function renderBooth(n){
       <div class="org">${esc(b.org)}</div>
       <span class="pill"><span class="dot"></span>${esc(c.name)}</span>${b.target ? `<span class="pill" style="margin-left:6px">${esc(targetName(b.target))} 대상</span>` : ''}
     </div>
-    ${b.img ? `<img class="bimg" id="bImg" alt="${esc(b.name)} 부스 사진" hidden>` : ''}
+    ${b.img ? `<div class="bimgwrap" id="bImgWrap" hidden><img class="bimg" id="bImg" alt="${esc(b.name)} 부스 사진"><span class="hint">탭하면 크게 보기</span></div>` : ''}
     <div class="card"><div class="kv"><div><div class="k">체험 소개</div></div><p class="desc">${esc(b.desc || DESC_BY_CAT[b.cat])}</p>
       <div class="k" style="margin-top:4px">위치</div><div class="v" style="font-size:14px">${esc(zoneOf(b.zone).name)} <button class="more" style="border:0;background:none;color:var(--blue);font-weight:800;font-size:13px;padding:0 4px" onclick="go('/map/${b.n}')">지도 ›</button></div>${b.hours ? `<div class="k" style="margin-top:4px">운영 시간</div><div class="v" style="font-size:14px">${esc(b.hours)}${(() => { const h = hoursState(b); return h && h.label ? ` <span class="bhours ${h.state}" style="display:inline;margin:0">· ${h.label}</span>` : ''; })()}</div>` : ''}${b.variant && b.variant.at ? `<div class="k" style="margin-top:4px">시간대</div><div class="v" style="font-size:14px">${b.switched ? `${esc(b.variant.at)} 전엔 ${esc(b.baseName)}` : `${esc(b.variant.at)}부터 <b>${esc(b.variant.name)}</b>(으)로 바뀌어요`}</div>` : ''}</div></div>
     ${ytId(b.video) ? `<div class="card tight"><div class="kv"><div class="k">체험 영상</div><div class="yt"><iframe src="https://www.youtube-nocookie.com/embed/${ytId(b.video)}?rel=0" title="${esc(b.name)} 영상" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div></div></div>` : ''}
@@ -1315,7 +1323,7 @@ function renderBooth(n){
     <button class="btn ${st ? '' : 'line'} full" onclick="go('/map/${b.n}')">${I.pin} 지도에서 위치 보기</button>
     ${S.admin ? `<button class="btn line full" onclick="go('/stamp/${b.n}')">${I.qr} QR 링크 미리보기 (관리자)</button>` : ''}`,
     { back: true });
-  if(b.img) resolveFileUrl(b.img).then(u => { const el = $('#bImg'); if(el && u){ el.src = u; el.hidden = false; } });
+  if(b.img) resolveFileUrl(b.img).then(u => { const el = $('#bImg'); if(el && u){ el.src = u; el.onclick = () => openLightbox(u); $('#bImgWrap').hidden = false; } });
   if(b.pdf) resolveFileUrl(b.pdf).then(u => { const el = $('#bPdf'); if(el && u){ el.href = u; el.hidden = false; } });
 }
 
@@ -2073,7 +2081,7 @@ function admBooths(){
     const get = k => $(`[data-f=${k}]`, tr).value.trim();
     const IDS = { video: '#mVideo', pdf: '#mPdf', img: '#mImg' };
     const fname = u => { u = String(u || ''); if(u.startsWith('local:')) return '올린 파일'; try{ return decodeURIComponent(u.split('?')[0].split('/').pop()) || u; }catch(e){ return u; } };
-    const pvImg = (box, url) => { box.innerHTML = ''; if(!url) return box.innerHTML = '<span class="small muted">아직 없어요</span>'; const im = document.createElement('img'); im.src = url; im.style.cssText = 'width:100%;max-width:320px;border-radius:12px;display:block'; im.onerror = () => { box.innerHTML = '<span class="small" style="color:var(--coral)">사진을 불러올 수 없어요</span>'; }; box.appendChild(im); };
+    const pvImg = (box, url) => { box.innerHTML = ''; if(!url) return box.innerHTML = '<span class="small muted">아직 없어요</span>'; const im = document.createElement('img'); im.src = url; im.style.cssText = 'width:100%;max-width:320px;border-radius:12px;display:block;cursor:zoom-in'; im.onclick = () => openLightbox(url); im.onerror = () => { box.innerHTML = '<span class="small" style="color:var(--coral)">사진을 불러올 수 없어요</span>'; }; box.appendChild(im); };
     openSheet(`
       <div class="h-sec" style="margin:0 0 4px">${esc(get('n'))} · ${esc(get('name') || b.name || '')}</div>
       <p class="small muted" style="margin:0 0 14px;line-height:1.5">방문객의 부스 소개 화면에 나오는 자료예요. 확인을 누르면 표에 들어가고, 표 아래 [변경사항 저장]을 눌러야 저장돼요.</p>
