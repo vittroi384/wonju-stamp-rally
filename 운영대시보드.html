@@ -281,13 +281,17 @@ function boothsIn(zone){ return D.booths.filter(b => (b.zone || '') === zone); }
 
 async function loadBooths(){
   const rows = await q('booths?select=*&order=sort_order');
-  D.booths = rows.map(r => ({ id: r.id, n: r.number, name: r.name, cat: r.category, org: r.organization, zone: r.zone || '' }));
-  D.byId = Object.fromEntries(D.booths.map(b => [b.id, b]));
+  D.allBooths = rows.map(r => ({ id: r.id, n: r.number, name: r.name, cat: r.category, org: r.organization, zone: r.zone || '' }));
+  D.byId = Object.fromEntries(D.allBooths.map(b => [b.id, b]));
+  applyNoStamp();
 }
+/* 도장 없는 부스(settings.noStampBooths)는 히트맵·순위·전체 표에서 뺌 */
+function applyNoStamp(){ if(D.allBooths) D.booths = D.allBooths.filter(b => !(D.noStamp && D.noStamp.has(b.id))); }
 async function loadSettings(){
   try{ const rows = await q('settings?id=eq.1&select=data'); const s = rows[0]?.data; if(!s) return;
     if(s.eventTitle) CONFIG.eventTitle = s.eventTitle; if(parseInt(s.stampGoal) >= 1) CONFIG.stampGoal = parseInt(s.stampGoal);
     if(Array.isArray(s.survey)) D.survey = s.survey; D.surveyLink = !!s.surveyUrl;
+    D.noStamp = new Set(Array.isArray(s.noStampBooths) ? s.noStampBooths : []); applyNoStamp();
     if(Array.isArray(s.categories)) s.categories.forEach(c => { if(c && c.id && c.name && !CATS[c.id]) CATS[c.id] = { name: c.name, color: c.color || '#64748B' }; });   // 관리자가 추가한 분류
     if(s.categoryColors && typeof s.categoryColors === 'object') Object.entries(s.categoryColors).forEach(([id, col]) => { if(CATS[id] && /^#[0-9a-f]{6}$/i.test(col)) CATS[id].color = col; });   // 관리자가 바꾼 분류 색
     $('#subtitle').textContent = `${CONFIG.eventTitle} · 운영본부${s.eventDate ? ' · ' + s.eventDate : ''}`;

@@ -145,6 +145,7 @@ select.inp.sm{padding-right:30px;background-position:right 10px center}
 .bcat{font-size:11px;font-weight:800;color:var(--c);margin-top:3px}
 .bhours{font-size:11px;font-weight:700;color:var(--ink-3);margin-top:3px}.bhours.before{color:var(--coral)}.bhours.open{color:var(--blue)}
 .btarget{display:inline-flex;align-items:center;margin-top:4px;padding:2px 8px;border-radius:999px;font-size:10.5px;font-weight:800;background:var(--sun-soft);color:var(--sun-ink)}
+.btarget.nost{background:var(--card-2);color:var(--ink-3)}
 .brow .tsel{display:inline-flex;border:1.5px solid var(--line);border-radius:10px;overflow:hidden;flex-shrink:0}.brow .tsel button{border:0;background:#fff;padding:5px 9px;font-size:11.5px;font-weight:800;color:var(--ink-3);cursor:pointer;white-space:nowrap}.brow .tsel button.on{background:var(--blue);color:#fff}
 .bgo{color:var(--ink-3);flex-shrink:0}
 .bgo svg{width:18px;height:18px}
@@ -284,7 +285,8 @@ select.inp.sm{padding-right:30px;background-position:right 10px center}
 .timeline{display:flex;flex-direction:column}
 .tl{display:flex;gap:14px;padding:12px 0;border-bottom:1px solid var(--line-2)}
 .tl:last-child{border-bottom:0}
-.tl .tm{width:52px;font-size:15px;font-weight:900;letter-spacing:-.02em;flex-shrink:0;color:var(--blue)}
+.tl .tm{width:62px;font-size:15px;font-weight:900;letter-spacing:-.02em;flex-shrink:0;color:var(--blue);line-height:1.25;font-variant-numeric:tabular-nums}
+.tl .tm small{display:block;font-size:13px;font-weight:800;color:var(--ink-3)}
 .tl .t{font-size:15px;font-weight:800}
 .tl .s{font-size:12.5px;color:var(--ink-3);margin-top:3px;line-height:1.5}
 .link{display:flex;align-items:center;gap:12px;padding:13px 14px;background:var(--card);border-radius:var(--r);box-shadow:var(--sh-1);text-decoration:none}
@@ -873,6 +875,9 @@ const S = {
 /* 시간대 전환 부스: variant {at,name,org,cat,desc} 가 있고 지금 시각이 at 이후면 바뀐 내용으로 보여줌(번호·id·QR·도장은 그대로). 원래 이름은 baseName 에 */
 function nowMin(){ const d = new Date(); return d.getHours() * 60 + d.getMinutes(); }
 function toMin(t){ const m = String(t || '').match(/(\d{1,2}):(\d{2})/); return m ? +m[1] * 60 + +m[2] : null; }
+/* 일정 시간: '09:00' 또는 '09:00~10:00'(~ - – 모두 됨). 범위면 {start, end} 둘 다, 아니면 end 없음 */
+function schedRange(t){ const m = String(t || '').match(/(\d{1,2}:\d{2})\s*[~\-–]\s*(\d{1,2}:\d{2})/); return m ? { start: m[1], end: m[2] } : { start: String(t || '').trim(), end: '' }; }
+function schedTimeHTML(t){ const r = schedRange(t); return r.end ? `${esc(r.start)}<small>~${esc(r.end)}</small>` : esc(r.start); }
 function bv(b){ const v = b && b.variant; if(!v || toMin(v.at) === null || nowMin() < toMin(v.at)) return b; return { ...b, name: v.name || b.name, org: v.org || b.org, cat: v.cat || b.cat, desc: v.desc || b.desc, switched: true, baseName: b.name }; }
 /* 부스 대상: '' 전체 · elem 초등 이하 · secondary 중고등. 등록 구분(초/중/고/성인)으로 판정 — 성인·미등록은 전부 보임 */
 const TARGETS = [{ id: '', name: '전체' }, { id: 'elem', name: '초등 이하' }, { id: 'secondary', name: '중고등' }];
@@ -1186,7 +1191,7 @@ function boothItemHTML(b){
   const c = catOf(b.cat), done = stampedIds().has(b.id);
   return `<button class="bitem ${boothOpen(b) ? '' : 'off'}" style="--c:${c.color}" onclick="go('/booth/${b.n}')">
     <div class="bnum ${done ? 'done' : ''}">${esc(b.n)}</div>
-    <div class="grow"><div class="bname">${esc(b.name)}</div><div class="borg">${esc(b.org)}</div><div class="bcat">${esc(c.name)}</div>${hoursChipHTML(b)}${targetChipHTML(b)}</div>
+    <div class="grow"><div class="bname">${esc(b.name)}</div><div class="borg">${esc(b.org)}</div><div class="bcat">${esc(c.name)}</div>${hoursChipHTML(b)}${targetChipHTML(b)}${hasStamp(b) ? '' : '<div><span class="btarget nost">도장 없음 · 체험만</span></div>'}</div>
     <span class="bgo">${I.chev}</span></button>`;
 }
 function filteredBooths(){
@@ -1203,11 +1208,12 @@ function wireChips(root, after){
 
 /* 홈: 긴급 공지(있으면) → 도장 카드 → 다음 일정 → 부스 검색·분류 칩·목록 */
 function renderHome(){
-  const next = SCHEDULE.find(s => { const [h, m] = s.time.split(':').map(Number); const d = new Date(); return h * 60 + m > d.getHours() * 60 + d.getMinutes(); }) || SCHEDULE[2];
+  const now = nowMin(), next = SCHEDULE.find(s => { const r = schedRange(s.time), end = toMin(r.end), st = toMin(r.start); return end !== null ? end > now : st !== null && st > now; }) || SCHEDULE[SCHEDULE.length - 1];
+  const nextLive = next && (() => { const r = schedRange(next.time), st = toMin(r.start), end = toMin(r.end); return end !== null && st !== null && st <= now && now < end; })();
   shell('/', CONFIG.eventTitle, `
     ${CONFIG.notice ? `<div class="notice" style="background:var(--coral);color:#fff">📢<span>${esc(CONFIG.notice)}</span></div>` : ''}
     ${stampCardHTML()}
-    <div class="notice">${I.bell}<span><b>${esc(next.time)}</b> ${esc(next.title)} · ${esc(next.place)}</span></div>
+    ${next ? `<div class="notice">${I.bell}<span>${nextLive ? '<b>진행 중</b> ' : ''}<b>${esc(next.time)}</b> ${esc(next.title)}${next.place ? ' · ' + esc(next.place) : ''}</span></div>` : ''}
     <div class="h-sec">부스 둘러보기 <button class="more" onclick="go('/map')">지도에서 보기 ›</button></div>
     <div class="searchbar">${I.search}<input id="q" placeholder="부스 이름, 번호, 학교" value="${esc(S.q)}" autocomplete="off"></div>
     <div class="chips" id="chips">${catChipsHTML()}</div>
@@ -1314,12 +1320,15 @@ function renderBooth(n){
       <div class="k" style="margin-top:4px">위치</div><div class="v" style="font-size:14px">${esc(zoneOf(b.zone).name)} <button class="more" style="border:0;background:none;color:var(--blue);font-weight:800;font-size:13px;padding:0 4px" onclick="go('/map/${b.n}')">지도 ›</button></div>${b.hours ? `<div class="k" style="margin-top:4px">운영 시간</div><div class="v" style="font-size:14px">${esc(b.hours)}${(() => { const h = hoursState(b); return h && h.label ? ` <span class="bhours ${h.state}" style="display:inline;margin:0">· ${h.label}</span>` : ''; })()}</div>` : ''}${b.variant && b.variant.at ? `<div class="k" style="margin-top:4px">시간대</div><div class="v" style="font-size:14px">${b.switched ? `${esc(b.variant.at)} 전엔 ${esc(b.baseName)}` : `${esc(b.variant.at)}부터 <b>${esc(b.variant.name)}</b>(으)로 바뀌어요`}</div>` : ''}</div></div>
     ${ytId(b.video) ? `<div class="card tight"><div class="kv"><div class="k">체험 영상</div><div class="yt"><iframe src="https://www.youtube-nocookie.com/embed/${ytId(b.video)}?rel=0" title="${esc(b.name)} 영상" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div></div></div>` : ''}
     ${b.pdf ? `<a class="btn line full" id="bPdf" target="_blank" rel="noopener" hidden>${I.doc} 부스 자료 PDF 보기</a>` : ''}
-    <div class="stampstate ${st ? 'done' : ''}">
+    ${!st && !hasStamp(b) ? `<div class="stampstate">
+      <div class="ic">${I.bell}</div>
+      <div class="grow"><div class="t">도장 없는 부스예요</div><div class="s">QR 없이 자유롭게 체험만 하는 부스예요. 도장 개수에는 들어가지 않아요</div></div>
+    </div>` : `<div class="stampstate ${st ? 'done' : ''}">
       <div class="ic">${st ? I.check : I.qr}</div>
       <div class="grow"><div class="t">${st ? '도장 찍음' : '부스 QR을 찍으면 도장이 찍혀요'}</div><div class="s">${st ? (st.pending ? '전송 대기 중 · 통신되면 자동 전송' : fmtTime(st.at) + ' 체험 완료') : '부스 앞 안내판의 QR을 폰 카메라로 스캔'}</div></div>
-    </div>
+    </div>`}
     ${closedSet().has(b.id) ? `<div class="notice">${I.bell}<span>지금은 잠시 쉬는 중이에요. 다시 열리면 흐린 표시가 사라져요</span></div>` : ''}
-    ${st ? '' : boothForMe(b) ? `<button class="btn sun full" onclick="openScanner()">${I.qr} QR 찍고 도장 받기</button>` : `<div class="notice">${I.bell}<span>${esc(targetName(b.target))} 친구들만 참여하는 부스예요</span></div>`}
+    ${st || !hasStamp(b) ? '' : boothForMe(b) ? `<button class="btn sun full" onclick="openScanner()">${I.qr} QR 찍고 도장 받기</button>` : `<div class="notice">${I.bell}<span>${esc(targetName(b.target))} 친구들만 참여하는 부스예요</span></div>`}
     <button class="btn ${st ? '' : 'line'} full" onclick="go('/map/${b.n}')">${I.pin} 지도에서 위치 보기</button>
     ${S.admin ? `<button class="btn line full" onclick="go('/stamp/${b.n}')">${I.qr} QR 링크 미리보기 (관리자)</button>` : ''}`,
     { back: true });
@@ -1335,6 +1344,16 @@ function renderStamp(n){
   if(!S.me){ go('/register/' + encodeURIComponent('/stamp/' + n), true); return; }
   const c = catOf(b.cat);
   shell('/my', '', `<div class="stampscreen" id="stampArea"><div class="muted small">도장 찍는 중…</div></div>`, { noTop: true });
+  if(!hasStamp(b)){   // 도장 없는 부스 (예전에 뽑은 QR·링크로 들어온 경우)
+    $('#stampArea').innerHTML = `
+      <div class="bigstamp dup"><div><div class="n">✋</div><div class="t">도장 없음</div></div></div>
+      <div>
+        <div class="stamp-h">도장 없는 부스예요</div>
+        <p class="stamp-p" style="margin-top:8px">${esc(b.name)} 부스는 체험만 하는 곳이라 도장이 찍히지 않아요. 다른 부스에서 도장을 모아보세요.</p>
+      </div>
+      <button class="btn sun full" style="max-width:340px" onclick="go('/')">부스 목록 보기</button>`;
+    return;
+  }
   if(!boothForMe(b)){   // 대상(초등 이하 / 중고등)이 아닌 학생 → 도장 안 찍고 안내만
     $('#stampArea').innerHTML = `
       <div class="bigstamp dup"><div><div class="n">✋</div><div class="t">대상 아님</div></div></div>
@@ -1500,7 +1519,7 @@ function renderSurvey(){
 function renderInfo(){
   shell('/info', '행사 안내', `
     <div class="card"><div class="h-sec" style="margin:0 0 6px">오늘의 일정</div>
-      <div class="timeline">${SCHEDULE.map(s => `<div class="tl"><div class="tm">${esc(s.time)}</div><div><div class="t">${esc(s.title)}</div><div class="s">${esc(s.place)}</div></div></div>`).join('')}</div></div>
+      <div class="timeline">${SCHEDULE.map(s => `<div class="tl"><div class="tm">${schedTimeHTML(s.time)}</div><div><div class="t">${esc(s.title)}</div><div class="s">${esc(s.place)}</div></div></div>`).join('')}</div></div>
     <div class="h-sec">자료</div>
     ${RESOURCES.map(r => `<a class="link" href="${esc(r.url)}" target="_blank" rel="noopener"><span class="ic">${I.doc}</span><div class="grow"><div class="t">${esc(r.title)}</div><div class="s">${esc(r.desc)}</div></div><span class="bgo">${I.chev}</span></a>`).join('')}
     <div class="h-sec">선물 교환</div>
@@ -1722,11 +1741,12 @@ function openBoothSheet(id){
     <div class="row" style="gap:14px;align-items:flex-start">
       <div class="bnum ${st ? 'done' : ''}" style="--c:${c.color};width:54px;height:54px;font-size:20px">${esc(b.n)}</div>
       <div class="grow"><div class="bname" style="font-size:18px">${esc(b.name)}</div><div class="borg">${esc(b.org)} · <span style="color:${c.color};font-weight:800">${esc(c.name)}</span></div>
-        <div class="small muted" style="margin-top:4px">${esc(zoneOf(b.zone).name)} · ${st ? `${fmtTime(st.at)} 도장 찍음` : '부스 앞 QR을 찍으면 도장'}</div></div>
+        <div class="small muted" style="margin-top:4px">${esc(zoneOf(b.zone).name)} · ${st ? `${fmtTime(st.at)} 도장 찍음` : hasStamp(b) ? '부스 앞 QR을 찍으면 도장' : '도장 없는 부스 · 체험만'}</div></div>
     </div>
     <p class="desc small" style="margin:14px 0 16px">${esc(b.desc || DESC_BY_CAT[b.cat])}</p>
     <div class="row">
       ${st ? `<button class="btn sun full" onclick="go('/booth/${b.n}')">${I.check} 도장 찍음 · 자세히</button>`
+           : !hasStamp(b) ? `<button class="btn line full" onclick="go('/booth/${b.n}')">부스 소개 보기</button>`
            : boothForMe(b) ? `<button class="btn sun full" onclick="closeSheet();openScanner()">${I.qr} QR 찍고 도장 받기</button>` : `<div class="notice" style="width:100%">${I.bell}<span>${esc(targetName(b.target))} 친구들만 참여하는 부스예요</span></div>`}
     </div>
     <div class="row" style="margin-top:8px">
@@ -2021,6 +2041,7 @@ function admBooths(){
       <button class="btn xs soft" id="bCsv" title="예전 방식">CSV</button>
       <button class="btn sm line" id="bSort" title="표 순서를 부스 번호 순으로">번호순 정렬</button>
       <button class="btn sm line" id="bStatus" title="쉬는 부스를 한 화면에서 고르기">운영 상태</button>
+      <button class="btn sm line" id="bNoStamp" title="QR 안 하는(도장 없는) 부스 고르기">QR 제외</button>
       <button class="btn sm line" id="bColors" title="분류별 색 바꾸기 (홈 칩·지도·QR 인쇄물에 반영)">분류 색</button>
       <span class="small muted">${S.booths.length}/${CONFIG.boothMax}개 · 같은 구역 안에서는 표 순서가 지도 순서예요 (트랙 둘레는 정문 오른쪽부터 시계방향) · 왼쪽 ≡ 를 끌어서 순서를 바꿔요<br>분류: ${CATS.map(c => c.name).join(' / ')} — 일부만 적어도 알아듣고, 없는 이름을 적으면 새 분류가 생겨요</span>
     </div>
@@ -2164,30 +2185,36 @@ function admBooths(){
     };
   };
   $$('[data-time]').forEach(el => el.onclick = () => openTimeSheet(+el.dataset.time));
-  /* 운영 상태 한번에: 시트에 전체 부스 칩. 탭 → 쉬는 중 ↔ 운영 중, 모두 운영 중/쉬는 중, 찾기. [적용] 때 settings.closedBooths 한 번에 저장 */
-  const statusLabel = () => { const n = closedSet().size; return n ? `⏸ 쉬는 중 ${n}개 · 운영 상태` : '▶ 운영 상태 한번에'; };
-  const openStatusSheet = () => {
-    const closed = closedSet();
-    const chip = b => `<button type="button" class="stchip ${closed.has(b.id) ? 'off' : ''}" data-st="${esc(b.id)}" style="--c:${catOf(b.cat).color}"><b>${esc(b.n)}</b><span>${esc(b.name)}</span></button>`;
+  /* 부스 고르기 시트(운영 상태 · QR 제외 공용): 전체 부스 칩, 탭 → off 토글, 모두 켜기/끄기, 찾기. [적용] 때 settings[key] 에 off 된 id 목록 한 번에 저장 */
+  const openPickSheet = o => {
+    const off = new Set((S.settingsRaw && S.settingsRaw[o.key]) || []);
+    const chip = b => `<button type="button" class="stchip ${off.has(b.id) ? 'off' : ''}" data-st="${esc(b.id)}" style="--c:${catOf(b.cat).color}"><b>${esc(b.n)}</b><span>${esc(b.name)}</span></button>`;
     openSheet(`
-      <div class="h-sec" style="margin:0 0 4px">운영 상태 <span class="small muted" id="stCnt"></span></div>
-      <p class="small muted" style="margin:0 0 10px;line-height:1.5">눌러서 쉬는 중 ↔ 운영 중. 쉬는 부스는 방문객 폰에 흐리게 보여요(도장은 찍혀요). [적용]을 눌러야 저장돼요.</p>
-      <div class="row" style="gap:6px;margin-bottom:10px;flex-wrap:wrap"><button class="btn xs line" id="stAllOn">모두 운영 중</button><button class="btn xs line" id="stAllOff">모두 쉬는 중</button><input class="inp sm" id="stQ" placeholder="번호·이름 찾기" style="flex:1;min-width:120px"></div>
+      <div class="h-sec" style="margin:0 0 4px">${o.title} <span class="small muted" id="stCnt"></span></div>
+      <p class="small muted" style="margin:0 0 10px;line-height:1.5">${o.desc} [적용]을 눌러야 저장돼요.</p>
+      <div class="row" style="gap:6px;margin-bottom:10px;flex-wrap:wrap"><button class="btn xs line" id="stAllOn">${o.allOn}</button><button class="btn xs line" id="stAllOff">${o.allOff}</button><input class="inp sm" id="stQ" placeholder="번호·이름 찾기" style="flex:1;min-width:120px"></div>
       <div class="stgrid" id="stGrid">${S.booths.map(chip).join('')}</div>
       <div class="row" style="gap:8px;margin-top:12px"><button class="btn blue" id="stOk" style="flex:1">적용</button><button class="btn line" onclick="closeSheet()">취소</button></div>`);
-    const cnt = () => { const n = $$('#stGrid .stchip.off').length; $('#stCnt').textContent = n ? `· 쉬는 중 ${n}개` : '· 모두 운영 중'; };
+    const cnt = () => { const n = $$('#stGrid .stchip.off').length; $('#stCnt').textContent = n ? `· ${o.offWord} ${n}개` : `· ${o.allOn}`; };
     $$('#stGrid .stchip').forEach(el => el.onclick = () => { el.classList.toggle('off'); cnt(); });
     $('#stAllOn').onclick = () => { $$('#stGrid .stchip').forEach(el => el.classList.remove('off')); cnt(); };
     $('#stAllOff').onclick = () => { $$('#stGrid .stchip').forEach(el => el.classList.add('off')); cnt(); };
     $('#stQ').oninput = e => { const q = e.target.value.trim().toLowerCase(); $$('#stGrid .stchip').forEach(el => { el.hidden = !!q && !el.textContent.toLowerCase().includes(q); }); };
     $('#stOk').onclick = async () => {
-      const ids = $$('#stGrid .stchip.off').map(el => el.dataset.st); const data = { ...(S.settingsRaw || {}), closedBooths: ids };
+      const ids = $$('#stGrid .stchip.off').map(el => el.dataset.st); const data = { ...(S.settingsRaw || {}), [o.key]: ids };
       try{ await DB.saveSettings(data); S.settingsRaw = data; }catch(e){ return toast(e.message); }
-      closeSheet(); toast(ids.length ? `쉬는 중 ${ids.length}개로 저장했어요` : '모두 운영 중으로 저장했어요'); $('#bStatus').textContent = statusLabel();
+      closeSheet(); toast(ids.length ? `${o.offWord} ${ids.length}개로 저장했어요` : `${o.allOn}(으)로 저장했어요`); o.after();
     };
     cnt();
   };
-  $('#bStatus').textContent = statusLabel(); $('#bStatus').onclick = openStatusSheet;
+  const statusLabel = () => { const n = closedSet().size; return n ? `⏸ 쉬는 중 ${n}개 · 운영 상태` : '▶ 운영 상태 한번에'; };
+  const noStampLabel = () => { const n = noStampSet().size; return n ? `QR 제외 ${n}개` : 'QR 제외'; };
+  $('#bStatus').textContent = statusLabel();
+  $('#bStatus').onclick = () => openPickSheet({ key: 'closedBooths', title: '운영 상태', offWord: '쉬는 중', allOn: '모두 운영 중', allOff: '모두 쉬는 중',
+    desc: '눌러서 쉬는 중 ↔ 운영 중. 쉬는 부스는 방문객 폰에 흐리게 보여요(도장은 찍혀요).', after: () => { $('#bStatus').textContent = statusLabel(); } });
+  $('#bNoStamp').textContent = noStampLabel();
+  $('#bNoStamp').onclick = () => openPickSheet({ key: 'noStampBooths', title: 'QR 제외 (도장 없는 부스)', offWord: 'QR 제외', allOn: '모두 도장 있음', allOff: '모두 QR 제외',
+    desc: '눌러서 흐리게 된 부스는 QR 인쇄에서 빠지고, 방문객 폰에 \'도장 없음 · 체험만\'으로 보여요(도장 안 찍힘). 완주 개수는 도장 있는 부스 수보다 작게 두세요.', after: () => { $('#bNoStamp').textContent = noStampLabel(); } });
   /* 분류 색: 시트에 분류마다 색 동그라미(type=color, 눌러서 고르기) + [기본색]. [적용] 때 settings.categoryColors 에 기본색과 다른 것만 저장, 즉시 반영 */
   const openColorSheet = () => {
     const row = c => `<div class="crow" data-cat="${esc(c.id)}"><input type="color" value="${c.color}" title="눌러서 색 고르기"><span class="cname">${esc(c.name)}</span><button type="button" class="btn xs soft cdef" title="기본색 ${c.def}">기본색</button></div>`;
@@ -2272,17 +2299,20 @@ async function saveFacilities(list){
 }
 /* 부스 운영 상태: settings.closedBooths(id 목록) 에 있으면 '쉬는 중'. 운영 시간 밖(hoursState before/after)도 흐리게. 도장은 막지 않음 */
 function closedSet(){ return new Set((S.settingsRaw && S.settingsRaw.closedBooths) || []); }
+/* 도장 없는 부스(QR 안 하는 체험·안내 부스): settings.noStampBooths(id 목록). QR 인쇄에서 빠지고, 방문객에겐 '도장 없음' 표시·도장 화면에서 막음 */
+function noStampSet(){ return new Set((S.settingsRaw && S.settingsRaw.noStampBooths) || []); }
+function hasStamp(b){ return !!b && !noStampSet().has(b.id); }
 function boothOpen(b){ if(!b) return true; if(closedSet().has(b.id)) return false; const h = hoursState(b); return !(h && (h.state === 'before' || h.state === 'after')); }
 /* QR 인쇄 시트. 부스별 QR 주소 = base?b=번호&t=토큰. 토큰은 DB.boothTokens (부스가 서버에 없으면 먼저 저장해 발급). 같은 탭의 테스트 번호 입력도 통과되게 qrTok 에 넣음 */
 function admQR(){
   const base = location.origin + location.pathname;
   admShell('qr', `
     <div class="card tight no-print row" style="flex-wrap:wrap;gap:10px">
-      <div class="grow"><b>부스 QR 인쇄 시트</b><div class="small muted" style="margin-top:3px">QR 주소: <code>${esc(base)}?b=부스번호&t=토큰</code> — 토큰이 있어야 도장이 찍혀요(번호만 쳐서 찍는 치팅 차단). 도메인이 바뀌면 재인쇄해야 해요. 인쇄 전에 주소를 확정하세요.</div><div class="small" id="qrStatus" style="margin-top:3px"></div></div>
+      <div class="grow"><b>부스 QR 인쇄 시트</b><div class="small muted" style="margin-top:3px">QR 주소: <code>${esc(base)}?b=부스번호&t=토큰</code> — 토큰이 있어야 도장이 찍혀요(번호만 쳐서 찍는 치팅 차단). 도메인이 바뀌면 재인쇄해야 해요. 인쇄 전에 주소를 확정하세요.${noStampSet().size ? `<br>도장 없는 부스 ${noStampSet().size}개는 빠져 있어요 (부스 탭 › QR 제외).` : ''}</div><div class="small" id="qrStatus" style="margin-top:3px"></div></div>
       <button class="btn sm" onclick="print()">인쇄</button></div>
     <div class="qrgrid">
       <div class="qrc entry" style="--c:var(--blue)"><div class="qr" id="qr-entry"></div><div class="qrtxt"><div class="qrpill"><span class="dot"></span>입장 · 안내판용</div><div class="n entry">START</div><div class="t">QR을 찍고 등록하면<br>스탬프 랠리 시작!</div><div class="u">${esc(base)}?join</div><div class="qrhow">📱 휴대폰 카메라로 QR을 찍어주세요</div><div class="qrbrand">${esc(CONFIG.eventTitle)}</div></div></div>
-      ${S.booths.map(b => { const c = catOf(b.cat); return `<div class="qrc" style="--c:${c.color}"><div class="qr" id="qr-${b.id}"></div><div class="qrtxt"><div class="qrpill"><span class="dot"></span>${esc(c.name)}</div><div class="n"><small>BOOTH</small>${esc(b.n)}</div><div class="t">${esc(b.name)}</div><div class="u">${esc(b.org)}</div><div class="qrhow">📱 QR을 찍으면 도장이 <b>쾅!</b> ${CONFIG.stampGoal}개 모으면 선물</div><div class="qrbrand">${esc(CONFIG.eventTitle)}</div></div></div>`; }).join('')}</div>`);
+      ${S.booths.filter(hasStamp).map(b => { const c = catOf(b.cat); return `<div class="qrc" style="--c:${c.color}"><div class="qr" id="qr-${b.id}"></div><div class="qrtxt"><div class="qrpill"><span class="dot"></span>${esc(c.name)}</div><div class="n"><small>BOOTH</small>${esc(b.n)}</div><div class="t">${esc(b.name)}</div><div class="u">${esc(b.org)}</div><div class="qrhow">📱 QR을 찍으면 도장이 <b>쾅!</b> ${CONFIG.stampGoal}개 모으면 선물</div><div class="qrbrand">${esc(CONFIG.eventTitle)}</div></div></div>`; }).join('')}</div>`);
   (async () => {
     let toks = {};
     if(DB === SupabaseDB){   // 서버 토큰. 부스가 아직 서버에 없으면(내장 시드 상태) 먼저 저장해서 발급받음
@@ -2295,7 +2325,7 @@ function admQR(){
     }
     try{ await loadQRCode(); }catch(e){ $('#qrStatus').innerHTML = `<span style="color:var(--coral)">QR 라이브러리를 못 불러왔어요 (${esc(e.message)})</span>`; return; }
     new QRCode($('#qr-entry'), { text: `${base}?join`, width: 256, height: 256, correctLevel: QRCode.CorrectLevel.M });
-    S.booths.forEach(b => new QRCode($('#qr-' + b.id), { text: `${base}?b=${encodeURIComponent(b.n)}${toks[b.id] ? '&t=' + toks[b.id] : ''}`, width: 256, height: 256, correctLevel: QRCode.CorrectLevel.M }));
+    S.booths.filter(hasStamp).forEach(b => new QRCode($('#qr-' + b.id), { text: `${base}?b=${encodeURIComponent(b.n)}${toks[b.id] ? '&t=' + toks[b.id] : ''}`, width: 256, height: 256, correctLevel: QRCode.CorrectLevel.M }));
   })();
 }
 /* 행사 설정 폼. 저장 → DB.saveSettings → applySettings 로 즉시 반영. 일정·자료는 '한 줄에 하나, | 로 구분' 텍스트를 파싱 */
@@ -2319,7 +2349,7 @@ function admEvent(){
         <div class="field"><label>긴급 공지 (홈 맨 위 빨간 띠 · 비우면 안 나옴)</label><input class="inp" id="evNotice" value="${esc(CONFIG.notice)}" maxlength="120" placeholder="예: 우천으로 개막식 11:40으로 변경"></div>
       </div>
       <div style="display:flex;flex-direction:column;gap:14px">
-        <div class="card"><div class="h-sec" style="margin:0 0 6px">오늘의 일정</div><p class="small muted" style="margin-bottom:8px;line-height:1.6">한 줄에 하나 · <code>시간 | 제목 | 장소·설명</code></p>
+        <div class="card"><div class="h-sec" style="margin:0 0 6px">오늘의 일정</div><p class="small muted" style="margin-bottom:8px;line-height:1.6">한 줄에 하나 · <code>시간 | 제목 | 장소·설명</code> · 시간은 <code>10:00</code> 또는 <code>09:00~10:00</code></p>
           <textarea class="inp" id="evSchedule" style="min-height:160px;font-size:14px">${esc(lines(SCHEDULE, x => [x.time, x.title, x.place].join(' | ')))}</textarea></div>
         <div class="card"><div class="h-sec" style="margin:0 0 6px">자료 링크</div><p class="small muted" style="margin-bottom:8px;line-height:1.6">한 줄에 하나 · <code>제목 | 설명 | 주소(https://…)</code></p>
           <textarea class="inp" id="evResources" style="min-height:90px;font-size:14px">${esc(lines(RESOURCES, x => [x.title, x.desc, x.url].join(' | ')))}</textarea></div>
