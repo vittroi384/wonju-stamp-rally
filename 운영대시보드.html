@@ -391,7 +391,7 @@ function renderMap(d){
   D.booths.forEach(b => {
     const p = pos[b.id]; if(!p) return; const v = val(b), fill = heat(v, max), r = per[b.id];
     const title = `${b.n} ${b.name}\n${key === 'n15' ? '최근 15분' : '누적'} ${v}개${r?.last_at ? ' · 마지막 ' + hhmm(r.last_at) : ''}`;
-    if(p.rect) s += `<g class="bt" data-id="${b.id}"><rect class="seg-b" x="${p.x - p.w / 2}" y="${p.y - p.h / 2}" width="${p.w}" height="${p.h}" rx="6" fill="${fill}"/><text class="num" x="${p.x}" y="${p.y}">${esc(b.n)}</text><title>${esc(title)}</title></g>`;
+    if(p.rect) s += `<g class="bt" data-id="${b.id}"${p.rot ? ` transform="rotate(${p.rot.toFixed(1)} ${p.x.toFixed(1)} ${p.y.toFixed(1)})"` : ''}><rect class="seg-b" x="${p.x - p.w / 2}" y="${p.y - p.h / 2}" width="${p.w}" height="${p.h}" rx="6" fill="${fill}"/><text class="num" x="${p.x}" y="${p.y}">${esc(b.n)}</text><title>${esc(title)}</title></g>`;
     else { const wide = p.segW > 26; s += `<g class="bt" data-id="${b.id}"><path class="seg-b" d="${segPath(p.band, p.ta, p.tb)}" fill="${fill}"/>${wide ? `<text class="num" x="${p.x}" y="${p.y}" transform="rotate(${(Math.atan2(p.ny, p.nx) * 180 / Math.PI + 90 + 360) % 360 > 180 ? Math.atan2(p.ny, p.nx) * 180 / Math.PI - 90 : Math.atan2(p.ny, p.nx) * 180 / Math.PI + 90} ${p.x} ${p.y})">${esc(b.n)}</text>` : ''}<title>${esc(title)}</title></g>`; }
   });
   s += `</svg>`;
@@ -578,7 +578,7 @@ function boothPos(g = geom()){
   /* 측1문 밖 버스 자리: 측1문 띠 바깥(법선 방향)으로 버스 모양 칸을 한 대씩 이어 놓는다. 측1문은 위에서 자리가 정해져 있다 */
   const g1 = g.gates.find(x => x.id === 'gate-1'), bus = boothsIn('bus');
   if(g1 && bus.length){ const a = (g1.rot || 0) * Math.PI / 180, ox = Math.sin(a), oy = -Math.cos(a), bw = 96, bh = 46;   // (ox,oy) = 문 바깥쪽
-    bus.forEach((b, i) => { const d = g1.h / 2 + 24 + bh / 2 + i * (bh + 12), x = g1.x + ox * d, y = g1.y + oy * d; pos[b.id] = { x, y, i, rect: true, bus: true, w: bw, h: bh, side: 1, wt: nearestT(band.walk, x, y), segW: bw }; }); }
+    bus.forEach((b, i) => { const d = g1.h / 2 + 24 + bh / 2 + i * (bh + 12), x = g1.x + ox * d, y = g1.y + oy * d; pos[b.id] = { x, y, i, rect: true, bus: true, rot: g1.rot || 0, w: bw, h: bh, side: 1, wt: nearestT(band.walk, x, y), segW: bw }; }); }   // rot: 측1문 띠와 같은 기울기
   return pos;
 }
 /* 이름표 알약: 글자 폭을 어림해(한글 1em, 영숫자 .58em) 흰 배경을 깔아 준다. anchor: start|middle|end 기준점 */
