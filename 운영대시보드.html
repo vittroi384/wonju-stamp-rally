@@ -547,7 +547,7 @@ function geom(){
   ];
   g.gates.forEach(gt => { if(gt.t == null) gt.t = nearestT(g.band.walk, gt.x, gt.y); });
   g.fac = [
-    { id: 'hq',   type: 'hq',   label: '종합운동장 본부석',     x: cx,       y: 28,     w: 440, h: 32 },
+    { id: 'hq',   type: 'hq',   label: '종합운동장 본부석',     x: cx,       y: g.gates[0].y - 46,     w: 440, h: 32 },   // 정문 바로 위(문 띠와 같은 간격)
     { id: 'info', type: 'info', label: '안내데스크', x: cx + 520, y: 28,     w: 110, h: 30 },
     { id: 'wc1',  type: 'wc',   label: '화장실',               x: 60,       y: H - 34, w: 70,  h: 30 },
     { id: 'wc2',  type: 'wc',   label: '화장실',               x: W - 60,   y: H - 34, w: 70,  h: 30 },

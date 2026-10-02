@@ -1050,7 +1050,7 @@ function geom(){
   ];
   g.gates.forEach(gt => { if(gt.t == null) gt.t = nearestT(g.band.walk, gt.x, gt.y); });
   g.fac = [
-    { id: 'hq',   type: 'hq',   label: '종합운동장 본부석',     x: cx,       y: 28,     w: 440, h: 32 },
+    { id: 'hq',   type: 'hq',   label: '종합운동장 본부석',     x: cx,       y: g.gates[0].y - 46,     w: 440, h: 32 },   // 정문 바로 위(문 띠와 같은 간격)
     // 안내데스크·화장실 고정 표시는 2026-09-21 제거 → 관리자 › 지도에서 화장실·휴지통을 직접 놓음(settings.facilities)
   ];
   return g;
