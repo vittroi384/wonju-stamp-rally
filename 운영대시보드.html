@@ -541,9 +541,9 @@ function geom(){
      t 는 트랙 모서리에서 20° 지점(희망 자리) — 실제 자리·좌표·회전은 boothPos 가 부스를 벌리면서 정한다 */
   const mid = g.band.mid, th = 20 * Math.PI / 180; g.sideGap = 40;                 // 측문 자리 빈칸 폭(부스 한 칸 반쯤)
   g.gates = [
-    { id: 'gate-main', label: '정문',  x: cx, y: 62, w: 240, h: 34, t: .5, rot: 0 },          // 본부석 바로 아래, 통로보다 훨씬 넓게
-    { id: 'gate-1', label: '측1문', ringGap: true, t: (L / 2 + Math.PI * mid.r + L + mid.r * th) / mid.per, x: cx, y: cy, w: 74, h: 34, rot: 0 },
-    { id: 'gate-2', label: '측2문', ringGap: true, t: (L / 2 + Math.PI * mid.r - mid.r * th) / mid.per, x: cx, y: cy, w: 74, h: 34, rot: 0 },
+    { id: 'gate-main', label: '정문',  x: cx, y: cy - outerR - 46, w: 240, h: 34, t: .5, rot: 0 },   // 부스 띠(운영본부·인생네컷) 바로 위, 통로보다 훨씬 넓게
+    { id: 'gate-1', label: '측1문', ringGap: true, t: (L / 2 + Math.PI * mid.r + L + mid.r * th) / mid.per, x: cx, y: cy, w: 120, h: 34, rot: 0 },
+    { id: 'gate-2', label: '측2문', ringGap: true, after: '66', t: (L / 2 + Math.PI * mid.r - mid.r * th) / mid.per, x: cx, y: cy, w: 120, h: 34, rot: 0 },   // 66번 다음(66·67 사이). 66번이 없으면 t 로
   ];
   g.gates.forEach(gt => { if(gt.t == null) gt.t = nearestT(g.band.walk, gt.x, gt.y); });
   g.fac = [
@@ -566,12 +566,14 @@ function boothPos(g = geom()){
   ph.forEach((b, i) => { const k = ph.length - i; seg(b, i, .5 - half - k * gt, .5 - half - (k - 1) * gt, { ops: true }); });
   const t0 = .5 + half + hq.length * gt, span = 1 - 2 * half - (hq.length + ph.length) * gt, n = ring.length;
   /* 측문 자리: 희망 자리(gt.t)에 가장 가까운 부스 사이에 빈칸(sideGap)을 두고 그만큼 부스를 벌린다. 문 띠는 빈칸 바깥쪽(법선 방향)에, 실제 t·좌표·회전은 여기서 확정 */
-  const side = g.gates.filter(x => x.ringGap); side.forEach(x => { if(x.t < t0) x.t += 1; }); side.sort((a, b) => a.t - b.t);
-  const gap = g.sideGap / per, unit = (span - side.length * gap) / Math.max(n, 1);
-  let cur = t0, k = 0;
-  const putGate = () => { const x = side[k++], f = band.mid.frame(cur + gap / 2); const out = band.h / 2 + 16 + x.h / 2; Object.assign(x, { t: normT(cur + gap / 2), x: f.x + f.nx * out, y: f.y + f.ny * out, rot: Math.atan2(f.ny, f.nx) * 180 / Math.PI + 90 }); cur += gap; };   // 띠 바깥 16px 띄워 문 띠, 화살표(+y)가 빈칸을 향한다
-  ring.forEach((b, i) => { while(k < side.length && side[k].t <= cur + unit / 2) putGate(); seg(b, i, cur, cur + unit); cur += unit; });
-  while(k < side.length) putGate();
+  /* 자리 지정: after(부스 번호)가 있으면 그 부스 바로 다음(번호가 없으면 t 로), 없으면 희망 t 에 가장 가까운 부스 사이 */
+  const side = g.gates.filter(x => x.ringGap); side.forEach(x => { const j = x.after != null ? ring.findIndex(b => String(b.n) === String(x.after)) : -1; x.ai = j >= 0 ? j + 1 : -1; if(x.t < t0) x.t += 1; });
+  const gap = g.sideGap / per, unit = (span - side.length * gap) / Math.max(n, 1), left = [...side];
+  let cur = t0;
+  const putGate = x => { const f = band.mid.frame(cur + gap / 2); const out = band.h / 2 + 16 + x.h / 2; Object.assign(x, { t: normT(cur + gap / 2), x: f.x + f.nx * out, y: f.y + f.ny * out, rot: Math.atan2(f.ny, f.nx) * 180 / Math.PI + 90 }); cur += gap; left.splice(left.indexOf(x), 1); };   // 띠 바깥 16px 띄워 문 띠, 화살표(+y)가 빈칸을 향한다
+  const due = (x, i) => x.ai >= 0 ? x.ai <= i : x.t <= cur + unit / 2;
+  ring.forEach((b, i) => { left.filter(x => due(x, i)).forEach(putGate); seg(b, i, cur, cur + unit); cur += unit; });
+  left.slice().forEach(putGate);
   ['goalL', 'goalR'].forEach(z => { const c = g.cols[z], list = boothsIn(z), y0 = g.colY0(list.length); list.forEach((b, i) => { const x = c.x, y = y0 + i * c.dy; pos[b.id] = { x, y, i, rect: true, w: 40, h: 34, side: c.side, wt: nearestT(band.walk, x, y), segW: 40 }; }); });
   return pos;
 }
