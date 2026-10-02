@@ -1051,7 +1051,7 @@ function geom(){
   ];
   g.gates.forEach(gt => { if(gt.t == null) gt.t = nearestT(g.band.walk, gt.x, gt.y); });
   g.fac = [
-    { id: 'hq',   type: 'hq',   label: '종합운동장 본부석',     x: cx,       y: g.gates[0].y - 46,     w: 440, h: 32 },   // 정문 바로 위(문 띠와 같은 간격)
+    { id: 'hq',   type: 'hq',   label: '종합운동장 본부석',     x: cx,       y: g.gates[0].y - 46,     w: 360, h: 32 },   // 정문 바로 위(문 띠와 같은 간격)
     // 안내데스크·화장실 고정 표시는 2026-09-21 제거 → 관리자 › 지도에서 화장실·휴지통을 직접 놓음(settings.facilities)
   ];
   return g;
@@ -1075,6 +1075,7 @@ function boothPos(g = geom()){
   const gap = g.sideGap / per, unit = (span - side.length * gap) / Math.max(n, 1), left = [...side];
   let cur = t0;
   const putGate = x => { const f = band.mid.frame(cur + gap / 2); const out = band.h / 2 + 16 + x.h / 2; Object.assign(x, { t: normT(cur + gap / 2), x: f.x + f.nx * out, y: f.y + f.ny * out, rot: Math.atan2(f.ny, f.nx) * 180 / Math.PI + 90 }); cur += gap; left.splice(left.indexOf(x), 1); };   // 띠 바깥 16px 띄워 문 띠, 화살표(+y)가 빈칸을 향한다
+  band.sideGates = side;                                                                                      // 이름표 배치(layoutLabels)가 측문 띠를 피하도록 띠에 붙여 둔다
   const due = (x, i) => x.ai >= 0 ? x.ai <= i : x.t <= cur + unit / 2;
   ring.forEach((b, i) => { left.filter(x => due(x, i)).forEach(putGate); seg(b, i, cur, cur + unit); cur += unit; });
   left.slice().forEach(putGate);
@@ -1569,15 +1570,19 @@ function mapSVG(){
   });
   facilities().forEach(f => {   // 관리자가 놓은 화장실·휴지통
     const lw = textW(f.label, 11) + 12;
-    s += `<g class="fac usr" data-fac="${esc(f.id)}"><circle cx="${f.x}" cy="${f.y}" r="17" fill="#fff" stroke="var(--line)" stroke-width="2"/><text x="${f.x}" y="${f.y + 1}" font-size="18">${FAC_ICON[f.type] || '📍'}</text>
-      <rect x="${f.x - lw / 2}" y="${f.y + 21}" width="${lw}" height="17" rx="8" fill="#fff" stroke="var(--line)" stroke-width="1.5"/><text x="${f.x}" y="${f.y + 29.5}" font-size="11" fill="var(--ink-2)">${esc(f.label)}</text></g>`;
+    const sq = f.type === 'wc';                                                                                       // 화장실은 네모에 아이콘 꽉 차게, 휴지통은 동그라미
+    s += `<g class="fac usr" data-fac="${esc(f.id)}">${sq ? `<rect x="${f.x - 19}" y="${f.y - 19}" width="38" height="38" rx="9" fill="#fff" stroke="var(--line)" stroke-width="2"/><text x="${f.x}" y="${f.y + 2}" font-size="30">${FAC_ICON[f.type]}</text>`
+      : `<circle cx="${f.x}" cy="${f.y}" r="17" fill="#fff" stroke="var(--line)" stroke-width="2"/><text x="${f.x}" y="${f.y + 1}" font-size="18">${FAC_ICON[f.type] || '📍'}</text>`}
+      <rect x="${f.x - lw / 2}" y="${f.y + (sq ? 23 : 21)}" width="${lw}" height="17" rx="8" fill="#fff" stroke="var(--line)" stroke-width="1.5"/><text x="${f.x}" y="${f.y + (sq ? 31.5 : 29.5)}" font-size="11" fill="var(--ink-2)">${esc(f.label)}</text></g>`;
   });
   g.gates.forEach(gt => s += `<g class="fac gate" data-gate="${gt.id}" transform="translate(${gt.x.toFixed(1)} ${gt.y.toFixed(1)}) rotate(${(gt.rot || 0).toFixed(1)})"><rect x="${-gt.w / 2}" y="${-gt.h / 2}" width="${gt.w}" height="${gt.h}" rx="10" fill="var(--gate)"/>
       <path d="M -9 ${gt.h / 2 + 2} l 9 12 l 9 -12 z" fill="var(--gate)"/><text x="0" y="0" font-size="14" fill="#fff">${esc(gt.label)}</text></g>`);   // 문 띠는 회전해도 화살표(+y)가 트랙 쪽(측문은 빈칸)을 본다
   const cap = (x, y, txt, anchor = 'middle') => `<text class="zcap" x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${anchor}">${esc(txt)}</text>`;   // 구역 이름표
   [['hq', 1], ['photo', -1]].forEach(([z, dir]) => { const list = boothsIn(z); if(!list.length) return; const a = pos[list[0].id], b = pos[list[list.length - 1].id]; const f = g.band.mid.frame((a.ta + b.tb) / 2); s += cap(f.x, f.y + g.band.h / 2 + 16, `${zoneOf(z).name.split('·')[1].trim()} ${list.length}`); });
   ['goalL', 'goalR'].forEach(z => { const list = boothsIn(z); if(!list.length) return; const c = g.cols[z]; s += cap(c.x, g.colY0(list.length) - 38, zoneOf(z).name); });
-  { const list = boothsIn('bus'); if(list.length){ const p = pos[list[0].id]; s += cap(p.x, p.y - p.h / 2 - 16, zoneOf('bus').name); } }   // 버스 위 구역 이름표
+  { const list = boothsIn('bus'); if(list.length){ const p = pos[list[list.length - 1].id], a = (p.rot || 0) * Math.PI / 180, ox = Math.sin(a), oy = -Math.cos(a);   // 맨 바깥 버스에서 바깥쪽(법선)으로
+      const name = zoneOf('bus').name, off = p.h / 2 + 14 + Math.abs(Math.sin(a)) * textW(name, 13) / 2;                                               // 기울어진 모서리·가로 글자 끝이 안 닿게
+      s += cap(p.x + ox * off, p.y + oy * off, name); } }   // 버스 바깥 구역 이름표
   s += `<g id="routeLayer"></g>`;
   const visible = new Set(filteredBooths().map(b => b.id));
   S.booths.forEach(b => {
@@ -1657,6 +1662,7 @@ function layoutLabels(ids){
     const gap = 8;
     /* 축에 정렬된 알약끼리 안 겹치려면 접선 방향 간격 d가 가로로 (w1+w2)/2+gap 이상이거나 세로로 (h1+h2)/2+gap 이상이면 된다 */
     const need = (a, b) => Math.min(Math.abs(tx) > .01 ? ((a.w + b.w) / 2 + gap) / Math.abs(tx) : 1e9, Math.abs(ty) > .01 ? ((a.h + b.h) / 2 + gap) / Math.abs(ty) : 1e9);
+    const sg = m.band.sideGates || [];
     let base = 14;
     rows.forEach((row, r) => {
       const e = Math.max(...row.map(ext));
@@ -1666,7 +1672,18 @@ function layoutLabels(ids){
       const mid = offs.reduce((a, v, k) => a + v - want[k], 0) / row.length;
       const dist = base + e; base += 2 * e + 16;                                                                     // 무리 가운데 칸 가장자리에서 바깥으로, 다음 줄은 그 너머
       const bx = m.x + nx * (m.band.h / 2 + dist), by = m.y + ny * (m.band.h / 2 + dist);
-      row.forEach((o, k) => { const p = o.p, off = offs[k] - mid;
+      const fin = offs.map(v => v - mid);
+      /* 측문 띠(띠 바깥 16~50px)와 같은 높이의 줄이면 띠를 장애물로 보고 알약을 접선 방향으로 비킨다: 문 앞쪽 알약은 뒤로, 뒤쪽은 앞으로. 이웃 간격(need)도 유지 */
+      sg.forEach(gt => {
+        if(dist - e > 50 || dist + e < 16) return;
+        const gw = (gt.x - m.x) * tx + (gt.y - m.y) * ty; if(Math.abs(gw) > 420) return;
+        const needG = o => gt.w / 2 + o.w / 2 + gap;
+        let cap = Infinity;
+        for(let k = row.length - 1; k >= 0; k--){ const o = row[k]; if(fin[k] >= gw){ cap = Infinity; continue; } const top = Math.min(cap, gw - needG(o)); if(fin[k] > top) fin[k] = top; cap = fin[k] - (k ? need(row[k - 1], o) : 0); }
+        let floor = -Infinity;
+        for(let k = 0; k < row.length; k++){ const o = row[k]; if(fin[k] < gw){ floor = -Infinity; continue; } const bot = Math.max(floor, gw + needG(o)); if(fin[k] < bot) fin[k] = bot; floor = fin[k] + (k < row.length - 1 ? need(o, row[k + 1]) : 0); }
+      });
+      row.forEach((o, k) => { const p = o.p, off = fin[k];
         const ex = p.x + p.nx * p.band.h / 2, ey = p.y + p.ny * p.band.h / 2;
         out += pill(o, bx + tx * off, by + ty * off, ex, ey); });
     });

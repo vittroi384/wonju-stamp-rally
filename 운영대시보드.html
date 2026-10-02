@@ -547,7 +547,7 @@ function geom(){
   ];
   g.gates.forEach(gt => { if(gt.t == null) gt.t = nearestT(g.band.walk, gt.x, gt.y); });
   g.fac = [
-    { id: 'hq',   type: 'hq',   label: '종합운동장 본부석',     x: cx,       y: g.gates[0].y - 46,     w: 440, h: 32 },   // 정문 바로 위(문 띠와 같은 간격)
+    { id: 'hq',   type: 'hq',   label: '종합운동장 본부석',     x: cx,       y: g.gates[0].y - 46,     w: 360, h: 32 },   // 정문 바로 위(문 띠와 같은 간격)
     { id: 'info', type: 'info', label: '안내데스크', x: cx + 520, y: 28,     w: 110, h: 30 },
     { id: 'wc1',  type: 'wc',   label: '화장실',               x: 60,       y: H - 34, w: 70,  h: 30 },
     { id: 'wc2',  type: 'wc',   label: '화장실',               x: W - 60,   y: H - 34, w: 70,  h: 30 },
@@ -571,6 +571,7 @@ function boothPos(g = geom()){
   const gap = g.sideGap / per, unit = (span - side.length * gap) / Math.max(n, 1), left = [...side];
   let cur = t0;
   const putGate = x => { const f = band.mid.frame(cur + gap / 2); const out = band.h / 2 + 16 + x.h / 2; Object.assign(x, { t: normT(cur + gap / 2), x: f.x + f.nx * out, y: f.y + f.ny * out, rot: Math.atan2(f.ny, f.nx) * 180 / Math.PI + 90 }); cur += gap; left.splice(left.indexOf(x), 1); };   // 띠 바깥 16px 띄워 문 띠, 화살표(+y)가 빈칸을 향한다
+  band.sideGates = side;                                                                                      // 이름표 배치(layoutLabels)가 측문 띠를 피하도록 띠에 붙여 둔다
   const due = (x, i) => x.ai >= 0 ? x.ai <= i : x.t <= cur + unit / 2;
   ring.forEach((b, i) => { left.filter(x => due(x, i)).forEach(putGate); seg(b, i, cur, cur + unit); cur += unit; });
   left.slice().forEach(putGate);
