@@ -15,6 +15,7 @@
   --blue:#2D5BFF; --blue-ink:#1E45D6; --blue-soft:#E6ECFF;
   --sun:#FFC83D; --sun-ink:#8A5F00; --sun-soft:#FFF4D1;
   --mint:#1FA97A; --mint-soft:#DDF5EC;
+  --gate:#E0479E;                       /* 지도 문(정문·측문) 색 — 분류 색·도장 노랑·회색과 겹치지 않는 분홍 */
   --coral:#FF5C6C; --coral-soft:#FFE5E8;
   --track:#E8825A; --field:#86CF7E; --plaza:#F6EEDC;
   --sans:'Pretendard Variable','Pretendard',-apple-system,BlinkMacSystemFont,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;
@@ -1028,7 +1029,7 @@ function stadium(cx, cy, r, L, portrait){
 }
 function geom(){
   /* 실제 배치도: 위쪽에 본부석·정문, 트랙 바깥 한 줄(정문 오른쪽 1번부터 시계방향), 정문 좌우에 운영본부·인생네컷,
-     필드 안은 축구 골대 뒤편 두 열만. 정문은 본부석 아래 가운데, 측1문·측2문은 트랙 위쪽 양 모서리의 부스 띠 안에(부스를 벌려서) 끼움. */
+     필드 안은 축구 골대 뒤편 두 열만. 정문은 본부석 아래 가운데, 측1문·측2문은 트랙 위쪽 양 모서리 부스 띠에 빈칸을 내고 그 바깥에 비스듬히(화살표는 빈칸 쪽). */
   const W = 1300, H = 960, cx = W / 2, cy = 530;
   const rT = 210, L = 480, TW = 40, BH = 46;                                   // 트랙 바깥 반지름, 직선 길이, 트랙 폭, 부스 띠 높이
   const St = r => stadium(cx, cy, r, L, false);
@@ -1039,12 +1040,13 @@ function geom(){
   g.pitch = { x: cx - 235, y: cy - 118, w: 470, h: 236 };
   g.cols = { goalL: { x: cx - g.field.hw + 112, dy: 42, side: -1 }, goalR: { x: cx + g.field.hw - 112, dy: 42, side: 1 } };   // side: 이름표 방향(바깥)
   g.colY0 = n => cy - (n - 1) * 21;                                                                                             // 열을 골대 높이에 세로 가운데 정렬
-  /* 측문 2개는 실제 배치도처럼 부스 띠 안에 끼운다. t 는 트랙 모서리에서 20° 지점(희망 자리) — 실제 자리·좌표·회전은 boothPos 가 부스를 벌리면서 정한다 */
-  const mid = g.band.mid, th = 20 * Math.PI / 180; g.sideGap = 72;                 // 측문 폭(부스 두어 칸)
+  /* 측문 2개는 실제 배치도처럼: 부스 띠에 작은 빈칸(sideGap)을 두고 문 띠는 그 바깥에 비스듬히, 화살표가 빈칸 쪽을 본다.
+     t 는 트랙 모서리에서 20° 지점(희망 자리) — 실제 자리·좌표·회전은 boothPos 가 부스를 벌리면서 정한다 */
+  const mid = g.band.mid, th = 20 * Math.PI / 180; g.sideGap = 40;                 // 측문 자리 빈칸 폭(부스 한 칸 반쯤)
   g.gates = [
-    { id: 'gate-main', label: '정문',  x: cx, y: 74, w: 180, h: 34, t: .5, rot: 0 },          // 본부석 아래, 통로보다 넓게
-    { id: 'gate-1', label: '측1문', inBand: true, t: (L / 2 + Math.PI * mid.r + L + mid.r * th) / mid.per, x: cx, y: cy, w: g.sideGap, h: BH + 10, rot: 0 },
-    { id: 'gate-2', label: '측2문', inBand: true, t: (L / 2 + Math.PI * mid.r - mid.r * th) / mid.per, x: cx, y: cy, w: g.sideGap, h: BH + 10, rot: 0 },
+    { id: 'gate-main', label: '정문',  x: cx, y: 62, w: 240, h: 34, t: .5, rot: 0 },          // 본부석 바로 아래, 통로보다 훨씬 넓게
+    { id: 'gate-1', label: '측1문', ringGap: true, t: (L / 2 + Math.PI * mid.r + L + mid.r * th) / mid.per, x: cx, y: cy, w: 74, h: 34, rot: 0 },
+    { id: 'gate-2', label: '측2문', ringGap: true, t: (L / 2 + Math.PI * mid.r - mid.r * th) / mid.per, x: cx, y: cy, w: 74, h: 34, rot: 0 },
   ];
   g.gates.forEach(gt => { if(gt.t == null) gt.t = nearestT(g.band.walk, gt.x, gt.y); });
   g.fac = [
@@ -1066,11 +1068,11 @@ function boothPos(g = geom()){
   hq.forEach((b, i) => seg(b, i, .5 + half + i * gt, .5 + half + (i + 1) * gt, { ops: true }));
   ph.forEach((b, i) => { const k = ph.length - i; seg(b, i, .5 - half - k * gt, .5 - half - (k - 1) * gt, { ops: true }); });
   const t0 = .5 + half + hq.length * gt, span = 1 - 2 * half - (hq.length + ph.length) * gt, n = ring.length;
-  /* 측문은 띠 안에: 희망 자리(gt.t)에 가장 가까운 부스 사이에 틈(sideGap)을 두고 그만큼 부스를 벌린다. 문의 실제 t·좌표·회전은 여기서 확정 */
-  const side = g.gates.filter(x => x.inBand); side.forEach(x => { if(x.t < t0) x.t += 1; }); side.sort((a, b) => a.t - b.t);
+  /* 측문 자리: 희망 자리(gt.t)에 가장 가까운 부스 사이에 빈칸(sideGap)을 두고 그만큼 부스를 벌린다. 문 띠는 빈칸 바깥쪽(법선 방향)에, 실제 t·좌표·회전은 여기서 확정 */
+  const side = g.gates.filter(x => x.ringGap); side.forEach(x => { if(x.t < t0) x.t += 1; }); side.sort((a, b) => a.t - b.t);
   const gap = g.sideGap / per, unit = (span - side.length * gap) / Math.max(n, 1);
   let cur = t0, k = 0;
-  const putGate = () => { const x = side[k++], f = band.mid.frame(cur + gap / 2); Object.assign(x, { t: normT(cur + gap / 2), x: f.x, y: f.y, px: f.x - f.nx * (x.h / 2 + 4), py: f.y - f.ny * (x.h / 2 + 4), rot: Math.atan2(f.ny, f.nx) * 180 / Math.PI + 90 }); cur += gap; };   // px,py: 문 안쪽(통로 쪽) 가장자리 — 경로 끝점
+  const putGate = () => { const x = side[k++], f = band.mid.frame(cur + gap / 2); const out = band.h / 2 + 16 + x.h / 2; Object.assign(x, { t: normT(cur + gap / 2), x: f.x + f.nx * out, y: f.y + f.ny * out, rot: Math.atan2(f.ny, f.nx) * 180 / Math.PI + 90 }); cur += gap; };   // 띠 바깥 16px 띄워 문 띠, 화살표(+y)가 빈칸을 향한다
   ring.forEach((b, i) => { while(k < side.length && side[k].t <= cur + unit / 2) putGate(); seg(b, i, cur, cur + unit); cur += unit; });
   while(k < side.length) putGate();
   ['goalL', 'goalR'].forEach(z => { const c = g.cols[z], list = boothsIn(z), y0 = g.colY0(list.length); list.forEach((b, i) => { const x = c.x, y = y0 + i * c.dy; pos[b.id] = { x, y, i, rect: true, w: 40, h: 34, side: c.side, wt: nearestT(band.walk, x, y), segW: 40 }; }); });
@@ -1563,8 +1565,8 @@ function mapSVG(){
     s += `<g class="fac usr" data-fac="${esc(f.id)}"><circle cx="${f.x}" cy="${f.y}" r="17" fill="#fff" stroke="var(--line)" stroke-width="2"/><text x="${f.x}" y="${f.y + 1}" font-size="18">${FAC_ICON[f.type] || '📍'}</text>
       <rect x="${f.x - lw / 2}" y="${f.y + 21}" width="${lw}" height="17" rx="8" fill="#fff" stroke="var(--line)" stroke-width="1.5"/><text x="${f.x}" y="${f.y + 29.5}" font-size="11" fill="var(--ink-2)">${esc(f.label)}</text></g>`;
   });
-  g.gates.forEach(gt => s += `<g class="fac gate" data-gate="${gt.id}" transform="translate(${gt.x.toFixed(1)} ${gt.y.toFixed(1)}) rotate(${(gt.rot || 0).toFixed(1)})"><rect x="${-gt.w / 2}" y="${-gt.h / 2}" width="${gt.w}" height="${gt.h}" rx="10" fill="var(--mint)"${gt.inBand ? ' stroke="#fff" stroke-width="2"' : ''}/>
-      ${gt.inBand ? '' : `<path d="M -9 ${gt.h / 2 + 2} l 9 12 l 9 -12 z" fill="var(--mint)"/>`}<text x="0" y="0" font-size="14" fill="#fff">${esc(gt.label)}</text></g>`);   // 띠 안 측문은 화살표 없이 부스처럼 띠를 따라 회전
+  g.gates.forEach(gt => s += `<g class="fac gate" data-gate="${gt.id}" transform="translate(${gt.x.toFixed(1)} ${gt.y.toFixed(1)}) rotate(${(gt.rot || 0).toFixed(1)})"><rect x="${-gt.w / 2}" y="${-gt.h / 2}" width="${gt.w}" height="${gt.h}" rx="10" fill="var(--gate)"/>
+      <path d="M -9 ${gt.h / 2 + 2} l 9 12 l 9 -12 z" fill="var(--gate)"/><text x="0" y="0" font-size="14" fill="#fff">${esc(gt.label)}</text></g>`);   // 문 띠는 회전해도 화살표(+y)가 트랙 쪽(측문은 빈칸)을 본다
   const cap = (x, y, txt, anchor = 'middle') => `<text class="zcap" x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="${anchor}">${esc(txt)}</text>`;   // 구역 이름표
   [['hq', 1], ['photo', -1]].forEach(([z, dir]) => { const list = boothsIn(z); if(!list.length) return; const a = pos[list[0].id], b = pos[list[list.length - 1].id]; const f = g.band.mid.frame((a.ta + b.tb) / 2); s += cap(f.x, f.y + g.band.h / 2 + 16, `${zoneOf(z).name.split('·')[1].trim()} ${list.length}`); });
   ['goalL', 'goalR'].forEach(z => { const list = boothsIn(z); if(!list.length) return; const c = g.cols[z]; s += cap(c.x, g.colY0(list.length) - 38, zoneOf(z).name); });
@@ -1713,7 +1715,7 @@ function ringPts(walk, ta, tb){
   for(let i = 0; i <= steps; i++){ const q = walk.point(ta + d * i / steps); pts.push(`${q.x.toFixed(1)} ${q.y.toFixed(1)}`); }
   return pts;
 }
-const gatePt = gt => { if(gt.inBand) return { x: gt.px, y: gt.py }; const a = (gt.rot || 0) * Math.PI / 180, d = gt.h / 2 + 14; return { x: gt.x - Math.sin(a) * d, y: gt.y + Math.cos(a) * d }; };   // 문 앞(화살표 끝) 지점. 띠 안 측문은 문 자체
+const gatePt = gt => { const a = (gt.rot || 0) * Math.PI / 180, d = gt.h / 2 + 14; return { x: gt.x - Math.sin(a) * d, y: gt.y + Math.cos(a) * d }; };   // 문 앞(화살표 끝) 지점 — 회전 반영
 function routeD(g, p, gt, toGate){
   const gp = gatePt(gt), ring = toGate ? ringPts(g.band.walk, p.wt, gt.t) : ringPts(g.band.walk, gt.t, p.wt);
   const bp = `${p.x.toFixed(1)} ${p.y.toFixed(1)}`, gs = `${gp.x.toFixed(1)} ${gp.y.toFixed(1)}`;

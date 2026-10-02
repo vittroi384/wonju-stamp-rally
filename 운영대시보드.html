@@ -387,7 +387,7 @@ function renderMap(d){
   s += `<rect ${g.field.rect} fill="#16301F"/>`;
   const P = g.pitch; s += `<g fill="none" stroke="rgba(255,255,255,.18)" stroke-width="2"><rect x="${P.x}" y="${P.y}" width="${P.w}" height="${P.h}"/><line x1="${cx}" y1="${P.y}" x2="${cx}" y2="${P.y + P.h}"/><circle cx="${cx}" cy="${cy}" r="40"/></g>`;
   g.fac.forEach(f => s += `<rect x="${f.x - f.w / 2}" y="${f.y - f.h / 2}" width="${f.w}" height="${f.h}" rx="12" fill="${f.type === 'hq' ? '#2A3048' : '#1F2438'}"/><text class="fac" x="${f.x}" y="${f.y}">${esc(f.label)}</text>`);
-  g.gates.forEach(gt => s += `<g transform="translate(${gt.x.toFixed(1)} ${gt.y.toFixed(1)}) rotate(${(gt.rot || 0).toFixed(1)})"><rect x="${-gt.w / 2}" y="${-gt.h / 2}" width="${gt.w}" height="${gt.h}" rx="10" fill="#2ED3A0"/><text class="fac" x="0" y="0" style="fill:#0E1120">${esc(gt.label)}</text></g>`);
+  g.gates.forEach(gt => s += `<g transform="translate(${gt.x.toFixed(1)} ${gt.y.toFixed(1)}) rotate(${(gt.rot || 0).toFixed(1)})"><rect x="${-gt.w / 2}" y="${-gt.h / 2}" width="${gt.w}" height="${gt.h}" rx="10" fill="#E0479E"/><path d="M -9 ${gt.h / 2 + 2} l 9 12 l 9 -12 z" fill="#E0479E"/><text class="fac" x="0" y="0" style="fill:#fff">${esc(gt.label)}</text></g>`);
   D.booths.forEach(b => {
     const p = pos[b.id]; if(!p) return; const v = val(b), fill = heat(v, max), r = per[b.id];
     const title = `${b.n} ${b.name}\n${key === 'n15' ? '최근 15분' : '누적'} ${v}개${r?.last_at ? ' · 마지막 ' + hhmm(r.last_at) : ''}`;
@@ -537,12 +537,13 @@ function geom(){
   g.pitch = { x: cx - 235, y: cy - 118, w: 470, h: 236 };
   g.cols = { goalL: { x: cx - g.field.hw + 112, dy: 42, side: -1 }, goalR: { x: cx + g.field.hw - 112, dy: 42, side: 1 } };   // side: 이름표 방향(바깥)
   g.colY0 = n => cy - (n - 1) * 21;                                                                                             // 열을 골대 높이에 세로 가운데 정렬
-  /* 측문 2개는 실제 배치도처럼 부스 띠 안에 끼운다. t 는 트랙 모서리에서 20° 지점(희망 자리) — 실제 자리·좌표·회전은 boothPos 가 부스를 벌리면서 정한다 */
-  const mid = g.band.mid, th = 20 * Math.PI / 180; g.sideGap = 72;                 // 측문 폭(부스 두어 칸)
+  /* 측문 2개는 실제 배치도처럼: 부스 띠에 작은 빈칸(sideGap)을 두고 문 띠는 그 바깥에 비스듬히, 화살표가 빈칸 쪽을 본다.
+     t 는 트랙 모서리에서 20° 지점(희망 자리) — 실제 자리·좌표·회전은 boothPos 가 부스를 벌리면서 정한다 */
+  const mid = g.band.mid, th = 20 * Math.PI / 180; g.sideGap = 40;                 // 측문 자리 빈칸 폭(부스 한 칸 반쯤)
   g.gates = [
-    { id: 'gate-main', label: '정문',  x: cx, y: 74, w: 180, h: 34, t: .5, rot: 0 },          // 본부석 아래, 통로보다 넓게
-    { id: 'gate-1', label: '측1문', inBand: true, t: (L / 2 + Math.PI * mid.r + L + mid.r * th) / mid.per, x: cx, y: cy, w: g.sideGap, h: BH + 10, rot: 0 },
-    { id: 'gate-2', label: '측2문', inBand: true, t: (L / 2 + Math.PI * mid.r - mid.r * th) / mid.per, x: cx, y: cy, w: g.sideGap, h: BH + 10, rot: 0 },
+    { id: 'gate-main', label: '정문',  x: cx, y: 62, w: 240, h: 34, t: .5, rot: 0 },          // 본부석 바로 아래, 통로보다 훨씬 넓게
+    { id: 'gate-1', label: '측1문', ringGap: true, t: (L / 2 + Math.PI * mid.r + L + mid.r * th) / mid.per, x: cx, y: cy, w: 74, h: 34, rot: 0 },
+    { id: 'gate-2', label: '측2문', ringGap: true, t: (L / 2 + Math.PI * mid.r - mid.r * th) / mid.per, x: cx, y: cy, w: 74, h: 34, rot: 0 },
   ];
   g.gates.forEach(gt => { if(gt.t == null) gt.t = nearestT(g.band.walk, gt.x, gt.y); });
   g.fac = [
@@ -564,11 +565,11 @@ function boothPos(g = geom()){
   hq.forEach((b, i) => seg(b, i, .5 + half + i * gt, .5 + half + (i + 1) * gt, { ops: true }));
   ph.forEach((b, i) => { const k = ph.length - i; seg(b, i, .5 - half - k * gt, .5 - half - (k - 1) * gt, { ops: true }); });
   const t0 = .5 + half + hq.length * gt, span = 1 - 2 * half - (hq.length + ph.length) * gt, n = ring.length;
-  /* 측문은 띠 안에: 희망 자리(gt.t)에 가장 가까운 부스 사이에 틈(sideGap)을 두고 그만큼 부스를 벌린다. 문의 실제 t·좌표·회전은 여기서 확정 */
-  const side = g.gates.filter(x => x.inBand); side.forEach(x => { if(x.t < t0) x.t += 1; }); side.sort((a, b) => a.t - b.t);
+  /* 측문 자리: 희망 자리(gt.t)에 가장 가까운 부스 사이에 빈칸(sideGap)을 두고 그만큼 부스를 벌린다. 문 띠는 빈칸 바깥쪽(법선 방향)에, 실제 t·좌표·회전은 여기서 확정 */
+  const side = g.gates.filter(x => x.ringGap); side.forEach(x => { if(x.t < t0) x.t += 1; }); side.sort((a, b) => a.t - b.t);
   const gap = g.sideGap / per, unit = (span - side.length * gap) / Math.max(n, 1);
   let cur = t0, k = 0;
-  const putGate = () => { const x = side[k++], f = band.mid.frame(cur + gap / 2); Object.assign(x, { t: normT(cur + gap / 2), x: f.x, y: f.y, px: f.x - f.nx * (x.h / 2 + 4), py: f.y - f.ny * (x.h / 2 + 4), rot: Math.atan2(f.ny, f.nx) * 180 / Math.PI + 90 }); cur += gap; };   // px,py: 문 안쪽(통로 쪽) 가장자리 — 경로 끝점
+  const putGate = () => { const x = side[k++], f = band.mid.frame(cur + gap / 2); const out = band.h / 2 + 16 + x.h / 2; Object.assign(x, { t: normT(cur + gap / 2), x: f.x + f.nx * out, y: f.y + f.ny * out, rot: Math.atan2(f.ny, f.nx) * 180 / Math.PI + 90 }); cur += gap; };   // 띠 바깥 16px 띄워 문 띠, 화살표(+y)가 빈칸을 향한다
   ring.forEach((b, i) => { while(k < side.length && side[k].t <= cur + unit / 2) putGate(); seg(b, i, cur, cur + unit); cur += unit; });
   while(k < side.length) putGate();
   ['goalL', 'goalR'].forEach(z => { const c = g.cols[z], list = boothsIn(z), y0 = g.colY0(list.length); list.forEach((b, i) => { const x = c.x, y = y0 + i * c.dy; pos[b.id] = { x, y, i, rect: true, w: 40, h: 34, side: c.side, wt: nearestT(band.walk, x, y), segW: 40 }; }); });
