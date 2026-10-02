@@ -21,7 +21,7 @@ create table if not exists booths (
   organization text,              -- 운영기관(학교·단체)
   description text,               -- 소개 글
   sort_order int,                 -- 표·지도 순서 (같은 구역 안에서)
-  zone text default '',           -- 지도 구역: '' 트랙 둘레 · hq 운영본부 · photo 인생네컷 · goalL 왼쪽 골대 뒤 · goalR 오른쪽 골대 뒤
+  zone text default '',           -- 지도 구역: '' 트랙 둘레 · hq 운영본부 · photo 인생네컷 · goalL 왼쪽 골대 뒤 · goalR 오른쪽 골대 뒤 · bus 측1문 밖 버스
   video_url text default '',      -- 유튜브 링크
   pdf_url text default '',        -- 자료 PDF (Storage 공개 URL 또는 외부 링크)
   image_url text default ''       -- 대표 사진

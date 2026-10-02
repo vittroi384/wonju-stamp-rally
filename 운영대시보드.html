@@ -575,6 +575,10 @@ function boothPos(g = geom()){
   ring.forEach((b, i) => { left.filter(x => due(x, i)).forEach(putGate); seg(b, i, cur, cur + unit); cur += unit; });
   left.slice().forEach(putGate);
   ['goalL', 'goalR'].forEach(z => { const c = g.cols[z], list = boothsIn(z), y0 = g.colY0(list.length); list.forEach((b, i) => { const x = c.x, y = y0 + i * c.dy; pos[b.id] = { x, y, i, rect: true, w: 40, h: 34, side: c.side, wt: nearestT(band.walk, x, y), segW: 40 }; }); });
+  /* 측1문 밖 버스 자리: 측1문 띠 바깥(법선 방향)으로 버스 모양 칸을 한 대씩 이어 놓는다. 측1문은 위에서 자리가 정해져 있다 */
+  const g1 = g.gates.find(x => x.id === 'gate-1'), bus = boothsIn('bus');
+  if(g1 && bus.length){ const a = (g1.rot || 0) * Math.PI / 180, ox = Math.sin(a), oy = -Math.cos(a), bw = 96, bh = 46;   // (ox,oy) = 문 바깥쪽
+    bus.forEach((b, i) => { const d = g1.h / 2 + 24 + bh / 2 + i * (bh + 12), x = g1.x + ox * d, y = g1.y + oy * d; pos[b.id] = { x, y, i, rect: true, bus: true, w: bw, h: bh, side: 1, wt: nearestT(band.walk, x, y), segW: bw }; }); }
   return pos;
 }
 /* 이름표 알약: 글자 폭을 어림해(한글 1em, 영숫자 .58em) 흰 배경을 깔아 준다. anchor: start|middle|end 기준점 */
