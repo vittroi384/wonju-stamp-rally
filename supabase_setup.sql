@@ -191,6 +191,10 @@ create or replace function add_stamp(vid uuid, bid text, tok text) returns jsonb
 language plpgsql security definer set search_path = public, extensions as $$
 declare last_at timestamptz; gap int := stamp_gap_sec(); wait int; row_json jsonb;
 begin
+  -- (2026-10-06) 같은 방문객의 동시 요청 직렬화. 이 줄이 없으면 부스 7개 링크를 한 번에 열었을 때 7개 요청이 모두
+  -- "마지막 도장 없음"을 읽고 전부 들어가 90초 간격이 무력화됨. 방문객 행을 잠가 한 줄로 세우면 뒤 요청은 앞 요청이
+  -- 커밋된 뒤 마지막 도장 시각을 다시 읽어 TOO_FAST 로 거절됨. 다른 방문객끼리는 영향 없음.
+  perform 1 from visitors where id = vid for update;
   if exists (select 1 from stamps where visitor_id = vid and booth_id = bid) then return jsonb_build_object('dup', true); end if;
   if not exists (select 1 from booth_tokens where booth_id = bid and token = tok) then
     raise exception 'BAD_TOKEN';   -- 지연 없음(11절 참고). 토큰은 32자 무작위라 추측 불가
