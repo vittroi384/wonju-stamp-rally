@@ -31,19 +31,21 @@ rep("  const tabs = [['/', '홈', I.home], ['/map', '지도', I.map], ['/my', '�
     "  const tabs = [['/', '홈', I.home], ['/map', '지도', I.map], ['/my', '내 스탬프', I.stamp], ['/info', '안내', I.info]].filter(t => !(CONFIG.miniMode && t[0] === '/map'));   // 미니 모드: 지도 탭 없음")
 rep("  if(a === 'map') return renderMap(b);","  if(a === 'map') return CONFIG.miniMode ? renderHome() : renderMap(b);   // 미니 모드: 지도 없음")
 rep("  if(a === CONFIG.adminPath) return renderAdmin(b || 'dash');","  if(a === CONFIG.adminPath) return renderAdmin(b || 'dash', c);   // c = 수기 도장 탭의 부스 번호")
-rep("""    <div class="h-sec">부스 둘러보기 <button class="more" onclick="go('/map')">지도에서 보기 ›</button></div>""",
-    """    <div class="h-sec">부스 둘러보기 ${CONFIG.miniMode ? '' : `<button class="more" onclick="go('/map')">지도에서 보기 ›</button>`}</div>""")
-rep("""      <div class="k" style="margin-top:4px">위치</div><div class="v" style="font-size:14px">${esc(zoneOf(b.zone).name)} <button class="more" style="border:0;background:none;color:var(--blue);font-weight:800;font-size:13px;padding:0 4px" onclick="go('/map/${b.n}')">지도 ›</button></div>""",
-    """      ${CONFIG.miniMode ? '' : `<div class="k" style="margin-top:4px">위치</div><div class="v" style="font-size:14px">${esc(zoneOf(b.zone).name)} <button class="more" style="border:0;background:none;color:var(--blue);font-weight:800;font-size:13px;padding:0 4px" onclick="go('/map/${b.n}')">지도 ›</button></div>`}""")
-rep("""    <button class="btn ${st ? '' : 'line'} full" onclick="go('/map/${b.n}')">${I.pin} 지도에서 위치 보기</button>""",
-    """    ${CONFIG.miniMode ? '' : `<button class="btn ${st ? '' : 'line'} full" onclick="go('/map/${b.n}')">${I.pin} 지도에서 위치 보기</button>`}""")
+# 지도 버튼 3곳: 축전 쪽 마크업(onclick → data-go 등)이 바뀌어도 잡히게 정규식으로 통째로 감쌈
+def wrap(pattern, label):
+    global s
+    m = re.search(pattern, s, re.S)
+    assert m, label
+    assert len(re.findall(pattern, s, re.S)) == 1, (label, 'multi')
+    s = s[:m.start()] + "${CONFIG.miniMode ? '' : `" + m.group(0) + "`}" + s[m.end():]
+wrap(r'<button class="more"[^>]*>지도에서 보기 ›</button>', '홈 지도에서 보기 버튼')
+wrap(r'<div class="k" style="margin-top:4px">위치</div><div class="v" style="font-size:14px">\$\{esc\(zoneOf\(b\.zone\)\.name\)\} <button class="more"[^>]*>지도 ›</button></div>', '부스 소개 위치 줄')
+wrap(r'<button class="btn \$\{st \? \'\' : \'line\'\} full"[^>]*>\$\{I\.pin\} 지도에서 위치 보기</button>', '부스 소개 지도 버튼')
 # renderStamp: admin → manual
-rep("""function renderStamp(n){
-  const b = boothByN(n); if(!b) return go('/', true);
-  if(!S.me){""","""function renderStamp(n){
-  const b = boothByN(n); if(!b) return go('/', true);
-  if(CONFIG.miniMode && S.admin){ go(admPath('/manual/' + encodeURIComponent(b.n)), true); return; }   // 관리자 폰으로 부스 QR 을 찍으면 → 수기 도장
-  if(!S.me){""")
+# renderStamp 의 첫 줄(부스 찾기)은 축전 쪽이 바꿀 수 있어 정규식: 'function renderStamp(n){' 다음 줄 뒤에 관리자 분기 삽입
+m = re.search(r"function renderStamp\(n\)\{\n[^\n]*\n(?=  if\(!S\.me\)\{)", s)
+assert m, 'renderStamp 머리'
+s = s[:m.end()] + "  if(CONFIG.miniMode && S.admin){ go(admPath('/manual/' + encodeURIComponent(b.n)), true); return; }   // 관리자 폰으로 부스 QR 을 찍으면 → 수기 도장\n" + s[m.end():]
 # admin tabs
 rep("const ADM_TABS = [['dash', '현황'], ['gift', '선물 수령'], ['booths', '부스'], ['map', '지도'], ['qr', 'QR 시트'], ['event', '행사 설정'], ['survey', '설문'], ['data', '데이터']];",
     "const ADM_TABS = [['dash', '현황'], ['manual', '수기 도장'], ['gift', '선물 수령'], ['booths', '부스'], ['map', '지도'], ['qr', 'QR 시트'], ['event', '행사 설정'], ['survey', '설문'], ['data', '데이터']]\n  .filter(([k]) => CONFIG.miniMode ? k !== 'map' : k !== 'manual');   // 미니 모드: 지도 탭 대신 수기 도장 탭")

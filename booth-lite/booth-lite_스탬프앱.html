@@ -108,6 +108,9 @@ select.inp.sm{padding-right:30px;background-position:right 10px center}
 .row{display:flex;align-items:center;gap:10px}
 .grow{flex:1;min-width:0}
 .empty{text-align:center;color:var(--ink-3);padding:36px 12px;font-size:14px;line-height:1.6}
+.bootwait{display:flex;flex-direction:column;align-items:center;gap:14px;padding:38vh 20px 0;color:var(--ink-3);font-size:14px;font-weight:700;text-align:center;line-height:1.6}   /* 부팅 중 흰 화면 대신 */
+.bootwait .spin{width:34px;height:34px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--blue);animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
 .empty b{display:block;color:var(--ink);font-size:16px;margin-bottom:4px}
 
 /* ---------- stamp card (signature) ---------- */
@@ -664,7 +667,7 @@ function addCategory(name, id, color){
 /* 글자 → 분류. 정확히 같거나 일부만 써도 인식('갤러리'). 없으면 새 분류로 추가(create=true). 빈 값이면 prev */
 function matchCategory(t, prev, create){
   t = String(t || '').trim(); if(!t) return prev;
-  const c = CATS.find(c => c.name === t || c.id === t) || CATS.find(c => c.name.includes(t) || (t.length >= 2 && t.includes(c.name.slice(0, 3))));
+  const c = CATS.find(c => c.name === t || c.id === t) || CATS.find(c => c.name.includes(t) || (!c.custom && t.length >= 2 && t.includes(c.name.slice(0, 3))));   // 앞 3글자 규칙은 기본 분류만 ('로봇공학'이 사용자 분류 '로봇'에 흡수되던 문제)
   if(c) return c.id;
   return create ? addCategory(t).id : prev;
 }
@@ -800,7 +803,7 @@ const LocalDB = {
   async stampsOf(visitorId){ const d=await this._all(); return d.stamps.filter(s=>s.visitorId===visitorId).sort((a,b)=>a.at-b.at); },
   async allStamps(){ return (await this._all()).stamps; },
   async allVisitors(){ return (await this._all()).visitors; },
-  async setGift(visitorId,on=true){ const d=await this._all(); const v=d.visitors.find(x=>x.id===visitorId); if(v){ v.giftAt=on?Date.now():null; await this._save(d); } },
+  async setGift(visitorId,on=true){ const d=await this._all(); const v=d.visitors.find(x=>x.id===visitorId); if(!v||(on?v.giftAt:!v.giftAt)) throw new Error(on?'이미 수령 처리된 학생이에요':'이미 취소된 상태예요'); v.giftAt=on?Date.now():null; await this._save(d); return true; },   // 서버와 같은 의미: 처리됐으면 true, 이미 그 상태면 throw
   async setSurvey(visitorId){ const d=await this._all(); const v=d.visitors.find(x=>x.id===visitorId); if(v&&!v.surveyAt){ v.surveyAt=Date.now(); await this._save(d); } },
   async submitSurvey(visitorId,answers){ const d=await this._all(); d.surveys=d.surveys||[]; if(!d.surveys.some(a=>a.visitorId===visitorId)) d.surveys.push({visitorId,answers,at:Date.now()}); const v=d.visitors.find(x=>x.id===visitorId); if(v&&!v.surveyAt) v.surveyAt=Date.now(); await this._save(d); return {ok:true}; },
   async surveyAnswers(){ const d=await this._all(); const vm=Object.fromEntries(d.visitors.map(v=>[v.id,v])); return (d.surveys||[]).map(a=>({visitorId:a.visitorId,school:vm[a.visitorId]?.school||'',grade:vm[a.visitorId]?.grade||'',gender:vm[a.visitorId]?.gender||'',at:a.at,answers:a.answers})); },
@@ -852,7 +855,7 @@ const SupabaseDB = {
   _b(r){ return {id:r.id,n:r.number,name:r.name,cat:r.category,org:r.organization,desc:r.description,zone:r.zone||'',video:r.video_url||'',pdf:r.pdf_url||'',img:r.image_url||'',hours:r.operating_hours||'',variant:r.time_variant||null,target:r.target_audience||''}; },
   async booths(){ const rows=await this._q('booths?select=*&order=sort_order'); return rows.length?rows.map(r=>this._b(r)):null; },
   async saveBooths(list){ await this._adm('admin_save_booths',{rows:list.map((b,i)=>({id:b.id,number:b.n,name:b.name,category:b.cat,organization:b.org,description:b.desc,sort_order:i,zone:b.zone||'',video_url:b.video||'',pdf_url:b.pdf||'',image_url:b.img||'',operating_hours:b.hours||'',time_variant:b.variant||null,target_audience:b.target||''}))});
-    const data={...(S.settingsRaw||{}),boothsVersion:Date.now()}; await this.saveSettings(data); S.settingsRaw=data; await store.set('wj:booths_cache',{v:data.boothsVersion,list}); },   // 부스 버전 올림 → 방문객 폰 캐시 무효화
+    const data=await savePatch({boothsVersion:Date.now()}); await store.set('wj:booths_cache',{v:data.boothsVersion,list}); },   // 부스 버전 올림 → 방문객 폰 캐시 무효화
   /* 방문객 데이터는 전부 RPC. anon 키로 visitors/stamps 테이블을 직접 읽을 수 없음(명단 노출 차단). uuid 를 아는 사람 = 본인 */
   async getVisitor(id){ const r=await this._rpc('visitor_get',{vid:id}); return this._v(r[0]); },
   async createVisitor({name,school,grade,gender}){ const r=await this._rpc('visitor_create',{nm:name,school,grade:grade||'',gender:gender||''}); return this._v(r[0]); },
@@ -883,7 +886,7 @@ const SupabaseDB = {
   },
   async boothVisitors(boothId){ return (await this._admPages('admin_booth_visitors',{bid:boothId})).map(r=>({id:r.visitor_id,name:r.name,school:r.school,grade:r.grade||'',gender:r.gender||'',stampedAt:+new Date(r.stamped_at),n:+r.n})); },
   async adminAddStamp(visitorId,boothId){ const r=await this._adm('admin_add_stamp',{vid:visitorId,bid:boothId}); return r.dup?{ok:false,dup:true}:{ok:true,stamp:this._s(r.stamp)}; },
-  async setGift(visitorId,on=true){ await this._adm('admin_set_gift',{vid:visitorId,given:!!on}); },
+  async setGift(visitorId,on=true){ const r=await this._adm('admin_set_gift',{vid:visitorId,given:!!on}); if(r===false) throw new Error(on?'이미 수령 처리된 학생이에요':'이미 취소된 상태예요'); return true; },   // SQL 17절: true=처리됨, false=이미 그 상태(관리자 둘이 동시에 처리해도 한 번만)
   async setSurvey(visitorId){ await this._rpc('visitor_survey_done',{vid:visitorId}); },   // anon 호출 가능한 RPC. 최초 1회만 기록
   /* 앱 내 설문 제출: 서버가 완주 여부를 확인하고 응답 저장 + survey_done_at. NOT_DONE 이면 완주 전 */
   async submitSurvey(visitorId,answers){ try{ return await this._rpc('visitor_survey_submit',{vid:visitorId,ans:answers}); }catch(e){ if(/NOT_DONE/.test(e.message)) throw new Error('아직 완주 전이에요'); if(/PGRST202|visitor_survey_submit/.test(e.message)) throw new Error('서버에 설문 기능이 아직 없어요 (SQL 9절 실행 필요)'); throw e; } },
@@ -943,6 +946,10 @@ function myLevel(){ const a = parseInt((S.me && S.me.grade) || ''); return isNaN
 function boothForMe(b){ const t = (b && b.target) || ''; if(!t || !S.me) return true; const L = myLevel(); return !L || L === t; }
 function targetChipHTML(b){ return b.target ? `<div><span class="btarget">${esc(targetName(b.target))} 대상</span></div>` : ''; }
 function boothByN(n){ return bv(S.booths.find(b => b.n === n)); }
+const normN = n => { n = String(n || '').trim(); return /^\d+$/.test(n) ? String(+n) : n; };
+const validN = n => /^[0-9A-Za-z가-힣]{1,6}$/.test(String(n || ''));   // 부스 번호 규칙: 한글·영문·숫자 6자까지 (주소·QR·속성에 그대로 들어가므로)
+const N_MSG = '부스 번호는 한글·영문·숫자 6자까지';   // 중복 검사용 번호 키: '02' 와 '2' 는 같은 번호
+function boothByNLoose(n){ n = String(n ?? '').trim(); return boothByN(n) || (/^\d+$/.test(n) ? boothByN(String(+n)) : undefined); }   // '07'·'007' 처럼 앞 0 붙은 번호도 찾음 (구형 QR·손으로 친 주소)
 function admPath(sub){ return '/' + CONFIG.adminPath + (sub || ''); }
 const surveyOn = () => !(S.settingsRaw && S.settingsRaw.surveyOn === false);   // 행사 설정 '설문 사용'. 끄면 완주 즉시 교환권(설문 완료로 자동 기록)
 function readAge(sel){ const a = parseInt($(sel).value); return a >= 1 && a <= 120 ? String(a) : ''; }   // 나이 입력칸 → '12' (범위 밖·빈칸이면 '')
@@ -979,26 +986,37 @@ function applySettings(s){
   SETTING_KEYS.forEach(k => { const v = s[k]; if(v === undefined || v === null) return;
     if(k === 'stampGoal'){ const n = parseInt(v); if(n >= 1) CONFIG.stampGoal = n; }
     else if(k === 'surveyMinSec'){ const n = parseInt(v); if(n >= 0) CONFIG.surveyMinSec = n; }
-    else if(v !== '' || k === 'surveyUrl' || k === 'surveyCodeField' || k === 'contact' || k === 'notice') CONFIG[k] = String(v); });
+    else if(v !== '' || k !== 'eventTitle') CONFIG[k] = String(v); });   // 빈 값도 그대로 (장소·마감 등을 비워 저장했는데 옛 값이 남던 문제). 행사명만 예외
   if(Array.isArray(s.schedule)) SCHEDULE = s.schedule;
   if(Array.isArray(s.resources)) RESOURCES = s.resources;
   if(Array.isArray(s.survey)) SURVEY = s.survey.filter(q => q && q.id && q.title && SV_TYPES[q.type]);
   if(Array.isArray(s.categories)) s.categories.forEach(c => c && c.id && c.name && addCategory(c.name, c.id, c.color));
   /* 분류 색 덮어쓰기 {id: '#rrggbb'}. 기본 분류·사용자 정의 분류 모두. 없는 id 는 무시 */
+  CATS.forEach(c => c.color = c.def);   // '기본색'으로 되돌린 것도 반영되게 먼저 초기화
   if(s.categoryColors && typeof s.categoryColors === 'object') Object.entries(s.categoryColors).forEach(([id, col]) => { const c = CATS.find(x => x.id === id); if(c && isHex(col)) c.color = col; });
   S.settingsRaw = s;   // 관리자 저장 때 다른 키(survey 등)를 잃지 않게 통째로 보관
 }
 /* 설문 방식: 링크가 있으면 외부(구글폼) / 없고 문항이 있으면 앱 내 설문 / 둘 다 없으면 자기신고 버튼만 */
 const surveyMode = () => CONFIG.surveyUrl ? 'link' : SURVEY.length ? 'app' : 'none';
 async function loadSettings(){ try{ applySettings(await DB.settings()); }catch(e){} }
+/* 설정 저장 공용. 바꿀 키만 patch 로 받아 저장 직전 서버(로컬이면 저장소)의 최신값을 읽어 병합 → 다른 관리자·탭이 저장한 키(운영 상태·분류·공지·boothsVersion)를 안 지움.
+   서버 admin_save_settings 도 키 병합(SQL 17절)이라 이중 안전. 성공 후에만 S.settingsRaw 교체(applySettings). 실패는 throw → 부르는 쪽에서 '저장 실패:' 토스트 */
+async function savePatch(patch){
+  let fresh = S.settingsRaw || {};
+  try{ const srv = await DB.settings(); if(srv && typeof srv === 'object') fresh = srv; }catch(e){}   // 못 읽으면 들고 있던 값으로
+  const data = { ...fresh, ...patch };
+  await DB.saveSettings(data); applySettings(data); return data;
+}
 /* 부스 목록 캐시 (폰 저장 wj:booths_cache = {v, list}). settings.boothsVersion 이 캐시와 같으면 서버 요청을 아예 안 보냄 —
    리로드마다 4KB(gzip)/25KB(원본) 나가던 걸 0으로. 관리자가 부스를 저장하면 boothsVersion 이 올라가 다음 로드 때만 새로 받음 */
 async function loadBoothsCached(){
   const v = S.settingsRaw?.boothsVersion;
   if(v && CONFIG.seedVersion === v && SEED_BOOTHS.length){ S.booths = SEED_BOOTHS.map(seedToBooth); return; }   // 배포 시 박아둔 시드가 서버와 같은 버전 → 요청 없음
-  if(v){ const c = await store.get('wj:booths_cache'); if(c && c.v === v && Array.isArray(c.list) && c.list.length){ S.booths = c.list; return; } }
-  await loadBooths();
-  if(v && S.booths.length) await store.set('wj:booths_cache', { v, list: S.booths });
+  const c = await store.get('wj:booths_cache'); const cached = c && Array.isArray(c.list) && c.list.length ? c.list : null;
+  if(v && cached && c.v === v){ S.booths = cached; return; }
+  const ok = await loadBooths();
+  if(!ok && cached){ S.booths = cached; return; }   // 오프라인 리로드(설정·부스 요청 실패): 버전 무관하게 마지막 캐시 — 내장 시드보다 관리자 편집본이 맞음
+  if(ok && S.booths.length) await store.set('wj:booths_cache', { v: v || 0, list: S.booths });
 }
 /* 설문 링크. surveyCodeField(구글폼 entry.xxx)가 있으면 방문객 6자리 코드를 미리 채워 응답과 대조할 수 있게 한다 */
 function surveyLink(){
@@ -1026,7 +1044,7 @@ setInterval(async () => { const before = S.settingsRaw?.boothsVersion; await loa
 /* 시간대 전환 시각이 지나면 열려 있는 방문객 화면을 다시 그림(홈·부스·지도·내 스탬프만. 시트가 열려 있거나 관리자·등록·설문·도장 화면이면 건드리지 않음) */
 S.swSig = null;
 setInterval(() => { if(!S.booths.length) return; const sig = S.booths.map(b => bv(b).switched ? 1 : 0).join(''); if(S.swSig === null || sig === S.swSig){ S.swSig = sig; return; } S.swSig = sig;
-  const a = location.hash.replace(/^#/, '').split('/')[1] || ''; if(['', 'booth', 'map', 'my'].includes(a) && !$('#sheet').classList.contains('show')) route(); }, 20000);
+  const a = location.hash.replace(/^#/, '').split('/')[1] || ''; if(['', 'booth', 'map', 'my'].includes(a) && !$('#sheet').classList.contains('show')){ const y = scrollY; route(); scrollTo(0, y); } }, 20000);   // shell() 이 맨 위로 올리므로 보던 위치 복원
 /* QR 토큰 (부스 번호 → 토큰). QR 주소 ?b=7&t=xxxx 의 t. 서버가 검사하므로 없으면 도장이 안 찍힘 = 주소창에 번호만 쳐서 찍는 치팅 차단.
    등록 화면 갔다 와도 남게 sessionStorage. 관리자가 QR 시트를 열면 전체 토큰이 여기 들어와 테스트 번호 입력도 통과 */
 const qrTok = {
@@ -1044,13 +1062,14 @@ function goalReached(){ return S.myStamps.length >= CONFIG.stampGoal; }
 /* 부팅: 부스 목록. 서버(또는 로컬 저장)에 저장된 게 있으면 그것, 없으면 파일에 내장된 SEED_BOOTHS. demoBoothCount 가 크면 데모 부스로 채움 */
 const seedToBooth = b => ({ id: b.id || 'b' + b.n, n: b.n, name: b.name, cat: b.cat, org: b.org, zone: b.zone || '', desc: b.desc || DESC_BY_CAT[b.cat], video: b.video || '', pdf: b.pdf || '', img: b.img || '', hours: b.hours || '', variant: b.variant || null, target: b.target || '' });
 async function loadBooths(){
-  let saved = null;
-  try{ saved = await DB.booths(); }catch(e){ console.warn('부스 목록을 서버에서 못 읽음 → 내장 목록 사용', e.message); }   // 서버 장애·컬럼 불일치 때도 앱은 뜨게
-  if(saved){ S.booths = saved; return; }
+  let saved = null, ok = true;
+  try{ saved = await DB.booths(); }catch(e){ ok = false; console.warn('부스 목록을 서버에서 못 읽음 → 내장 목록 사용', e.message); }   // 서버 장애·컬럼 불일치 때도 앱은 뜨게
+  if(saved){ S.booths = saved; return true; }
   const seed = SEED_BOOTHS.slice();
   const cats = ['play', 'craft', 'app', 'sci', 'play', 'craft', 'app'];
   for(let n = 91; seed.length < CONFIG.demoBoothCount; n++) seed.push({ n: String(n), name: `체험 부스 ${n}`, cat: cats[n % cats.length], org: '참여기관 미정' });   // 데모용 자리 채우기 (트랙 둘레)
   S.booths = seed.map(seedToBooth);
+  return ok;   // false = 서버 요청 실패(오프라인)
 }
 /* 부팅: 내 정보. store 'wj:me'(uuid) 가 있으면 서버에서 나+내 도장을 다시 받고 캐시. 통신 실패면 마지막 캐시로 (오프라인 표시) */
 async function loadMe(){
@@ -1067,16 +1086,16 @@ let flushing = false;
 /* 오프라인 큐 재전송. S.pending 의 도장을 하나씩 addStamp. ok→내 도장에 추가 / dup→서버엔 이미 있음(타임아웃 뒤 실제론 들어간 경우)→서버 목록으로 맞춤 / tooFast→남겨서 30초 뒤 재시도 / badToken→버림 / 통신 실패→남김 */
 async function flushPending(){
   if(flushing || !S.me || !S.pending.length) return; flushing = true;
-  const rest = []; let dup = false;
+  const rest = []; let dup = false, sent = 0, bad = 0;
   for(const p of S.pending){
-    try{ const r = await DB.addStamp(S.me.id, p.boothId, p.token || qrTok.get(boothById(p.boothId)?.n)); if(r.ok) S.myStamps.push(r.stamp); else if(r.dup) dup = true; else if(r.tooFast) rest.push(p); }   // dup = 타임아웃 났지만 서버엔 들어간 것 → 서버 목록으로 맞춤 / tooFast = 30초 뒤 재시도 / badToken = 버림
+    try{ const r = await DB.addStamp(S.me.id, p.boothId, p.token || qrTok.get(boothById(p.boothId)?.n)); if(r.ok){ sent++; S.myStamps.push(r.stamp); } else if(r.dup){ sent++; dup = true; } else if(r.tooFast) rest.push(p); else bad++; }   // dup = 타임아웃 났지만 서버엔 들어간 것 → 서버 목록으로 맞춤 / tooFast = 30초 뒤 재시도 / badToken = 버림(따로 안내)
     catch(e){ rest.push(p); }
   }
   if(dup){ try{ S.myStamps = await DB.stampsOf(S.me.id); }catch(e){} }
-  const sent = S.pending.length - rest.length;
   S.pending = rest; await store.set('wj:pending', rest); await store.set('wj:stamps_cache', S.myStamps);
   flushing = false;
-  if(sent){ toast(`도장 ${sent}개를 서버에 보냈어요`); if(location.hash === '#/' || location.hash === '#/my' || !location.hash) route(); }
+  const msg = [sent ? `도장 ${sent}개를 서버에 보냈어요` : '', bad ? `확인 안 된 도장 ${bad}개는 취소됐어요. 부스 QR을 다시 찍어주세요` : ''].filter(Boolean).join(' · ');
+  if(msg){ toast(msg); if(location.hash === '#/' || location.hash === '#/my' || !location.hash) route(); }
 }
 window.addEventListener('online', flushPending);
 setInterval(() => { if(S.pending.length) flushPending(); }, 30000);
@@ -1161,10 +1180,10 @@ function boothPos(g = geom()){
   const gap = g.sideGap / per, unit = (span - side.length * gap) / Math.max(n, 1), left = [...side];
   let cur = t0;
   const putGate = x => { const f = band.mid.frame(cur + gap / 2); const out = band.h / 2 + 16 + x.h / 2; Object.assign(x, { t: normT(cur + gap / 2), x: f.x + f.nx * out, y: f.y + f.ny * out, rot: Math.atan2(f.ny, f.nx) * 180 / Math.PI + 90 }); cur += gap; left.splice(left.indexOf(x), 1); };   // 띠 바깥 16px 띄워 문 띠, 화살표(+y)가 빈칸을 향한다
-  band.sideGates = side;                                                                                      // 이름표 배치(layoutLabels)가 측문 띠를 피하도록 띠에 붙여 둔다
+  band.sideGates = side; band.mainGate = g.gates[0];                                                          // 이름표 배치(layoutLabels)가 측문·정문 띠를 피하도록 띠에 붙여 둔다
   const due = (x, i) => x.ai >= 0 ? x.ai <= i : x.t <= cur + unit / 2;
   ring.forEach((b, i) => { left.filter(x => due(x, i)).forEach(putGate); seg(b, i, cur, cur + unit); cur += unit; });
-  left.slice().forEach(putGate);
+  left.slice().forEach(x => { if(!n) cur = x.t - gap / 2; putGate(x); });   // 링이 비면 희망 자리(t)에 (안 그러면 정문 옆에 겹쳐 쌓임)
   ['goalL', 'goalR'].forEach(z => { const c = g.cols[z], list = boothsIn(z), y0 = g.colY0(list.length); list.forEach((b, i) => { const x = c.x, y = y0 + i * c.dy; pos[b.id] = { x, y, i, rect: true, w: 40, h: 34, side: c.side, wt: nearestT(band.walk, x, y), segW: 40 }; }); });
   /* 측1문 밖 버스 자리: 측1문 띠 바깥(법선 방향)으로 버스 모양 칸을 한 대씩 이어 놓는다. 측1문은 위에서 자리가 정해져 있다 */
   const g1 = g.gates.find(x => x.id === 'gate-1'), bus = boothsIn('bus');
@@ -1200,7 +1219,9 @@ function segPath(band, ta, tb){
 /* =====================================================================
    ROUTER
    ===================================================================== */
-function go(path, replace){ if(replace){ history.replaceState(null,'','#'+path); route(); } else if(('#'+path)===location.hash){ route(); } else location.hash = '#'+path; }
+function go(path, replace){ const h = '#' + path; if(replace){ history.replaceState(null, '', h); route(); return; } const before = location.hash; location.hash = h; if(location.hash === before) route(); }   // 대입 후에도 해시가 같으면(같은 화면·한글 번호의 인코딩 차이) hashchange 가 안 오므로 직접 그림
+/* 등록·이어받기 뒤 돌아갈 주소: 앱 안의 해시 경로만 허용 */
+const safeReturn = r => /^\/[\w\/%가-힣.-]*$/.test(String(r || '')) ? String(r) : '';
 /* 라우터. location.hash 를 '/화면/인자' 로 쪼개 화면 함수를 부른다. go(path) 로 이동, hashchange 로도 호출 */
 function route(){
   const h = location.hash.replace(/^#/, '') || '/', dec = x => { try{ return decodeURIComponent(x); }catch(e){ return x; } };
@@ -1217,6 +1238,11 @@ function route(){
   return renderHome();
 }
 window.addEventListener('hashchange', route);
+/* 부스 번호·id 를 onclick 문자열에 넣지 않고 data-* 로 (번호에 따옴표·태그가 들어와도 스크립트가 안 됨). go / pickBooth / startRoute 는 여기서 한 번에 */
+document.addEventListener('click', e => { const t = e.target.closest ? e.target : null; if(!t) return;
+  const g = t.closest('[data-go]'); if(g) return go(g.dataset.go);
+  const pk = t.closest('[data-pick]'); if(pk) return pickBooth(pk.dataset.pick);
+  const rt = t.closest('[data-route]'); if(rt) return startRoute(rt.dataset.route, rt.dataset.mode || 'to'); });
 
 /* 공통 틀. 상단바(제목·부제·우측 버튼) + 본문 + 하단 탭(홈·지도·내 스탬프·안내). 관리자 화면은 noTabs·wide 로 넓게 */
 function shell(tab, title, body, opts={}){
@@ -1269,7 +1295,7 @@ function stampCardHTML(){
   const ln = local.length;
   if(!surveyOn() && done && !S.pending.length && !S.me.surveyAt){ markSurveyDone().then(renderHome); return; }
   const title = done ? (S.me.surveyAt || S.me.giftAt ? `<b>완주!</b> 운영본부에서<br>선물 받아가세요` : `<b>완주!</b> 설문 참여하면<br>선물 교환권이 열려요`) : ln >= goal ? `전송이 끝나면<br><b>완주</b>예요` : ln === 0 ? `부스 QR을 찍으면<br>도장이 <b>쾅</b>` : `<b>${goal - ln}개</b> 더 모으면<br>선물이에요`;
-  const foot = S.me.giftAt ? `${I.check} <b>선물 수령 완료</b>` : S.pending.length ? `도장 ${S.pending.length}개 전송 대기 중 <button class="btn sun sm" onclick="flushPending()">다시 보내기</button>` : done ? (S.me.surveyAt ? `운영본부로 오세요 <button class="btn sun sm" onclick="go('/my')">교환권 보기</button>` : `설문은 1분이면 끝나요 <button class="btn sun sm" onclick="go('/my')">📝 설문 참여</button>`) : `부스 앞 QR을 찍으면 도장 <button class="btn sun sm" onclick="openScanner()">${I.qr} QR 찍기</button>`;
+  const foot = S.me.giftAt ? `${I.check} <b>선물 수령 완료</b>` : S.pending.length ? `전송 대기 ${S.pending.length}개 <button class="btn soft sm" style="margin-left:auto" onclick="flushPending()">다시 보내기</button><button class="btn sun sm" style="margin-left:0" onclick="openScanner()">${I.qr} QR 찍기</button>` : done ? (S.me.surveyAt ? `운영본부로 오세요 <button class="btn sun sm" onclick="go('/my')">교환권 보기</button>` : `설문은 1분이면 끝나요 <button class="btn sun sm" onclick="go('/my')">📝 설문 참여</button>`) : `부스 앞 QR을 찍으면 도장 <button class="btn sun sm" onclick="openScanner()">${I.qr} QR 찍기</button>`;
   return `
     <div class="stampcard">
       <div class="sc-top">
@@ -1295,7 +1321,7 @@ function hoursChipHTML(b){
 }
 function boothItemHTML(b){
   const c = catOf(b.cat), done = stampedIds().has(b.id);
-  return `<button class="bitem ${boothOpen(b) ? '' : 'off'}" style="--c:${c.color}" onclick="go('/booth/${b.n}')">
+  return `<button class="bitem ${boothOpen(b) ? '' : 'off'}" style="--c:${c.color}" data-go="${esc('/booth/' + b.n)}">
     <div class="bnum ${done ? 'done' : ''}">${esc(bn(b))}</div>
     <div class="grow"><div class="bname">${esc(b.name)}</div><div class="borg">${esc(b.org)}</div><div class="bcat">${esc(c.name)}</div>${hoursChipHTML(b)}${targetChipHTML(b)}${hasStamp(b) ? '' : '<div><span class="btarget nost">도장 없음 · 체험만</span></div>'}</div>
     <span class="bgo">${I.chev}</span></button>`;
@@ -1306,7 +1332,7 @@ function filteredBooths(){
 }
 function catChipsHTML(){
   return CATS.map(c => { const n = S.booths.filter(b => bv(b).cat === c.id && boothForMe(b)).length; if(!n) return ''; const on = !S.hiddenCats.has(c.id);
-    return `<button class="chip ${on ? '' : 'off'}" data-cat="${c.id}" style="${on ? '' : 'opacity:.45'}"><span class="dot" style="background:${c.color}"></span>${esc(c.name)}<span class="n">${n}</span></button>`; }).join('');
+    return `<button class="chip ${on ? '' : 'off'}" data-cat="${esc(c.id)}" style="${on ? '' : 'opacity:.45'}"><span class="dot" style="background:${c.color}"></span>${esc(c.name)}<span class="n">${n}</span></button>`; }).join('');
 }
 function wireChips(root, after){
   $$('.chip[data-cat]', root).forEach(ch => ch.onclick = () => { const id = ch.dataset.cat; S.hiddenCats.has(id) ? S.hiddenCats.delete(id) : S.hiddenCats.add(id); after(); });
@@ -1333,14 +1359,16 @@ function renderHome(){
 
 /* 다른 폰·브라우저의 기록 이어받기: 내 스탬프 화면의 6자리 코드 + 이름. 운영본부에서 이름으로 찾아 코드를 알려줄 수도 있음 */
 function renderRecover(returnTo){
+  returnTo = safeReturn(returnTo);
   shell(null, '기록 이어받기', `
     <div class="card" style="display:flex;flex-direction:column;gap:14px">
       <p class="desc">전에 쓰던 폰(또는 카카오톡 브라우저 등)의 <b>내 스탬프</b> 화면 아래에 있는 <b>6자리 코드</b>와 이름을 적어주세요.<br>코드를 모르면 운영본부에서 이름으로 찾아드려요.</p>
       <div class="field"><label>6자리 코드</label><input class="inp" id="rcCode" placeholder="예: A1B2C3" maxlength="6" autocomplete="off" style="text-transform:uppercase;letter-spacing:.15em;font-weight:800"></div>
       <div class="field"><label>이름</label><input class="inp" id="rcName" placeholder="등록할 때 쓴 이름" maxlength="20" autocomplete="off"></div>
       <button class="btn blue full" id="rcGo">이어받기</button>
-      <button class="btn soft full" onclick="renderRegister(${JSON.stringify(returnTo || '')})">새로 등록할게요</button>
+      <button class="btn soft full" id="rcNew">새로 등록할게요</button>
     </div>`, { noTabs: true, back: true });
+  $('#rcNew').onclick = () => renderRegister(returnTo);
   $('#rcGo').onclick = async () => {
     const code = $('#rcCode').value.trim().toUpperCase(), name = $('#rcName').value.trim();
     if(code.length !== 6) return toast('코드 6자리를 적어주세요'), $('#rcCode').focus();
@@ -1357,6 +1385,7 @@ function renderRecover(returnTo){
   };
 }
 function renderRegister(returnTo){
+  returnTo = safeReturn(returnTo);
   shell(null, '', `
     <div class="reg-hero">
       <div class="eyebrow">${esc(CONFIG.eventTitle)}</div>
@@ -1368,6 +1397,7 @@ function renderRegister(returnTo){
       <div class="step"><div class="ic">🟡</div><div class="t">도장 ${CONFIG.stampGoal}개 모으기</div><div class="s">부스 어디든</div></div>
       <div class="step"><div class="ic">🎁</div><div class="t">설문 후 선물</div><div class="s">운영본부에서</div></div>
     </div>
+    <div class="notice" id="rExist" style="display:none">${I.bell}<span>이 폰에 <b id="rExistName"></b>님의 기록이 이미 있어요. <b style="cursor:pointer;text-decoration:underline" id="rExistUse">그대로 쓰기</b> · 아래에서 새로 등록하면 기록이 나뉘어요</span></div>
     <div class="card" style="display:flex;flex-direction:column;gap:14px">
       ${regFieldsHTML('r')}
       <div class="field"><label>이름</label><input class="inp" id="rName" placeholder="홍길동" maxlength="20" autocomplete="off"></div>
@@ -1377,6 +1407,16 @@ function renderRegister(returnTo){
     <p class="small muted" style="text-align:center;padding:0 10px;line-height:1.6">이 폰(브라우저)에 기억돼요. 다른 폰이나 다른 브라우저에 이미 기록이 있다면<br><b style="color:var(--blue);cursor:pointer" id="rRecover">기록 이어받기 ›</b></p>`,
     { noTabs: true, back: true });
   $('#rRecover').onclick = () => renderRecover(returnTo);
+  /* 이미 등록된 폰(이 탭의 S.me, 또는 다른 탭이 저장한 wj:me): 새로 등록하면 기록이 둘로 나뉘므로 안내하고 '그대로 쓰기' 제공 */
+  (async () => {
+    let v = S.me; if(!v){ const id = await store.get('wj:me'); if(id){ const c = await store.get('wj:me_cache'); if(c && c.id === id) v = c; else { try{ v = await DB.getVisitor(id); }catch(e){ v = null; } } } }
+    const box = $('#rExist'); if(!v || !box) return;
+    $('#rExistName').textContent = v.name; box.style.display = '';
+    $('#rExistUse').onclick = async () => {
+      if(!S.me || S.me.id !== v.id){ S.me = v; try{ S.myStamps = await DB.stampsOf(v.id); }catch(e){ S.myStamps = (await store.get('wj:stamps_cache')) || []; } S.pending = (await store.get('wj:pending')) || []; S.surveyOpenAt = (await store.get('wj:survey_open')) || 0; await store.set('wj:me', v.id); await store.set('wj:me_cache', v); await store.set('wj:stamps_cache', S.myStamps); }
+      toast(`${v.name}님, 기록을 그대로 이어가요`); go(returnTo || '/', true);
+    };
+  })();
   $('#rGo').onclick = async () => {   // 항목은 regFields() (관리자 › 행사 설정). DB 열: school = 소속, grade = 나이, gender = 연락처
     const name = $('#rName').value.trim(), f = readRegFields('r'); if(f.err) return toast(f.err), $(f.focus).focus();
     const { school, grade, gender } = f;
@@ -1384,7 +1424,7 @@ function renderRegister(returnTo){
     if(!$('#rConsent').checked) return toast('개인정보 동의가 필요해요');
     $('#rGo').disabled = true;
     try{
-      S.me = await DB.createVisitor({ name, school, grade, gender }); S.myStamps = []; S.surveyOpenAt = 0; await store.set('wj:survey_open', 0);
+      S.me = await DB.createVisitor({ name, school, grade, gender }); S.myStamps = []; S.pending = []; await store.set('wj:pending', []); S.surveyOpenAt = 0; await store.set('wj:survey_open', 0);   // 이전 기록의 대기 도장이 새 사람에게 붙지 않게
       await store.set('wj:me', S.me.id);
       toast(`${name}님, 환영해요!`);
       go(returnTo || '/', true);
@@ -1394,9 +1434,9 @@ function renderRegister(returnTo){
 
 /* 부스 소개: 사진·소개·위치·유튜브·PDF·도장 상태. QR 찍기 버튼은 스캐너로 */
 function renderBooth(n){
-  const b = boothByN(n); if(!b) return go('/', true);
+  const b = boothByNLoose(n); if(!b){ toast('그 번호의 부스가 없어요'); return go('/', true); }
   const c = catOf(b.cat), st = allStampsLocal().find(s => s.boothId === b.id);
-  shell('/', `부스 ${b.n}`, `
+  shell('/', `부스 ${bn(b)}`, `
     <div class="hero" style="--c:${c.color}">
       <div class="num">BOOTH ${esc(bn(b))}</div>
       <h1 class="name">${esc(b.name)}</h1>
@@ -1405,7 +1445,7 @@ function renderBooth(n){
     </div>
     ${b.img ? `<div class="bimgwrap" id="bImgWrap" hidden><img class="bimg" id="bImg" alt="${esc(b.name)} 부스 사진"><span class="hint">탭하면 크게 보기</span></div>` : ''}
     <div class="card"><div class="kv"><div><div class="k">체험 소개</div></div><p class="desc">${esc(b.desc || DESC_BY_CAT[b.cat])}</p>
-      ${CONFIG.miniMode ? '' : `<div class="k" style="margin-top:4px">위치</div><div class="v" style="font-size:14px">${esc(zoneOf(b.zone).name)} <button class="more" style="border:0;background:none;color:var(--blue);font-weight:800;font-size:13px;padding:0 4px" onclick="go('/map/${b.n}')">지도 ›</button></div>`}${b.hours ? `<div class="k" style="margin-top:4px">운영 시간</div><div class="v" style="font-size:14px">${esc(b.hours)}${(() => { const h = hoursState(b); return h && h.label ? ` <span class="bhours ${h.state}" style="display:inline;margin:0">· ${h.label}</span>` : ''; })()}</div>` : ''}${b.variant && b.variant.at ? `<div class="k" style="margin-top:4px">시간대</div><div class="v" style="font-size:14px">${b.switched ? `${esc(b.variant.at)} 전엔 ${b.variant.n ? esc(b.n) + ' ' : ''}${esc(b.baseName)}` : `${esc(b.variant.at)}부터 <b>${b.variant.n ? esc(b.variant.n) + ' ' : ''}${esc(b.variant.name)}</b>(으)로 바뀌어요`}</div>` : ''}</div></div>
+      ${CONFIG.miniMode ? '' : `<div class="k" style="margin-top:4px">위치</div><div class="v" style="font-size:14px">${esc(zoneOf(b.zone).name)} <button class="more" style="border:0;background:none;color:var(--blue);font-weight:800;font-size:13px;padding:0 4px" data-go="${esc('/map/' + b.n)}">지도 ›</button></div>`}${b.hours ? `<div class="k" style="margin-top:4px">운영 시간</div><div class="v" style="font-size:14px">${esc(b.hours)}${(() => { const h = hoursState(b); return h && h.label ? ` <span class="bhours ${h.state}" style="display:inline;margin:0">· ${h.label}</span>` : ''; })()}</div>` : ''}${b.variant && b.variant.at ? `<div class="k" style="margin-top:4px">시간대</div><div class="v" style="font-size:14px">${b.switched ? `${esc(b.variant.at)} 전엔 ${b.variant.n ? esc(b.n) + ' ' : ''}${esc(b.baseName)}` : `${esc(b.variant.at)}부터 <b>${b.variant.n ? esc(b.variant.n) + ' ' : ''}${esc(b.variant.name)}</b>(으)로 바뀌어요`}</div>` : ''}</div></div>
     ${ytId(b.video) ? `<div class="card tight"><div class="kv"><div class="k">체험 영상</div><div class="yt"><iframe src="https://www.youtube-nocookie.com/embed/${ytId(b.video)}?rel=0" title="${esc(b.name)} 영상" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div></div></div>` : ''}
     ${b.pdf ? `<a class="btn line full" id="bPdf" target="_blank" rel="noopener" hidden>${I.doc} 부스 자료 PDF 보기</a>` : ''}
     ${!st && !hasStamp(b) ? `<div class="stampstate">
@@ -1417,8 +1457,8 @@ function renderBooth(n){
     </div>`}
     ${closedSet().has(b.id) ? `<div class="notice">${I.bell}<span>지금은 잠시 쉬는 중이에요. 다시 열리면 흐린 표시가 사라져요</span></div>` : ''}
     ${st || !hasStamp(b) ? '' : boothForMe(b) ? `<button class="btn sun full" onclick="openScanner()">${I.qr} QR 찍고 도장 받기</button>` : `<div class="notice">${I.bell}<span>${esc(targetName(b.target))} 친구들만 참여하는 부스예요</span></div>`}
-    ${CONFIG.miniMode ? '' : `<button class="btn ${st ? '' : 'line'} full" onclick="go('/map/${b.n}')">${I.pin} 지도에서 위치 보기</button>`}
-    ${S.admin ? `<button class="btn line full" onclick="go('/stamp/${b.n}')">${I.qr} QR 링크 미리보기 (관리자)</button>` : ''}`,
+    ${CONFIG.miniMode ? '' : `<button class="btn ${st ? '' : 'line'} full" data-go="${esc('/map/' + b.n)}">${I.pin} 지도에서 위치 보기</button>`}
+    ${S.admin ? `<button class="btn line full" data-go="${esc('/stamp/' + b.n)}">${I.qr} QR 링크 미리보기 (관리자)</button>` : ''}`,
     { back: true });
   if(b.img) resolveFileUrl(b.img).then(u => { const el = $('#bImg'); if(el && u){ el.src = u; el.onclick = () => openLightbox(u); $('#bImgWrap').hidden = false; } });
   if(b.pdf) resolveFileUrl(b.pdf).then(u => { const el = $('#bPdf'); if(el && u){ el.href = u; el.hidden = false; } });
@@ -1428,7 +1468,7 @@ function renderBooth(n){
    미등록이면 등록 화면으로 보냈다가 돌아옴. 토큰은 qrTok 에서 꺼내 addStamp 에 동봉.
    결과별 화면: 성공(완주면 confetti) / 이미 찍음 / 통신 실패→pending 안내 / 서버 거절(토큰·너무 빠름)→✋ 화면 */
 function renderStamp(n){
-  const b = boothByN(n); if(!b) return go('/', true);
+  const b = boothByNLoose(n); if(!b){ toast('부스 번호를 확인해 주세요 (' + String(n ?? '') + ')'); return go('/', true); }
   if(CONFIG.miniMode && S.admin){ go(admPath('/manual/' + encodeURIComponent(b.n)), true); return; }   // 관리자 폰으로 부스 QR 을 찍으면 → 수기 도장
   if(!S.me){ go('/register/' + encodeURIComponent('/stamp/' + n), true); return; }
   const c = catOf(b.cat);
@@ -1453,15 +1493,16 @@ function renderStamp(n){
       <button class="btn sun full" style="max-width:340px" onclick="go('/')">부스 목록 보기</button>`;
     return;
   }
+  const here = () => { const area = $('#stampArea'); let h = location.hash; try{ h = decodeURIComponent(h); }catch(e){} return area && h === '#/stamp/' + n ? area : null; };   // await 사이에 다른 화면으로 갔으면(뒤로가기·빠른 이동) 결과를 그리지 않음
   (async () => {
     let res; const token = qrTok.get(b.n);
     if(stampedIds().has(b.id)) res = { ok: false, dup: true };                       // 이미 찍었거나 전송 대기 중
     else {
-      try{ res = await DB.addStamp(S.me.id, b.id, token); if(res.ok){ S.myStamps.push(res.stamp); await store.set('wj:stamps_cache', S.myStamps); } }
+      try{ res = await DB.addStamp(S.me.id, b.id, token); if(res.ok){ S.myStamps.push(res.stamp); await store.set('wj:stamps_cache', S.myStamps); } else if(res.dup){ try{ S.myStamps = await DB.stampsOf(S.me.id); await store.set('wj:stamps_cache', S.myStamps); }catch(e){} } }   // dup = 다른 탭·폰에서 이미 찍음 → 서버 목록으로 맞춤
       catch(e){ S.pending.push({ boothId: b.id, token, at: Date.now() }); await store.set('wj:pending', S.pending); res = { ok: true, queued: true }; }   // 통신 실패 → 폰에 저장, 나중에 자동 전송
     }
     if(res.badToken || res.tooFast){   // 서버가 거절: 토큰 없음(주소창에 번호만 침·링크 위조) / 너무 빠름(링크 공유로 연달아 찍기)
-      $('#stampArea').innerHTML = `
+      const area = here(); if(!area) return; area.innerHTML = `
         <div class="bigstamp dup"><div><div class="n">✋</div><div class="t">${res.badToken ? '확인 불가' : '잠깐만요'}</div></div></div>
         <div>
           <div class="stamp-h">${res.badToken ? '부스 앞 QR을 찍어주세요' : `${res.wait}초 후에 찍을 수 있어요`}</div>
@@ -1472,8 +1513,9 @@ function renderStamp(n){
       return;
     }
     const local = allStampsLocal(), n0 = local.length, goal = CONFIG.stampGoal, justDone = res.ok && n0 === goal && !S.pending.length;
+    const area = here(); if(!area) return;
     if(justDone) confetti();
-    $('#stampArea').innerHTML = `
+    area.innerHTML = `
       <div class="bigstamp ${res.dup ? 'dup' : ''}"><div><div class="n">${esc(bn(b))}</div><div class="t">${res.dup ? '이미 찍었어요' : '체험 완료'}</div></div></div>
       <div>
         <div class="stamp-h">${res.dup ? '이 부스는 이미 찍었어요' : justDone ? `${goal}개 완주! 🎉` : n0 >= goal && S.pending.length ? '전송이 끝나면 완주예요' : `${esc(b.name)}`}</div>
@@ -1481,7 +1523,7 @@ function renderStamp(n){
       </div>
       ${res.queued ? `<div class="notice" style="max-width:340px;width:100%">${I.bell}<span>통신이 불안정해서 폰에 저장해 뒀어요. 연결되면 자동으로 보내져요.</span></div>` : ''}
       <div class="slots" style="width:100%;max-width:340px;--cols:${slotCols(goal)}">${Array.from({ length: goal }, (_, i) => { const s = local[i]; return s ? `<div class="slot ink ${s.pending ? 'pend' : ''}" style="animation-delay:${.2 + i * .06}s"><span class="num">${esc(bn(boothById(s.boothId)))}</span></div>` : `<div class="slot ${i === goal - 1 ? 'gift' : ''}">${i === goal - 1 ? '🎁' : i + 1}</div>`; }).join('')}</div>
-      ${justDone ? `<button class="btn sun full" style="max-width:340px" onclick="go('/my')">📝 설문 참여하고 교환권 받기</button>` : `<button class="btn full" style="max-width:340px" onclick="go('/map/${b.n}')">${I.map} 다음 부스 찾기</button>`}
+      ${justDone ? `<button class="btn sun full" style="max-width:340px" onclick="go('/my')">📝 설문 참여하고 교환권 받기</button>` : `<button class="btn full" style="max-width:340px" data-go="${esc('/map/' + b.n)}">${I.map} 다음 부스 찾기</button>`}
       <button class="btn soft sm" onclick="go('/')">홈으로</button>`;
   })();
 }
@@ -1525,7 +1567,7 @@ function renderMy(){
     </div>`) : ''}
     <div class="h-sec">방문한 부스 <span class="muted small">${allStampsLocal().length}곳</span></div>
     ${S.pending.length ? `<div class="notice">${I.bell}<span>도장 ${S.pending.length}개가 아직 서버에 안 갔어요. 통신되면 자동 전송돼요. <b style="cursor:pointer" onclick="flushPending()">지금 보내기</b></span></div>` : ''}
-    ${allStampsLocal().length ? `<div class="stamp-grid">${allStampsLocal().reverse().map(s => { const b = boothById(s.boothId); return `<div class="sg" onclick="go('/booth/${b?.n}')"><div class="n ${s.pending ? 'pend' : ''}">${esc(bn(b) || '?')}</div><div class="t">${esc(b?.name || '')}</div><div class="tm">${s.pending ? '전송 대기' : fmtTime(s.at)}</div></div>`; }).join('')}</div>`
+    ${allStampsLocal().length ? `<div class="stamp-grid">${allStampsLocal().reverse().map(s => { const b = boothById(s.boothId); return `<div class="sg" data-go="${esc('/booth/' + (b ? b.n : ''))}"><div class="n ${s.pending ? 'pend' : ''}">${esc(bn(b) || '?')}</div><div class="t">${esc(b?.name || '')}</div><div class="tm">${s.pending ? '전송 대기' : fmtTime(s.at)}</div></div>`; }).join('')}</div>`
         : `<div class="empty"><b>아직 도장이 없어요</b>가까운 부스의 QR부터 찍어보세요</div><button class="btn full" onclick="go('/map')">${I.map} 지도 열기</button>`}`);
   if($('#myQr')) loadQRCode().then(() => { const el = $('#myQr'); if(el && !el.firstChild) new QRCode(el, { text: 'WJ:' + S.me.id, width: 164, height: 164, correctLevel: QRCode.CorrectLevel.M }); }).catch(() => { const el = $('#myQr'); if(el) el.innerHTML = '<div class="small muted" style="padding:20px">QR 그리기 실패 — 아래 코드로 확인받으세요</div>'; });
   /* 자기신고 보강(A안): '설문 참여하기'를 누른 시각을 폰에 저장하고, surveyMinSec 초가 지나야 '다 했어요'가 켜진다.
@@ -1562,6 +1604,7 @@ function renderSurvey(){
   if(!S.me) return renderRegister('/survey');
   if(!goalReached()) return go('/my', true);
   if(S.me.surveyAt || !surveyOn()) return go('/my', true);
+  if(surveyMode() !== 'app') return go('/my', true);   // 외부 설문 링크가 설정돼 있으면 앱 내 설문으로 우회 못 하게
   const A = {}, req = SURVEY.filter(q => q.required);
   const answered = q => { const v = A[q.id]; return Array.isArray(v) ? v.length > 0 : v !== undefined && String(v).trim() !== ''; };
   const mine = allStampsLocal().map(s => boothById(s.boothId)).filter(Boolean);
@@ -1659,23 +1702,23 @@ function mapSVG(){
   s += `<g id="routeLayer"></g>`;
   const visible = new Set(filteredBooths().map(b => b.id));
   S.booths.forEach(b => {
-    const p = pos[b.id]; if(!p) return; const c = catOf(bv(b).cat);   // 전환 후 분류 색
-    const cls = `tile ${visible.has(b.id) ? '' : 'dim'} ${boothOpen(b) ? '' : 'off'} ${done.has(b.id) ? 'done' : ''} ${S.focus === b.id ? 'hi' : ''}`;
+    const p = pos[b.id]; if(!p) return; const vb = bv(b), c = catOf(vb.cat);   // 전환 후 분류 색·운영 상태(variant hours 비우면 종일)
+    const cls = `tile ${visible.has(b.id) ? '' : 'dim'} ${boothOpen(vb) ? '' : 'off'} ${done.has(b.id) ? 'done' : ''} ${S.focus === b.id ? 'hi' : ''}`;
     if(p.bus){                                                                                                             // 측1문 밖 버스: 창문 3개 + 바퀴 2개
       const bx = p.x - p.w / 2, by = p.y - p.h / 2;
-      s += `<g class="${cls}" data-id="${b.id}" data-x="${p.x.toFixed(0)}" data-y="${p.y.toFixed(0)}" transform="rotate(${(p.rot || 0).toFixed(1)} ${p.x.toFixed(1)} ${p.y.toFixed(1)})"><rect class="bg" x="${bx}" y="${by}" width="${p.w}" height="${p.h}" rx="12" fill="${c.color}" stroke="#fff" stroke-width="2"/>
+      s += `<g class="${cls}" data-id="${esc(b.id)}" data-x="${p.x.toFixed(0)}" data-y="${p.y.toFixed(0)}" transform="rotate(${(p.rot || 0).toFixed(1)} ${p.x.toFixed(1)} ${p.y.toFixed(1)})"><rect class="bg" x="${bx}" y="${by}" width="${p.w}" height="${p.h}" rx="12" fill="${c.color}" stroke="#fff" stroke-width="2"/>
         ${[0, 1, 2].map(k => `<rect x="${bx + 10 + k * 28}" y="${by + 7}" width="20" height="12" rx="3" fill="rgba(255,255,255,.88)"/>`).join('')}
         <circle cx="${bx + 22}" cy="${by + p.h}" r="6" fill="var(--ink)" stroke="#fff" stroke-width="2"/><circle cx="${bx + p.w - 22}" cy="${by + p.h}" r="6" fill="var(--ink)" stroke="#fff" stroke-width="2"/>
         <text class="num" x="${p.x}" y="${by + 31}" font-size="15">${esc(bn(bv(b)))}</text></g>`;
       return;
     }
     if(p.rect){                                                                                                            // 골대 뒤 열: 둥근 네모
-      s += `<g class="${cls}" data-id="${b.id}" data-x="${p.x.toFixed(0)}" data-y="${p.y.toFixed(0)}"><rect class="bg" x="${p.x - p.w / 2}" y="${p.y - p.h / 2}" width="${p.w}" height="${p.h}" rx="9" fill="${c.color}" stroke="#fff" stroke-width="2"/>
+      s += `<g class="${cls}" data-id="${esc(b.id)}" data-x="${p.x.toFixed(0)}" data-y="${p.y.toFixed(0)}"><rect class="bg" x="${p.x - p.w / 2}" y="${p.y - p.h / 2}" width="${p.w}" height="${p.h}" rx="9" fill="${c.color}" stroke="#fff" stroke-width="2"/>
         <text class="num" x="${p.x}" y="${p.y}" font-size="15">${esc(bn(bv(b)))}</text></g>`;
       return;
     }
     const fs = Math.max(10, Math.min(18, p.segW * .42));
-    s += `<g class="${cls}" data-id="${b.id}" data-x="${p.x.toFixed(0)}" data-y="${p.y.toFixed(0)}">
+    s += `<g class="${cls}" data-id="${esc(b.id)}" data-x="${p.x.toFixed(0)}" data-y="${p.y.toFixed(0)}">
       <path class="bg" d="${segPath(p.band, p.ta, p.tb)}" fill="${c.color}" stroke="#fff" stroke-width="2"/>
       <text class="num" x="${p.x.toFixed(1)}" y="${p.y.toFixed(1)}" font-size="${fs.toFixed(1)}">${esc(bn(bv(b)))}</text></g>`;
   });
@@ -1708,7 +1751,7 @@ function markNear(zoomed){
   if(S.focus && !near.some(o => o.id === S.focus) && visible.has(S.focus)){ solo = S.focus; near.unshift({ id: S.focus, d: 0 }); }
   const key = near.map(o => o.id).join(',') + '|' + S.focus; if(key === nearKey) return; nearKey = key;
   const done = stampedIds();
-  strip.innerHTML = near.map(o => { const b = boothById(o.id), col = catOf(b.cat).color; return `<button class="nchip ${done.has(b.id) ? 'done' : ''} ${S.focus === b.id ? 'on' : ''}" style="--c:${col}" onclick="pickBooth('${b.id}')"><span class="bn">${esc(bn(b))}</span>${esc(b.name)}</button>`; }).join('');
+  strip.innerHTML = near.map(o => { const b = boothById(o.id), col = catOf(b.cat).color; return `<button class="nchip ${done.has(b.id) ? 'done' : ''} ${S.focus === b.id ? 'on' : ''}" style="--c:${col}" data-pick="${esc(b.id)}"><span class="bn">${esc(bn(b))}</span>${esc(b.name)}</button>`; }).join('');
   let shelf = near.map(o => o.id).filter(id => id !== solo);
   if(solo){ const sp = (mapPos || (mapPos = boothPos()))[solo]; if(sp) shelf = shelf.filter(id => { const q = mapPos[id]; return !q || Math.hypot(q.x - sp.x, q.y - sp.y) > 150; }); }   // 선택 이름표 자리와 겹칠 이웃은 뺀다
   layer.innerHTML = layoutLabels(shelf) + (solo ? layoutLabels([solo]) : '');
@@ -1726,7 +1769,10 @@ function layoutLabels(ids){
   const ring = items.filter(o => !o.p.rect).sort((a, b) => a.p.t - b.p.t);
   if(ring.length){
     if(ring.length > 1 && ring[ring.length - 1].p.t - ring[0].p.t > .5){ const k = ring.findIndex((o, i) => i && o.p.t - ring[i - 1].p.t > .5); if(k > 0) ring.push(...ring.splice(0, k)); }   // t=0 경계를 걸치면 순서 이어 붙이기
-    const m = ring[Math.floor(ring.length / 2)].p, nx = m.nx, ny = m.ny;
+    const m = ring[Math.floor(ring.length / 2)].p; let nx = m.nx, ny = m.ny;
+    /* 위쪽 직선 구간에서 정문 띠(폭 240) 위에 걸리는 칸이 하나라도 있으면 무리 전체를 안쪽(통로, 30px)에 단다 — 바깥은 정문·본부석 띠가 연달아 있어 자리가 없다 */
+    const mg = m.band.mainGate, flip = !!mg && ring.some(o => o.p.ny < -.92 && Math.abs(o.p.x - mg.x) < mg.w / 2 + o.w / 2 + 8);
+    if(flip){ nx = -nx; ny = -ny; }
     let tx = -ny, ty = nx; const a = ring[0].p, z = ring[ring.length - 1].p;
     if(ring.length > 1 && (z.x - a.x) * tx + (z.y - a.y) * ty < 0){ tx = -tx; ty = -ty; }                          // 접선은 링 진행 방향으로
     /* 위·아래 직선 구간(법선이 세로)만 두 줄. 좌우·곡선 구간은 접선 방향으로 쌓으면 세로로 벌어져 한 줄이면 안 겹친다 */
@@ -1735,8 +1781,8 @@ function layoutLabels(ids){
     const gap = 8;
     /* 축에 정렬된 알약끼리 안 겹치려면 접선 방향 간격 d가 가로로 (w1+w2)/2+gap 이상이거나 세로로 (h1+h2)/2+gap 이상이면 된다 */
     const need = (a, b) => Math.min(Math.abs(tx) > .01 ? ((a.w + b.w) / 2 + gap) / Math.abs(tx) : 1e9, Math.abs(ty) > .01 ? ((a.h + b.h) / 2 + gap) / Math.abs(ty) : 1e9);
-    const sg = m.band.sideGates || [];
-    let base = 14;
+    const sg = [...(m.band.sideGates || []), ...(mg ? [mg] : [])];                                                // 비킬 문 띠: 측문 + 정문
+    let base = flip ? 4 : 14;                                                                                  // 안쪽은 통로가 좁아 띠에 바짝
     rows.forEach((row, r) => {
       const e = Math.max(...row.map(ext));
       /* 각 알약은 자기 칸 바로 바깥(칸을 접선에 투영한 자리)에 두고 싶다. 순서대로 훑으며 겹치는 만큼만 밀고, 민 양의 평균을 되돌려 전체가 칸 위에 머물게 한다 */
@@ -1747,8 +1793,8 @@ function layoutLabels(ids){
       const bx = m.x + nx * (m.band.h / 2 + dist), by = m.y + ny * (m.band.h / 2 + dist);
       const fin = offs.map(v => v - mid);
       /* 측문 띠(띠 바깥 16~50px)와 같은 높이의 줄이면 띠를 장애물로 보고 알약을 접선 방향으로 비킨다: 문 앞쪽 알약은 뒤로, 뒤쪽은 앞으로. 이웃 간격(need)도 유지 */
-      sg.forEach(gt => {
-        if(dist - e > 50 || dist + e < 16) return;
+      if(!flip) sg.forEach(gt => {                                                                                // 안쪽엔 문이 없다
+        const lo = gt.id === 'gate-main' ? 29 : 16, hi = lo + 34; if(dist - e > hi || dist + e < lo) return;   // 측문 띠는 띠 바깥 16~50px, 정문 띠는 29~63px
         const gw = (gt.x - m.x) * tx + (gt.y - m.y) * ty; if(Math.abs(gw) > 420) return;
         const needG = o => gt.w / 2 + o.w / 2 + gap;
         let cap = Infinity;
@@ -1756,8 +1802,13 @@ function layoutLabels(ids){
         let floor = -Infinity;
         for(let k = 0; k < row.length; k++){ const o = row[k]; if(fin[k] < gw){ floor = -Infinity; continue; } const bot = Math.max(floor, gw + needG(o)); if(fin[k] < bot) fin[k] = bot; floor = fin[k] + (k < row.length - 1 ? need(o, row[k + 1]) : 0); }
       });
+      if(flip && Math.abs(tx) > .5){   // 안쪽 이름표는 직선 구간(정문 중심 ±L/2) 안에만 — 모서리로 나가면 휘어진 칸들과 겹친다. 이웃 간격(need) 유지
+        const ax = mg.x - m.x, bnd = o => { const l = m.band.mid.L / 2 - 4 - o.w / 2, a = (ax - l) / tx, b = (ax + l) / tx; return [Math.min(a, b), Math.max(a, b)]; };
+        let cap = Infinity; for(let k = row.length - 1; k >= 0; k--){ const o = row[k], top = Math.min(cap, bnd(o)[1]); if(fin[k] > top) fin[k] = top; cap = fin[k] - (k ? need(row[k - 1], o) : 0); }
+        let floor = -Infinity; for(let k = 0; k < row.length; k++){ const o = row[k], bot = Math.max(floor, bnd(o)[0]); if(fin[k] < bot) fin[k] = bot; floor = fin[k] + (k < row.length - 1 ? need(o, row[k + 1]) : 0); }
+      }
       row.forEach((o, k) => { const p = o.p, off = fin[k];
-        const ex = p.x + p.nx * p.band.h / 2, ey = p.y + p.ny * p.band.h / 2;
+        const sd = flip ? -1 : 1, ex = p.x + p.nx * sd * p.band.h / 2, ey = p.y + p.ny * sd * p.band.h / 2;   // 연결선은 칸의 이름표 쪽 가장자리에서
         out += pill(o, bx + tx * off, by + ty * off, ex, ey); });
     });
   }
@@ -1766,7 +1817,7 @@ function layoutLabels(ids){
 /* 선택한 칸을 맨 위로 올려서 굵은 테두리가 옆 칸 흰 선에 가려지지 않게 한다 */
 function markFocus(id){
   $$('.tile').forEach(t => t.classList.toggle('hi', t.dataset.id === id));
-  const t = $(`.tile[data-id="${id}"]`), L = $('#lblLayer'); if(t && L && t.parentNode === L.parentNode) t.parentNode.insertBefore(t, L);
+  const t = $(`.tile[data-id="${CSS.escape(id)}"]`), L = $('#lblLayer'); if(t && L && t.parentNode === L.parentNode) t.parentNode.insertBefore(t, L);
 }
 function pickBooth(id){ S.focus = id; nearKey = ''; markFocus(id); centerOnVisible(id, Math.max(view.k, 2.2)); openBoothSheet(id); }
 function svgPoint(svg, x, y){ const pt = svg.createSVGPoint(); pt.x = x; pt.y = y; return pt.matrixTransform(svg.getScreenCTM().inverse()); }
@@ -1860,15 +1911,15 @@ function openBoothSheet(id){
     </div>
     <p class="desc small" style="margin:14px 0 16px">${esc(b.desc || DESC_BY_CAT[b.cat])}</p>
     <div class="row">
-      ${st ? `<button class="btn sun full" onclick="go('/booth/${b.n}')">${I.check} 도장 찍음 · 자세히</button>`
-           : !hasStamp(b) ? `<button class="btn line full" onclick="go('/booth/${b.n}')">부스 소개 보기</button>`
+      ${st ? `<button class="btn sun full" data-go="${esc('/booth/' + b.n)}">${I.check} 도장 찍음 · 자세히</button>`
+           : !hasStamp(b) ? `<button class="btn line full" data-go="${esc('/booth/' + b.n)}">부스 소개 보기</button>`
            : boothForMe(b) ? `<button class="btn sun full" onclick="closeSheet();openScanner()">${I.qr} QR 찍고 도장 받기</button>` : `<div class="notice" style="width:100%">${I.bell}<span>${esc(targetName(b.target))} 친구들만 참여하는 부스예요</span></div>`}
     </div>
     <div class="row" style="margin-top:8px">
-      <button class="btn line full pair" onclick="startRoute('${id}','to')">${I.pin} 정문에서 가는 길</button>
-      <button class="btn line full pair" onclick="startRoute('${id}','exit')">${I.exit} 가까운 출구</button>
+      <button class="btn line full pair" data-route="${esc(id)}" data-mode="to">${I.pin} 정문에서 가는 길</button>
+      <button class="btn line full pair" data-route="${esc(id)}" data-mode="exit">${I.exit} 가까운 출구</button>
     </div>
-    <button class="btn soft sm full" style="margin-top:8px" onclick="go('/booth/${b.n}')">부스 소개 보기</button>`);
+    <button class="btn soft sm full" style="margin-top:8px" data-go="${esc('/booth/' + b.n)}">부스 소개 보기</button>`);
 }
 function showRouteHint(id){
   const b = boothById(id); const h = $('#mapHint'); if(!h) return;
@@ -1896,7 +1947,7 @@ function renderMap(focusN){
       <div class="map-legend" id="mapLegend">${catChipsHTML()}</div>
     </div>`, { noTop: true, flush: true, wide: true });
   const wrap = $('#mapwrap'); let drawnPortrait = null;
-  const redraw = () => { drawnPortrait = geom().portrait; mapPos = null; nearKey = ''; wrap.innerHTML = mapSVG(); wireMap(); if(S.focus) markFocus(S.focus); applyView(); if(S.route) drawRoute(S.route); };
+  const redraw = () => { drawnPortrait = geom().portrait; mapPos = null; nearKey = ''; wrap.innerHTML = mapSVG(); wireMap(); if(S.focus) markFocus(S.focus); applyView(); if(S.route){ drawRoute(S.route); showRouteHint(S.route); } };   // 다른 화면 갔다 와도 경로선과 힌트(✕)를 같이 복원
   redraw();                                       // 마운트 후에 그려야 실제 컨테이너 크기로 가로/세로를 정한다
   $('#mq').oninput = e => { S.q = e.target.value; redraw(); const hit = filteredBooths(); if(S.q.trim() && hit.length === 1){ S.focus = hit[0].id; markFocus(hit[0].id); centerOnVisible(hit[0].id, Math.max(view.k, 2.2)); } };
   wireChips($('#mapLegend'), function again(){ $('#mapLegend').innerHTML = catChipsHTML(); wireChips($('#mapLegend'), again); redraw(); });
@@ -1934,8 +1985,8 @@ const loadJsQR = () => loadLib(() => !!window.jsQR, ['https://cdn.jsdelivr.net/n
 const loadQRCode = () => loadLib(() => !!window.QRCode, ['https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js', './qrcode.min.js?v=DEV']);
 /* QR 내용 → 부스 번호. 우리 QR 주소(?b=번호&t=토큰)면 토큰을 qrTok 에 저장하고 번호 반환. '7'·'부스 7' 같은 문자열도 허용(구형 QR) */
 function parseBoothQR(text){
-  try{ const u = new URL(text); const b = u.searchParams.get('b') || (u.hash.match(/#\/stamp\/(\w+)/) || [])[1]; if(b){ qrTok.set(b, u.searchParams.get('t')); return b; } }catch(e){}
-  const m = String(text).match(/^(?:b|booth|부스)?[:\s]*(\d{1,3})$/i); return m ? m[1].padStart(2, '0') : null;
+  try{ const u = new URL(text); let b = u.searchParams.get('b') || (u.hash.match(/#\/stamp\/([^/?#]+)/) || [])[1]; if(b){ try{ b = decodeURIComponent(b); }catch(e){} qrTok.set(b, u.searchParams.get('t')); return b; } }catch(e){}   // 해시 주소의 한글 번호(본1)도 인식
+  const m = String(text).match(/^(?:b|booth|부스)?[:\s]*(\d{1,3})$/i); return m ? m[1] : null;   // 시드 번호엔 앞 0 이 없으므로 그대로 (앞 0 은 boothByNLoose 가 처리)
 }
 /* 카메라 스캐너. testStampInput 이면 번호 입력창(https 아닌 로컬용). 아니면 getUserMedia → 120ms 마다 jsQR → 부스 번호 나오면 #/stamp/번호 */
 /* 스캐너. 기본은 부스 QR(→ 도장). opts.onCode(text) 를 주면 그 콜백이 처리 (관리자 › 선물 수령의 교환권 스캔).
@@ -1978,7 +2029,7 @@ async function openScanner(opts = {}){
         const img = ctx.getImageData(0, 0, 480, 480); const code = jsQR(img.data, 480, 480, { inversionAttempts: 'dontInvert' });
         if(code && code.data && opts.onCode){ handle(code.data); }
         else if(code && code.data){ const n = parseBoothQR(code.data);
-          if(n && boothByN(n)){ $('#scanHit').classList.add('on'); if(navigator.vibrate) navigator.vibrate(60); setTimeout(() => { closeScanner(); go('/stamp/' + n); }, 250); return; }
+          const hit = n && boothByNLoose(n); if(hit){ $('#scanHit').classList.add('on'); if(navigator.vibrate) navigator.vibrate(60); setTimeout(() => { closeScanner(); go('/stamp/' + hit.n); }, 250); return; }
           if(!n) msg.innerHTML = '<b>행사 QR이 아니에요</b>부스 앞 안내판의 QR을 찍어주세요';
           else msg.innerHTML = `<b>${esc(n)}번 부스를 찾을 수 없어요</b>안내데스크에 문의해 주세요`;
         }
@@ -2019,8 +2070,8 @@ async function renderAdmin(tab, arg){
       <button class="btn blue full" id="pwGo">들어가기</button>
       <button class="btn soft full" onclick="go('/')">방문객 화면으로</button></div>`, { noTabs: true, back: true });
     const tryLogin = async () => {
-      if(DB === SupabaseDB){ $('#pwGo').disabled = true; try{ await adminAuth.login($('#pw').value); S.admin = true; toast('로그인했어요'); go(admPath('/dash'), true); }catch(e){ $('#pwGo').disabled = false; toast(e.message); } return; }
-      const stored = mem['wj:pw'] || CONFIG.adminPassword; if($('#pw').value === stored){ S.admin = true; toast('로그인했어요'); go(admPath('/dash'), true); } else toast('비밀번호가 달라요');
+      if(DB === SupabaseDB){ $('#pwGo').disabled = true; try{ await adminAuth.login($('#pw').value); S.admin = true; toast('로그인했어요'); go(admPath('/' + (tab || 'dash')), true); }catch(e){ $('#pwGo').disabled = false; toast(e.message); } return; }
+      const stored = mem['wj:pw'] || CONFIG.adminPassword; if($('#pw').value === stored){ S.admin = true; toast('로그인했어요'); go(admPath('/' + (tab || 'dash')), true); } else toast('비밀번호가 달라요');
     };
     $('#pwGo').onclick = tryLogin; $('#pw').onkeydown = e => { if(e.key === 'Enter') tryLogin(); }; $('#pw').focus();
     return;
@@ -2101,7 +2152,7 @@ function admGift(st){
       <p class="small muted" style="line-height:1.6;margin-bottom:10px">완주 전인 사람도 이름·소속·코드로 찾아요. <b>폰이 바뀐 사람</b>에겐 코드를 알려주면 새 폰에서 '기록 이어받기'로 복구돼요. <b>QR이 안 찍히는 경우</b>엔 부스 번호로 도장을 직접 넣어요.</p>
       <div class="row" style="gap:8px"><input class="inp sm" id="fq" placeholder="이름, 소속, 코드" autocomplete="off" style="max-width:280px"><button class="btn sm" id="fGo">찾기</button></div>
       <div class="tscroll" id="fRes" style="margin-top:10px"></div></div>
-    <div class="row"><div class="h-sec" style="margin:0">달성자 ${list.length}명 <span class="muted small">· 설문 완료 ${list.filter(v => v.surveyAt).length} · 미수령 ${list.filter(v => !v.giftAt).length}</span></div></div>
+    <div class="row"><div class="h-sec" style="margin:0">달성자 ${list.length}명 <span class="muted small" id="gCnt"></span></div></div>
     <div class="tscroll"><table class="table"><thead><tr><th>코드</th><th>이름</th>${vColsTH()}<th>스탬프</th><th>설문</th><th>상태</th><th></th></tr></thead><tbody id="gBody"></tbody></table></div>`);
   const draw = () => {
     const q = ($('#gq').value || '').trim().toLowerCase();
@@ -2110,8 +2161,15 @@ function admGift(st){
       <td>${v.surveyAt ? `<span class="pill" style="background:var(--mint-soft);color:#12704F">완료</span>` : `<span class="pill muted" style="background:var(--card-2)">전</span>`}</td>
       <td>${v.giftAt ? `<span class="pill" style="background:var(--mint-soft);color:#12704F">${fmtTime(v.giftAt)} 수령</span>` : `<span class="pill" style="background:var(--sun-soft);color:var(--sun-ink)">미수령</span>`}</td>
       <td style="text-align:right">${v.giftAt ? `<button class="btn xs line" data-undo="${v.id}">취소</button>` : `<button class="btn xs sun" data-give="${v.id}">수령 처리</button>`}</td></tr>`).join('') : '<tr><td colspan="${6 + vCols().length}" class="empty">해당하는 달성자가 없어요</td></tr>';
-    $$('[data-give]').forEach(b => b.onclick = async () => { await DB.setGift(b.dataset.give, true); toast('수령 처리했어요'); renderAdmin('gift'); });
-    $$('[data-undo]').forEach(b => b.onclick = async () => { if(confirm('수령 처리를 취소할까요?')){ await DB.setGift(b.dataset.undo, false); renderAdmin('gift'); } });
+    $('#gCnt').textContent = `· 설문 완료 ${list.filter(v => v.surveyAt).length} · 미수령 ${list.filter(v => !v.giftAt).length}`;
+    /* 수령/취소는 그 사람 행만 바꾸고 목록만 다시 그림 (전체 재렌더로 검색어·스크롤이 날아가던 문제). 실패하면 토스트 */
+    const setGift = async (id, on) => { const v = list.find(x => x.id === id);
+      /* 처리 직전 서버 최신값으로 다시 확인 — 다른 관리자 폰이 먼저 처리했으면 여기서 막고 표를 맞춘다 */
+      let cur = null; try{ cur = await DB.getVisitor(id); }catch(e){}
+      if(cur && (on ? cur.giftAt : !cur.giftAt)){ if(v) v.giftAt = cur.giftAt || null; draw(); return toast(on ? `이미 수령 처리된 학생이에요 (${fmtTime(cur.giftAt)})` : '이미 취소된 상태예요'); }
+      try{ await DB.setGift(id, on); }catch(e){ if(/^이미 /.test(e.message || '')){ if(v) v.giftAt = on ? (v.giftAt || Date.now()) : null; draw(); return toast(e.message); } draw(); return toast('저장 실패: ' + (e.message || '통신 오류')); } if(v) v.giftAt = on ? Date.now() : null; toast(on ? '수령 처리했어요' : '수령 처리를 취소했어요'); draw(); };
+    $$('[data-give]').forEach(b => b.onclick = () => { b.disabled = true; setGift(b.dataset.give, true); });
+    $$('[data-undo]').forEach(b => b.onclick = () => { if(confirm('수령 처리를 취소할까요?')) setGift(b.dataset.undo, false); });
   };
   $('#gq').oninput = draw; draw(); $('#gq').focus();
   /* 교환권 QR 연속 스캔: 'WJ:uuid' → 달성자 목록에서 찾고(없으면 서버 검색) → 카드 → 수령 처리 → 다음 학생 */
@@ -2123,6 +2181,7 @@ function admGift(st){
         let v = list.find(x => m ? x.id === m[1] : shortCode(x.id) === code);
         if(!v && code.length === 6){ try{ v = (await DB.findVisitor(code)).find(x => shortCode(x.id) === code); }catch(e){} }
         if(!v){ $('#scanMsg').innerHTML = `<b>교환권이 아니거나 못 찾았어요</b>${esc(String(text).slice(0, 40))}<br><button class="btn sun sm" id="scanNext">다시 찍기</button>`; $('#scanNext').onclick = scanner.resume; return; }
+        try{ const cur = await DB.getVisitor(v.id); if(cur){ v.giftAt = cur.giftAt; v.surveyAt = cur.surveyAt; } }catch(e){}   // 카드 띄우기 전 서버 최신값 (다른 관리자가 이미 처리했으면 '이미 받았어요')
         const n = v.n ?? perVisitor[v.id] ?? 0, done = n >= CONFIG.stampGoal, ok = done && (v.surveyAt || !surveyOn()) && !v.giftAt;
         const why = v.giftAt ? `이미 ${fmtTime(v.giftAt)}에 받았어요` : !done ? `아직 완주 전 (도장 ${n}/${CONFIG.stampGoal})` : (!v.surveyAt && surveyOn()) ? '설문을 아직 안 했어요' : '';
         $('#scanMsg').innerHTML = `<div style="background:#fff;color:var(--ink);border-radius:18px;padding:16px;max-width:340px;margin:0 auto;text-align:left">
@@ -2131,7 +2190,11 @@ function admGift(st){
             ${why ? `<div style="margin-top:10px;color:var(--coral);font-weight:800">✋ ${why}</div>` : `<div style="margin-top:10px;color:#12704F;font-weight:800">✅ 수령 가능</div>`}
             <div class="row" style="margin-top:12px;gap:8px">${ok ? `<button class="btn sun grow" id="scanGive">🎁 수령 처리</button>` : ''}<button class="btn line ${ok ? '' : 'grow'}" id="scanNext">${ok ? '건너뛰기' : '다음 학생'}</button></div></div>`;
         $('#scanNext').onclick = scanner.resume;
-        const give = $('#scanGive'); if(give) give.onclick = async () => { give.disabled = true; try{ await DB.setGift(v.id, true); v.giftAt = Date.now(); changed = true; toast(`${v.name} 수령 처리 완료`); $('#scanMsg').innerHTML = `<b style="color:var(--mint)">✅ ${esc(v.name)} 수령 완료</b>다음 학생 QR을 찍어주세요`; setTimeout(scanner.resume, 1200); }catch(e){ give.disabled = false; toast(e.message); } };
+        const give = $('#scanGive'); if(give) give.onclick = async () => { give.disabled = true;
+          const already = at => { v.giftAt = at || Date.now(); changed = true; $('#scanMsg').innerHTML = `<b>✋ 이미 ${fmtTime(v.giftAt)}에 받았어요</b>${esc(v.name)} · 다른 관리자가 먼저 처리했어요<br><button class="btn sun sm" id="scanNext">다음 학생</button>`; $('#scanNext').onclick = scanner.resume; };
+          try{ const cur = await DB.getVisitor(v.id); if(cur && cur.giftAt) return already(cur.giftAt); }catch(e){}   // 처리 직전 재조회
+          try{ await DB.setGift(v.id, true); v.giftAt = Date.now(); changed = true; toast(`${v.name} 수령 처리 완료`); $('#scanMsg').innerHTML = `<b style="color:var(--mint)">✅ ${esc(v.name)} 수령 완료</b>다음 학생 QR을 찍어주세요`; setTimeout(scanner.resume, 1200); }
+          catch(e){ if(/^이미 /.test(e.message || '')) return already(); give.disabled = false; toast('저장 실패: ' + (e.message || '통신 오류')); } };
       } });
   };
   const find = async () => {
@@ -2143,6 +2206,7 @@ function admGift(st){
     $$('[data-addstamp]').forEach(b => b.onclick = async () => {
       const n = (prompt(`${b.dataset.name}님에게 넣을 부스 번호`) || '').trim(); if(!n) return;
       const booth = boothByN(n) || boothByN(String(parseInt(n))); if(!booth) return toast('그 번호의 부스가 없어요');
+      if(!hasStamp(booth)) return toast(`${booth.n}번은 도장 없는 부스예요 (QR 제외)`);
       try{ const r = await DB.adminAddStamp(b.dataset.addstamp, booth.id); toast(r.dup ? '이미 찍혀 있는 부스예요' : `${booth.n}번 도장을 넣었어요`); find(); }catch(e){ toast(e.message); }
     });
   };
@@ -2193,7 +2257,7 @@ function admManual(boothN){
     card.querySelector('.bprog').outerHTML = boothRow(ids); card.querySelector('.st').textContent = `도장 ${ids.length}/${goal}`;
     if(ids.includes(cur.id)){ const b = card.querySelector('[data-stamp]'); b.textContent = '이미 찍음'; b.classList.add('done'); b.disabled = true; }
   });
-  /* 찾기 화면: 두 글자부터 자동 검색(350ms). 결과 카드 = 이름·항목·도장 수 + [도장]. 검색어 없을 땐 아래에 부스 상황·방금 온 아이들 */
+  /* 찾기 화면: 두 글자(또는 번호 한 글자)부터 자동 검색(350ms). 결과 카드 = 이름·항목·번호표·도장 수 + [도장] */
   const showSearch = () => {
     panel.innerHTML = `
       <div class="tb-q">누구에게 ${esc(cur.n)}번 도장을 찍을까요?</div>
@@ -2230,7 +2294,7 @@ function admManual(boothN){
     $('#mNew').onclick = showNew;
     setTimeout(() => inp.focus(), 50);
   };
-  /* 도장 → 확인 화면(도장 칸 진행). 완주면 confetti. 5초 뒤(또는 [다음]) 찾기 화면으로 */
+  /* 도장 → 확인 화면(번호표 크게·도장 칸 진행). 완주면 confetti. 5초 뒤(또는 [다음]) 찾기 화면으로 */
   const doStamp = async (v, fresh) => {
     let r; try{ r = await DB.adminAddStamp(v.id, cur.id); }catch(e){ toast(e.message); return showSearch(); }
     stampCache.delete(v.id); let ids = null; try{ ids = await stampsOf(v.id); }catch(e){}
@@ -2297,7 +2361,7 @@ function admBooths(){
       <button class="btn sm line" id="bStatus" title="쉬는 부스를 한 화면에서 고르기">운영 상태</button>
       <button class="btn sm line" id="bNoStamp" title="QR 안 하는(도장 없는) 부스 고르기">QR 제외</button>
       <button class="btn sm line" id="bColors" title="분류별 색 바꾸기 (홈 칩·지도·QR 인쇄물에 반영)">분류 색</button>
-      <span class="small muted">${S.booths.length}/${CONFIG.boothMax}개 · 같은 구역 안에서는 표 순서가 지도 순서예요 (트랙 둘레는 정문 오른쪽부터 시계방향) · 왼쪽 ≡ 를 끌어서 순서를 바꿔요<br>분류: ${CATS.map(c => c.name).join(' / ')} — 일부만 적어도 알아듣고, 없는 이름을 적으면 새 분류가 생겨요</span>
+      <span class="small muted">${S.booths.length}/${CONFIG.boothMax}개 · 같은 구역 안에서는 표 순서가 지도 순서예요 (트랙 둘레는 정문 오른쪽부터 시계방향) · 왼쪽 ≡ 를 끌어서 순서를 바꿔요<br>분류: ${esc(CATS.map(c => c.name).join(' / '))} — 일부만 적어도 알아듣고, 없는 이름을 적으면 새 분류가 생겨요</span>
     </div>
     <div class="blist" id="bList">
       ${S.booths.map((b, i) => `<div class="brow" data-i="${i}">
@@ -2312,7 +2376,7 @@ function admBooths(){
             <button class="btn xs soft" data-media="${i}" style="white-space:nowrap">편집</button>
             <button class="btn xs line" data-del="${i}" style="color:var(--coral);white-space:nowrap">삭제</button></div></div>
         <div class="l2">
-          <input class="inp sm f-cat" value="${esc(catOf(b.cat).name)}" data-f="cat" placeholder="분류" title="없는 이름을 적으면 새 분류가 생겨요">
+          <input class="inp sm f-cat" value="${esc(b.catTxt || catOf(b.cat).name)}" data-f="cat" placeholder="분류" title="없는 이름을 적으면 새 분류가 생겨요">
           <select class="inp sm f-zone" data-f="zone" title="구역">${ZONES.map(z => `<option value="${z.id}" ${z.id === (b.zone || '') ? 'selected' : ''}>${z.name}</option>`).join('')}</select>
           <input type="hidden" data-f="target" value="${esc(b.target || '')}"><div class="tsel" data-tsel="${i}" title="대상: 초등 이하로 두면 중고등학생 폰에는 안 보이고 도장도 안 찍혀요">${TARGETS.map(t => `<button type="button" class="${(b.target || '') === t.id ? 'on' : ''}" data-t="${t.id}">${t.name}</button>`).join('')}</div>
           <input type="hidden" data-f="hours" value="${esc(b.hours || '')}"><input type="hidden" data-f="variant" value="${esc(b.variant ? JSON.stringify(b.variant) : '')}">
@@ -2321,20 +2385,26 @@ function admBooths(){
     </div>
     <div class="row no-print"><button class="btn blue" id="bSave">변경사항 저장</button><span class="small muted">저장 전엔 지도에 반영되지 않아요</span></div>`);
   /* 분류는 글자 입력. 있는 이름(일부만 써도 됨)이면 그걸로, 없는 이름이면 새 분류가 생김. 구역은 드롭다운 */
-  const collect = () => S.booths.map((b, i) => { const tr = $(`.brow[data-i="${i}"]`); const o = { ...b }; $$('[data-f]', tr).forEach(el => { const v = el.value.trim(); o[el.dataset.f] = el.dataset.f === 'cat' ? matchCategory(v, b.cat, true) : el.dataset.f === 'variant' ? (() => { try{ return v ? JSON.parse(v) : null; }catch(e){ return null; } })() : v; }); return o; });
+  const collect = (create = false) => S.booths.map((b, i) => { const tr = $(`.brow[data-i="${i}"]`); const o = { ...b }; $$('[data-f]', tr).forEach(el => { const v = el.value.trim(); o[el.dataset.f] = el.dataset.f === 'cat' ? matchCategory(v, b.cat, create) : el.dataset.f === 'variant' ? (() => { try{ return v ? JSON.parse(v) : null; }catch(e){ return null; } })() : v;
+    if(el.dataset.f === 'cat'){ delete o.catTxt; if(!create && v && !matchCategory(v, null, false)) o.catTxt = v; } }); return o; });   // 새 분류는 저장(create=true) 때만 생김. 그 전엔 적은 글자를 catTxt 로 들고 있다가 다시 보여줌
   /* 부스 저장 뒤 사용자 정의 분류를 settings 에 같이 저장. 아무 부스도 안 쓰는 사용자 정의 분류는 정리 */
   const saveCategories = async list => {
     const used = new Set(list.flatMap(b => [b.cat, b.variant && b.variant.cat].filter(Boolean)));
     for(let i = CATS.length - 1; i >= 0; i--) if(CATS[i].custom && !used.has(CATS[i].id)) CATS.splice(i, 1);
     const cats = CATS.filter(c => c.custom).map(c => ({ id: c.id, name: c.name, color: c.color }));
-    const prev = JSON.stringify((S.settingsRaw || {}).categories || []);
-    if(prev !== JSON.stringify(cats)){ const data = { ...(S.settingsRaw || {}), categories: cats }; await DB.saveSettings(data); S.settingsRaw = data; }
+    const raw = S.settingsRaw || {}, patch = { categories: cats }; let changed = JSON.stringify(raw.categories || []) !== JSON.stringify(cats);
+    const ids = new Set(list.map(b => b.id));   // 삭제된 부스 id 가 쉬는 중·QR 제외 목록에 남아 개수가 안 맞던 문제
+    for(const k of ['closedBooths', 'noStampBooths']){ const a = raw[k]; if(Array.isArray(a)){ const f = a.filter(id => ids.has(id)); if(f.length !== a.length){ patch[k] = f; changed = true; } } }
+    if(changed) await savePatch(patch);
   };
-  $('#bSave').onclick = async () => { const list = collect(); const seen = new Set(); for(const b of list){ if(!b.n || !b.name) return toast('번호와 이름은 비울 수 없어요'); if(seen.has(b.n)) return toast(`부스 번호 ${b.n}이(가) 중복돼요`); seen.add(b.n); } S.booths = list; await DB.saveBooths(list); await saveCategories(list); toast('저장했어요'); renderAdmin('booths'); };
-  $('#bAdd').onclick = () => { const list = collect(); if(list.length >= CONFIG.boothMax) return toast(`부스는 최대 ${CONFIG.boothMax}개까지예요`); const n = String(Math.max(0, ...list.map(b => parseInt(b.n) || 0)) + 1).padStart(2, '0'); list.push({ id: 'b' + n + '-' + Date.now().toString(36), n, name: '', cat: 'etc', org: '', zone: '', desc: '', video: '', pdf: '', img: '', hours: '', variant: null, target: '' }); S.booths = list; renderAdmin('booths'); setTimeout(() => $$('#bList .brow').pop()?.querySelector('[data-f=name]').focus(), 50); };
-  $$('[data-del]').forEach(b => b.onclick = () => { const list = collect(); if(!confirm(`${list[b.dataset.del].n} 부스를 삭제할까요? 저장을 눌러야 반영돼요.`)) return; list.splice(b.dataset.del, 1); S.booths = list; renderAdmin('booths'); });
+  $('#bSave').onclick = async () => { const seen = new Set(); for(const b of collect()){ if(!b.n || !b.name) return toast('번호와 이름은 비울 수 없어요'); if(!validN(b.n)) return toast(`${N_MSG} (${b.n})`); if(seen.has(normN(b.n))) return toast(`부스 번호 ${b.n}이(가) 중복돼요`); seen.add(normN(b.n)); } const list = collect(true); /* 검증 통과 뒤에만 새 분류 생성 */
+    const bt = $('#bSave'); bt.disabled = true;
+    try{ await DB.saveBooths(list); S.booths = list; S.boothsDirty = false; await saveCategories(list); }catch(e){ bt.disabled = false; return toast('저장 실패: ' + (e.message || '통신 오류')); }   // 실패하면 S.booths 를 바꾸지 않고 표는 그대로 (다시 저장 가능)
+    toast('저장했어요'); renderAdmin('booths'); };
+  $('#bAdd').onclick = () => { const list = collect(); if(list.length >= CONFIG.boothMax) return toast(`부스는 최대 ${CONFIG.boothMax}개까지예요`); const n = String(Math.max(0, ...list.map(b => parseInt(b.n) || 0)) + 1).padStart(2, '0'); if(!validN(n)) return toast(N_MSG); list.push({ id: 'b' + n + '-' + Date.now().toString(36), n, name: '', cat: 'etc', org: '', zone: '', desc: '', video: '', pdf: '', img: '', hours: '', variant: null, target: '' }); S.booths = list; S.boothsDirty = true; renderAdmin('booths'); setTimeout(() => $$('#bList .brow').pop()?.querySelector('[data-f=name]').focus(), 50); };
+  $$('[data-del]').forEach(b => b.onclick = () => { const list = collect(); if(!confirm(`${list[b.dataset.del].n} 부스를 삭제할까요? 저장을 눌러야 반영돼요.`)) return; list.splice(b.dataset.del, 1); S.booths = list; S.boothsDirty = true; renderAdmin('booths'); });
   /* 순서: 왼쪽 ≡ 를 끌어서(pointer 이벤트, 마우스·터치 공통) 행을 옮기고, 놓으면 표의 행 순서대로 S.booths 를 다시 만듦. [번호순 정렬]은 번호(숫자 먼저, 본1·네1 같은 글자 번호는 뒤) 순 */
-  const reorderFromDom = () => { const list = collect(); S.booths = $$('#bList .brow').map(tr => list[+tr.dataset.i]); renderAdmin('booths'); };
+  const reorderFromDom = () => { const list = collect(); S.booths = $$('#bList .brow').map(tr => list[+tr.dataset.i]); S.boothsDirty = true; renderAdmin('booths'); };
   /* 리스너는 document 에 — 행을 옮기면(insertBefore) 손잡이가 잠깐 DOM 에서 빠져 포인터 캡처가 풀리므로 캡처에 기대지 않음 */
   $$('[data-drag]').forEach(h => h.onpointerdown = e => {
     e.preventDefault(); const tr = h.closest('.brow'), tb = tr.parentNode, from = $$('#bList .brow').indexOf(tr); tr.classList.add('dragging');
@@ -2349,7 +2419,7 @@ function admBooths(){
     document.addEventListener('pointermove', onMove); document.addEventListener('pointerup', onUp); document.addEventListener('pointercancel', onUp);
   });
   const nKey = n => { const m = String(n || '').trim().match(/^(\D*)(\d+)(.*)$/); return m ? [m[1] ? 1 : 0, m[1], +m[2], m[3]] : [2, String(n || ''), 0, '']; };
-  $('#bSort').onclick = () => { const list = collect(); list.sort((a, b) => { const x = nKey(a.n), y = nKey(b.n); for(let k = 0; k < 4; k++){ if(x[k] < y[k]) return -1; if(x[k] > y[k]) return 1; } return 0; }); S.booths = list; renderAdmin('booths'); toast('번호순으로 정렬했어요 · 저장을 눌러야 반영돼요'); };
+  $('#bSort').onclick = () => { const list = collect(); list.sort((a, b) => { const x = nKey(a.n), y = nKey(b.n); for(let k = 0; k < 4; k++){ if(x[k] < y[k]) return -1; if(x[k] > y[k]) return 1; } return 0; }); S.booths = list; S.boothsDirty = true; renderAdmin('booths'); toast('번호순으로 정렬했어요 · 저장을 눌러야 반영돼요'); };
   /* 자료(영상·PDF·사진) 편집 시트. 행의 hidden input(data-f=video/pdf/img)을 읽고 [확인] 때 다시 써넣음 → 저장은 표 아래 [변경사항 저장] 한 번 */
   const fname = u => { u = String(u || ''); if(u.startsWith('local:')) return '올린 파일'; try{ return decodeURIComponent(u.split('?')[0].split('/').pop()) || u; }catch(e){ return u; } };
   const pvImg = (box, url) => { box.innerHTML = ''; if(!url) return box.innerHTML = '<span class="small muted">아직 없어요</span>'; const im = document.createElement('img'); im.src = url; im.style.cssText = 'width:100%;max-width:320px;border-radius:12px;display:block;cursor:zoom-in'; im.onclick = () => openLightbox(url); im.onerror = () => { box.innerHTML = '<span class="small" style="color:var(--coral)">사진을 불러올 수 없어요</span>'; }; box.appendChild(im); };
@@ -2407,6 +2477,7 @@ function admBooths(){
     const range = t => String(t || '').match(/(\d{1,2}:\d{2})\s*[~\-–]\s*(\d{1,2}:\d{2})/) || [];
     let v = null; try{ v = get('variant') ? JSON.parse(get('variant')) : null; }catch(e){}
     const hm = range(get('hours')), vh = range(v && v.hours), vm = (v && v.media) || null;
+    const rawHours = get('hours'); let keepRaw = !!rawHours && !hm.length;   // 시작~끝 형식이 아닌 값(엑셀에서 온 '13:00' 등)은 확인만 눌러도 지워지지 않게 보관
     const pad = t => t ? t.split(':').map(x => x.padStart(2, '0')).join(':') : '';
     const tm = (id, val, ph) => `<input class="inp sm tmi" id="${id}" value="${esc(pad(val))}" placeholder="${ph}" inputmode="numeric" maxlength="5" autocomplete="off">`;
     const field = (label, html) => `<div class="tf"><span class="tlb">${label}</span>${html}</div>`;
@@ -2417,6 +2488,7 @@ function admBooths(){
       <div class="card tight tsheet" style="margin-bottom:10px"><div class="kv">
         <div class="k">🕒 운영 시간 <span class="small muted" style="font-weight:600">비우면 종일</span></div>
         ${field('시간', `<div class="row tmr">${tm('tStart', hm[1], '--:--')}<span>~</span>${tm('tEnd', hm[2], '--:--')}<button class="btn xs soft" id="tClear">종일</button></div>`)}
+        ${keepRaw ? `<p class="small muted" style="margin:6px 0 0 82px;line-height:1.5">지금 값 <b>${esc(rawHours)}</b>은 시작~끝 형식이 아니라 그대로 둬요. 바꾸려면 위에 적고, 없애려면 [종일].</p>` : ''}
       </div></div>
       <div class="card tight tsheet" style="margin-bottom:14px"><div class="kv">
         <label class="row" style="gap:8px;align-items:center;cursor:pointer"><input type="checkbox" id="tSw" ${v ? 'checked' : ''}><span class="k" style="margin:0">🔁 시간이 되면 다른 부스로 바뀌어요</span></label>
@@ -2448,6 +2520,10 @@ function admBooths(){
     const tmVal = id => { const t = $(id).value.trim(); if(!t) return ''; if(!tmOk(t)) throw new Error(`시각은 24시간 HH:MM 으로 적어주세요 (${t})`); return pad(t); };
     /* 시·분 칩: 포커스된 칸(.act)의 줄 아래로 옮겨 붙음. 칩을 눌러도 포커스가 안 빠지게 pointerdown/mousedown 막음 */
     const pick = document.createElement('div'); pick.className = 'tmpick'; pick.hidden = true; let cur = null;
+    const hidePick = () => { if(cur) cur.classList.remove('act'); cur = null; pick.hidden = true; };
+    /* 패널은 줄 아래 그대로 두고(내용이 밀리지 않음) 패널·시각 칸 밖을 클릭한 '뒤'에 닫는다. blur 에서 바로 닫으면 아래 버튼이 위로 올라와 그 탭이 빗나갔음 */
+    const onDocClick = e => { if(!$('#sheet').classList.contains('show')){ document.removeEventListener('click', onDocClick); return; } if(pick.hidden || !e.target.closest) return; if(e.target.closest('.tmpick') || e.target.closest('.tmi')) return; hidePick(); };
+    document.addEventListener('click', onDocClick);
     const HOURS = Array.from({ length: 9 }, (_, i) => i + 9), MINS = [0, 10, 20, 30, 40, 50], p2 = n => String(n).padStart(2, '0');
     pick.innerHTML = `<div class="tmrow"><span class="tmlab">시</span>${HOURS.map(h => `<button type="button" class="tmc" data-h="${h}">${p2(h)}</button>`).join('')}</div><div class="tmrow"><span class="tmlab">분</span>${MINS.map(m => `<button type="button" class="tmc" data-m="${m}">${p2(m)}</button>`).join('')}</div>`;
     const parts = el => (el.value.match(/^(\d{1,2}):(\d{2})$/) || []).slice(1).map(Number);
@@ -2456,12 +2532,13 @@ function admBooths(){
     pick.onclick = e => { const c = e.target.closest('.tmc'); if(!c || !cur) return; const [h, m] = parts(cur); const nh = c.dataset.h !== undefined ? +c.dataset.h : (isNaN(h) ? 10 : h), nm = c.dataset.m !== undefined ? +c.dataset.m : (isNaN(m) ? 0 : m); cur.value = p2(nh) + ':' + p2(nm); fmtTm(cur); sync(); };
     $$('.tmi').forEach(el => {
       el.oninput = () => { fmtTm(el); sync(); };
-      el.onfocus = () => { if(cur) cur.classList.remove('act'); cur = el; el.classList.add('act'); el.closest('.tf').after(pick); pick.hidden = false; sync(); };
-      el.onblur = () => { if(/^\d{1,2}$/.test(el.value)) el.value = el.value.padStart(2, '0') + ':00'; if(/^\d:\d{2}$/.test(el.value)) el.value = '0' + el.value; fmtTm(el); el.classList.remove('act'); if(cur === el){ cur = null; pick.hidden = true; } };
+      el.onfocus = () => { if(cur) cur.classList.remove('act'); cur = el; el.classList.add('act'); const tf = el.closest('.tf'); if(pick.previousElementSibling !== tf) tf.after(pick); pick.hidden = false; sync(); };
+      el.onkeydown = e => { if(e.key === 'Tab' || e.key === 'Escape') hidePick(); };
+      el.onblur = () => { if(/^\d{1,2}$/.test(el.value)) el.value = el.value.padStart(2, '0') + ':00'; if(/^\d:\d{2}$/.test(el.value)) el.value = '0' + el.value; fmtTm(el); };   // 패널 닫기는 onDocClick 에서
     });
     $('#tSw').onchange = () => { $('#tSwBox').hidden = !$('#tSw').checked; };
     $('#tMed').onchange = () => { $('#tMedBox').hidden = !$('#tMed').checked; };
-    $('#tClear').onclick = () => { $('#tStart').value = ''; $('#tEnd').value = ''; };
+    $('#tClear').onclick = () => { $('#tStart').value = ''; $('#tEnd').value = ''; keepRaw = false; };
     $('#tVClear').onclick = () => { $('#tVStart').value = ''; $('#tVEnd').value = ''; };
     $('#tStamp').onclick = e => { const bt = e.target.closest('button'); if(!bt) return; $$('#tStamp button').forEach(x => x.classList.toggle('on', x === bt)); };
     const tpv = () => {
@@ -2490,7 +2567,7 @@ function admBooths(){
         const stk = ($('#tStamp .on') || {}).dataset?.k || ''; if(stk) nv.stamp = stk;
         if($('#tMed').checked) nv.media = { video: $('#tVideo').value.trim(), pdf: $('#tPdf').value.trim(), img: $('#tImg').value.trim() };
       }
-      const hours = st ? `${st}~${en}` : '';
+      const hours = st ? `${st}~${en}` : (keepRaw ? rawHours : '');
       $('[data-f=hours]', tr).value = hours; $('[data-f=variant]', tr).value = nv ? JSON.stringify(nv) : '';
       $('[data-m=hours]', tr).textContent = '🕒 ' + (hours || '종일'); $('[data-m=hours]', tr).classList.toggle('on', !!hours);
       $('[data-m=variant]', tr).textContent = '🔁 ' + (nv ? nv.at + ' 전환' + (nv.n ? ' · 번호 ' + nv.n : '') + (nv.media ? ' · 자료 별도' : '') + (nv.stamp === 'yes' ? ' · 도장 있음' : nv.stamp === 'no' ? ' · 도장 없음' : '') : '전환 없음'); $('[data-m=variant]', tr).classList.toggle('on', !!nv);
@@ -2514,8 +2591,8 @@ function admBooths(){
     $('#stAllOff').onclick = () => { $$('#stGrid .stchip').forEach(el => el.classList.add('off')); cnt(); };
     $('#stQ').oninput = e => { const q = e.target.value.trim().toLowerCase(); $$('#stGrid .stchip').forEach(el => { el.hidden = !!q && !el.textContent.toLowerCase().includes(q); }); };
     $('#stOk').onclick = async () => {
-      const ids = $$('#stGrid .stchip.off').map(el => el.dataset.st); const data = { ...(S.settingsRaw || {}), [o.key]: ids };
-      try{ await DB.saveSettings(data); S.settingsRaw = data; }catch(e){ return toast(e.message); }
+      const ids = $$('#stGrid .stchip.off').map(el => el.dataset.st);
+      try{ await savePatch({ [o.key]: ids }); }catch(e){ return toast('저장 실패: ' + (e.message || '통신 오류')); }
       closeSheet(); toast(ids.length ? `${o.offWord} ${ids.length}개로 저장했어요` : `${o.allOn}(으)로 저장했어요`); o.after();
     };
     cnt();
@@ -2542,8 +2619,7 @@ function admBooths(){
     $('#cOk').onclick = async () => {
       const colors = {};
       for(const r of $$('#cGrid .crow')){ const v = $('input[type=color]', r).value.toUpperCase(); if(!isHex(v)) continue; const c = catOf(r.dataset.cat); if(v !== c.def.toUpperCase()) colors[c.id] = v; }
-      const data = { ...(S.settingsRaw || {}), categoryColors: colors };
-      try{ await DB.saveSettings(data); S.settingsRaw = data; }catch(e){ return toast(e.message); }
+      try{ await savePatch({ categoryColors: colors }); }catch(e){ return toast('저장 실패: ' + (e.message || '통신 오류')); }
       CATS.forEach(c => c.color = colors[c.id] || c.def);
       closeSheet(); toast('분류 색을 저장했어요'); renderAdmin('booths');
     };
@@ -2573,11 +2649,15 @@ function admBooths(){
   $('#bImp').onchange = async e => { const f = e.target.files[0]; if(!f) return; e.target.value = '';
     let rows; try{ rows = (/\.xlsx$/i.test(f.name) ? await readXlsx(f) : parseCSV(await f.text()).slice(1)).filter(r => r[0]); }catch(err){ return toast(err.message || '파일을 읽지 못했어요'); }
     if(!rows.length) return toast('읽을 행이 없어요');
-    { const seen = new Set(); for(const r of rows){ if(seen.has(r[0])) return toast(`부스 번호 ${r[0]}이(가) 두 번 있어요`); seen.add(r[0]); } }
+    { const bad = rows.find(r => !validN(r[0])); if(bad) return toast(`${N_MSG} (${bad[0]})`); }
+    { const seen = new Set(); for(const r of rows){ if(seen.has(normN(r[0]))) return toast(`부스 번호 ${r[0]}이(가) 두 번 있어요`); seen.add(normN(r[0])); } }
+    { const e = rows.find(r => !r[1]); if(e) return toast(`부스명이 빈 줄이 있어요 (번호 ${e[0]})`); }
     if(rows.length > CONFIG.boothMax) return toast(`부스는 최대 ${CONFIG.boothMax}개까지예요 (${rows.length}개)`);
-    const prevVariant = Object.fromEntries(S.booths.map(b => [b.n, b.variant || null]));   // 시간대 전환은 엑셀에 없으니 같은 번호의 기존 값 유지
-    S.booths = rows.map(r => ({ id: 'b' + r[0], n: r[0], name: r[1] || '', org: r[2] || '', cat: matchCategory(r[3], 'etc', true),
-      zone: (ZONES.find(z => z.name === r[4] || z.id === r[4]) || ZONES[0]).id, desc: r[5] || '', video: r[6] || '', pdf: r[7] || '', img: r[8] || '', hours: r[9] || '', variant: prevVariant[r[0]] || null, target: parseTarget(r[10]) })); await DB.saveBooths(S.booths); await saveCategories(S.booths); toast(`${rows.length}개 부스를 불러왔어요`); renderAdmin('booths'); };
+    const prevByN = Object.fromEntries(S.booths.map(b => [normN(b.n), b]));   // 같은 번호의 기존 부스: id(쉬는 중·QR 제외·도장 기록이 id 로 묶임)와 시간대 전환(엑셀에 없음)은 유지
+    const list = rows.map(r => ({ id: (prevByN[normN(r[0])] || {}).id || 'b' + r[0], n: r[0], name: r[1] || '', org: r[2] || '', cat: matchCategory(r[3], 'etc', true),
+      zone: (ZONES.find(z => z.name === r[4] || z.id === r[4]) || ZONES[0]).id, desc: r[5] || '', video: r[6] || '', pdf: r[7] || '', img: r[8] || '', hours: r[9] || '', variant: (prevByN[normN(r[0])] || {}).variant || null, target: parseTarget(r[10]) }));
+    try{ await DB.saveBooths(list); S.booths = list; S.boothsDirty = false; await saveCategories(list); }catch(err){ return toast('저장 실패: ' + (err.message || '통신 오류')); }
+    toast(`${rows.length}개 부스를 불러왔어요`); renderAdmin('booths'); };
 }
 /* 지도 편집(관리자 › 지도): 화장실·휴지통 표시를 지도 위에 놓는다. 도구 고르고 지도 탭 → 추가, 놓인 표시 탭 → 삭제. settings.facilities 에 바로 저장(방문객 폰은 부팅·5분마다 반영) */
 const FAC_TYPES = { wc: '화장실', bin: '휴지통' }, FAC_ICON = { wc: '🚻', bin: '🗑' };
@@ -2606,8 +2686,7 @@ function facTap(start){
   saveFacilities(list);
 }
 async function saveFacilities(list){
-  const data = { ...(S.settingsRaw || {}), facilities: list };
-  try{ await DB.saveSettings(data); S.settingsRaw = data; toast(list.length ? '저장했어요' : '모두 지웠어요'); }catch(e){ return toast(e.message); }
+  try{ await savePatch({ facilities: list }); toast(list.length ? '저장했어요' : '모두 지웠어요'); }catch(e){ return toast('저장 실패: ' + (e.message || '통신 오류')); }
   if(S.mapEdit && S.mapEdit.redraw && $('#facTools')) S.mapEdit.redraw();
 }
 /* 부스 운영 상태: settings.closedBooths(id 목록) 에 있으면 '쉬는 중'. 운영 시간 밖(hoursState before/after)도 흐리게. 도장은 막지 않음 */
@@ -2627,9 +2706,13 @@ function admQR(){
       <button class="btn sm" onclick="print()">인쇄</button></div>
     <div class="qrgrid">
       <div class="qrc entry" style="--c:var(--blue)"><div class="qr" id="qr-entry"></div><div class="qrtxt"><div class="qrpill"><span class="dot"></span>입장 · 안내판용</div><div class="n entry">START</div><div class="t">QR을 찍고 등록하면<br>스탬프 랠리 시작!</div><div class="u">${esc(base)}?join</div><div class="qrhow">📱 휴대폰 카메라로 QR을 찍어주세요</div><div class="qrbrand">${esc(CONFIG.eventTitle)}</div></div></div>
-      ${S.booths.filter(qrNeeded).map(b => { const c = catOf(b.cat); return `<div class="qrc" style="--c:${c.color}"><div class="qr" id="qr-${b.id}"></div><div class="qrtxt"><div class="qrpill"><span class="dot"></span>${esc(c.name)}</div><div class="n"><small>BOOTH</small>${esc(b.n)}</div><div class="t">${esc(b.name)}</div><div class="u">${esc(b.org)}</div><div class="qrhow">📱 QR을 찍으면 도장이 <b>쾅!</b> ${CONFIG.stampGoal}개 모으면 선물</div><div class="qrbrand">${esc(CONFIG.eventTitle)}</div></div></div>`; }).join('')}</div>`);
+      ${S.booths.filter(qrNeeded).map(b => { const c = catOf(b.cat); return `<div class="qrc" style="--c:${c.color}"><div class="qr" id="qr-${esc(b.id)}"></div><div class="qrtxt"><div class="qrpill"><span class="dot"></span>${esc(c.name)}</div><div class="n"><small>BOOTH</small>${esc(b.n)}</div><div class="t">${esc(b.name)}</div><div class="u">${esc(b.org)}</div><div class="qrhow">📱 QR을 찍으면 도장이 <b>쾅!</b> ${CONFIG.stampGoal}개 모으면 선물</div><div class="qrbrand">${esc(CONFIG.eventTitle)}</div></div></div>`; }).join('')}</div>`);
   (async () => {
     let toks = {};
+    if(S.boothsDirty){   // 부스 탭에서 추가·삭제·순서를 바꾸고 저장 안 한 상태. 예전엔 토큰 발급을 위해 그 목록을 검증 없이 서버에 저장해 버렸음
+      $('#qrStatus').innerHTML = `<span style="color:var(--coral)">저장 안 한 부스 변경이 있어요. 부스 탭에서 [변경사항 저장] 후 다시 열어주세요.</span> <button class="btn xs sun" data-go="${esc(admPath('/booths'))}">부스 탭으로</button>`;
+      const g = $('.qrgrid'); if(g) g.hidden = true; return;
+    }
     if(DB === SupabaseDB){   // 서버 토큰. 부스가 아직 서버에 없으면(내장 시드 상태) 먼저 저장해서 발급받음
       try{
         toks = await DB.boothTokens();
@@ -2640,7 +2723,7 @@ function admQR(){
     }
     try{ await loadQRCode(); }catch(e){ $('#qrStatus').innerHTML = `<span style="color:var(--coral)">QR 라이브러리를 못 불러왔어요 (${esc(e.message)})</span>`; return; }
     new QRCode($('#qr-entry'), { text: `${base}?join`, width: 256, height: 256, correctLevel: QRCode.CorrectLevel.M });
-    S.booths.filter(qrNeeded).forEach(b => new QRCode($('#qr-' + b.id), { text: `${base}?b=${encodeURIComponent(b.n)}${toks[b.id] ? '&t=' + toks[b.id] : ''}`, width: 256, height: 256, correctLevel: QRCode.CorrectLevel.M }));
+    S.booths.filter(qrNeeded).forEach(b => new QRCode(document.getElementById('qr-' + b.id), { text: `${base}?b=${encodeURIComponent(b.n)}${toks[b.id] ? '&t=' + toks[b.id] : ''}`, width: 256, height: 256, correctLevel: QRCode.CorrectLevel.M }));
   })();
 }
 /* 행사 설정 폼. 저장 → DB.saveSettings → applySettings 로 즉시 반영. 일정·자료는 '한 줄에 하나, | 로 구분' 텍스트를 파싱 */
@@ -2680,13 +2763,13 @@ function admEvent(){
     const goal = parseInt($('#evGoal').value); if(!(goal >= 1 && goal <= 30)) return toast('완주 개수는 1~30 사이로');
     const surveyMinSec = parseInt($('#evSurveySec').value); if(!(surveyMinSec >= 0 && surveyMinSec <= 600)) return toast('설문 최소 시간은 0~600초 사이로');
     const surveyCodeField = $('#evSurveyField').value.trim(); if(surveyCodeField && !/^[\w.]+$/.test(surveyCodeField)) return toast('항목 ID는 entry.숫자 형식이에요');
-    const data = { ...(S.settingsRaw || {}), eventTitle: $('#evTitle').value.trim(), eventDate: $('#evDate').value.trim(), venue: $('#evVenue').value.trim(), stampGoal: goal, surveyUrl: $('#evSurvey').value.trim(), surveyMinSec, surveyCodeField, giftDeadline: $('#evDeadline').value.trim(), contact: $('#evContact').value.trim(), notice: $('#evNotice').value.trim(),
+    const data = { eventTitle: $('#evTitle').value.trim(), eventDate: $('#evDate').value.trim(), venue: $('#evVenue').value.trim(), stampGoal: goal, surveyUrl: $('#evSurvey').value.trim(), surveyMinSec, surveyCodeField, giftDeadline: $('#evDeadline').value.trim(), contact: $('#evContact').value.trim(), notice: $('#evNotice').value.trim(),
       schedule: parse('#evSchedule', ['time', 'title', 'place']), resources: parse('#evResources', ['title', 'desc', 'url']), surveyOn: $('#evSurveyOn').checked,
       regFields: Object.fromEntries(REG_FIELD_DEFS.map(d => [d.k, { on: $('#rf_' + d.k + '_on').checked, req: $('#rf_' + d.k + '_on').checked && $('#rf_' + d.k + '_req').checked }])) };
     if(!data.eventTitle) return toast('행사명을 적어주세요');
     if((data.surveyUrl && !/^https?:\/\//.test(data.surveyUrl)) || data.resources.some(r => !/^https?:\/\//.test(r.url))) return toast('링크는 http:// 또는 https:// 로 시작해야 해요');
     $('#evSave').disabled = true;
-    try{ await DB.saveSettings(data); applySettings(data); toast('저장했어요'); admEvent(); }catch(e){ $('#evSave').disabled = false; toast(e.message); }
+    try{ await savePatch(data); toast('저장했어요'); admEvent(); }catch(e){ $('#evSave').disabled = false; toast('저장 실패: ' + (e.message || '통신 오류')); }
   };
 }
 /* 설문 탭: 문항 편집(settings.survey 에 저장) + 응답 결과(문항별 집계·주관식 목록) + 응답 CSV */
@@ -2730,8 +2813,8 @@ function admSurvey(){
     for(const q of list){ if(!q.title) return toast('질문이 비어 있는 문항이 있어요'); if((q.type === 'single' || q.type === 'multi') && q.opts.length < 2) return toast(`'${q.title}' 보기를 2개 이상 적어주세요`); }
     const ids = new Set(); for(const q of list){ if(ids.has(q.id)) q.id = q.id + '_' + Math.random().toString(36).slice(2, 5); ids.add(q.id); }
     $('#sqSave').disabled = true;
-    try{ const data = { ...(S.settingsRaw || {}), survey: list.map(q => ({ id: q.id, type: q.type, title: q.title, sub: q.sub || '', required: !!q.required, ...(q.type === 'single' || q.type === 'multi' ? { opts: q.opts } : {}) })) }; await DB.saveSettings(data); applySettings(data); toast('저장했어요'); admSurvey(); }
-    catch(e){ $('#sqSave').disabled = false; toast(e.message); }
+    try{ await savePatch({ survey: list.map(q => ({ id: q.id, type: q.type, title: q.title, sub: q.sub || '', required: !!q.required, ...(q.type === 'single' || q.type === 'multi' ? { opts: q.opts } : {}) })) }); toast('저장했어요'); admSurvey(); }
+    catch(e){ $('#sqSave').disabled = false; toast('저장 실패: ' + (e.message || '통신 오류')); }
   };
   let rows = null;
   const load = async () => { $('#sqRes').innerHTML = '<div class="empty">불러오는 중…</div>'; try{ rows = await DB.surveyAnswers(); }catch(e){ $('#sqRes').innerHTML = `<div class="empty">${esc(e.message)}${/PGRST202|admin_survey_answers/.test(e.message) ? '<br>SQL 9절(앱 내 설문)을 실행해주세요' : ''}</div>`; return; } drawResults(); };
@@ -2778,13 +2861,15 @@ function admData(st){
   $('#exVisitors').onclick = async () => { const { stamps, visitors } = await fetchAll(); const cnt = {}; stamps.forEach(s => cnt[s.visitorId] = (cnt[s.visitorId] || 0) + 1); download('visitors.csv', '\ufeff' + [['등록시각', '이름', ...vCols().map(c => c.label), '나이대', '스탬프수', '설문완료', '선물수령']].concat(visitors.map(v => [new Date(v.createdAt).toLocaleString('ko-KR'), v.name, ...vCols().map(c => c.get(v)), gradeGroup(v.grade), cnt[v.id] || 0, v.surveyAt ? new Date(v.surveyAt).toLocaleString('ko-KR') : '', v.giftAt ? new Date(v.giftAt).toLocaleString('ko-KR') : ''])).map(r => r.map(csv).join(',')).join('\n')); };
   $('#exSummary').onclick = () => { const cnt = {}; Object.entries(st.perBooth).forEach(([k, v]) => cnt[k] = v.n); download('booth_summary.csv', '\ufeff' + [['부스번호', '부스명', '운영기관', '분류', '스탬프수']].concat(S.booths.map(b => [b.n, b.name, b.org, catOf(b.cat).name, cnt[b.id] || 0])).map(r => r.map(csv).join(',')).join('\n')); };
   $('#boothReset').onclick = async () => { if(!confirm('저장된 부스 목록을 지우고 파일에 든 기본 배치도(90 + 운영·네컷 5)로 되돌릴까요? 도장 기록은 그대로예요.')) return;
-    if(DB === LocalDB){ try{ localStorage.removeItem('wj:booths'); }catch(e){} delete mem['wj:booths']; } else { await DB.saveBooths([]); }
-    await loadBooths(); await DB.saveBooths(S.booths); toast('기본 배치도로 되돌렸어요'); renderAdmin('booths'); };
+    const bt = $('#boothReset'); bt.disabled = true;
+    try{ if(DB === LocalDB){ try{ localStorage.removeItem('wj:booths'); }catch(e){} delete mem['wj:booths']; } else { await DB.saveBooths([]); }
+      await loadBooths(); await DB.saveBooths(S.booths); S.boothsDirty = false; }catch(e){ bt.disabled = false; return toast('저장 실패: ' + (e.message || '통신 오류')); }
+    toast('기본 배치도로 되돌렸어요'); go(admPath('/booths')); };
   $('#setPwGo').onclick = async () => { const v = $('#setPw').value.trim(); if(v.length < 8) return toast('8자 이상으로 해주세요');
     if(local){ mem['wj:pw'] = v; return toast('이 세션의 비밀번호를 바꿨어요'); }
     try{ await DB.setPassword(v); $('#setPw').value = ''; toast('비밀번호를 바꿨어요'); }catch(e){ toast(e.message); } };
-  const demo = $('#demoGo'); if(demo) demo.onclick = async () => { if(!confirm('기존 기록을 지우고 데모 데이터를 만들까요?')) return; await DB.seedDemo(S.booths); toast('데모 데이터를 만들었어요'); go(admPath('/dash')); };
-  $('#purgeGo').onclick = async () => { if(prompt('정말 삭제하려면 "삭제"라고 입력하세요') !== '삭제') return; await DB.purgeVisitors(); S.me = null; S.myStamps = []; S.surveyOpenAt = 0; toast('모두 삭제했어요'); renderAdmin('data'); };
+  const demo = $('#demoGo'); if(demo) demo.onclick = async () => { if(!confirm('기존 기록을 지우고 데모 데이터를 만들까요?')) return; demo.disabled = true; try{ await DB.seedDemo(S.booths); }catch(e){ demo.disabled = false; return toast('저장 실패: ' + (e.message || '통신 오류')); } toast('데모 데이터를 만들었어요'); go(admPath('/dash')); };
+  $('#purgeGo').onclick = async () => { if(prompt('정말 삭제하려면 "삭제"라고 입력하세요') !== '삭제') return; const bt = $('#purgeGo'); bt.disabled = true; try{ await DB.purgeVisitors(); }catch(e){ bt.disabled = false; return toast('삭제 실패: ' + (e.message || '통신 오류')); } S.me = null; S.myStamps = []; S.surveyOpenAt = 0; toast('모두 삭제했어요'); renderAdmin('data'); };
 }
 const csv = v => { v = String(v ?? ''); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
 function parseCSV(t){ const rows = [], re = /("([^"]|"")*"|[^,\n\r]*)(,|\r?\n|$)/g; let row = [], m; t = t.replace(/^\ufeff/, ''); if(!/\n$/.test(t)) t += '\n';   /* \ub9c8\uc9c0\ub9c9 \uce78\uc774 \ube44\uace0 \ub05d\uc5d0 \uc904\ubc14\uafc8\uc774 \uc5c6\uc73c\uba74 \ub9c8\uc9c0\ub9c9 \ud589\uc774 \ube60\uc9c0\ub358 \ubb38\uc81c */ while((m = re.exec(t)) && m[0] !== ''){ let f = m[1]; if(f.startsWith('"')) f = f.slice(1, -1).replace(/""/g, '"'); row.push(f.trim()); if(m[3] !== ','){ rows.push(row); row = []; } } return rows.filter(r => r.some(x => x)); }
@@ -2799,9 +2884,12 @@ function download(name, text){ const a = document.createElement('a'); a.href = U
    5. QR 딥링크(?b=번호&t=토큰) 또는 입장 QR(?join) 을 해시 라우트로 바꾸고 route()
    ===================================================================== */
 (async function boot(){
+  $('#frame').innerHTML = `<main class="content"><div class="bootwait"><div class="spin"></div><div>불러오는 중…</div><div class="small" id="bootSlow" style="display:none">서버 응답이 느려요.<br>잠시 후 다시 열어주세요</div></div></main>`;   // 데이터 오기 전 흰 화면 방지
+  const slowT = setTimeout(() => { const el = $('#bootSlow'); if(el) el.style.display = ''; }, 8000);
   if(DB === SupabaseDB && adminAuth.pw()) S.admin = true;   // 새로고침해도 관리자 유지 (탭 닫으면 사라짐). 비번이 바뀌었으면 첫 관리자 RPC 에서 로그아웃됨
-  await loadSettings(); await loadBoothsCached();   // 설정 먼저(부스 버전 포함) → 버전 같으면 부스 요청 생략
-  await loadMe();
+  await Promise.all([loadSettings().then(loadBoothsCached), loadMe()]);   // 설정→부스(버전 의존)는 순서대로, 내 정보는 병렬
+  S.swSig = S.booths.map(b => bv(b).switched ? 1 : 0).join('');   // 전환 시그니처를 지금 상태로 — 전환 시각 직전에 열면 첫 틱이 초기화로 먹혀 재그리기를 놓치던 문제
+  clearTimeout(slowT);
   flushPending();
   // QR 딥링크: ?b=07&t=토큰 → 스탬프 화면. 토큰은 세션에 두고 주소창에서 쿼리는 지워서 새로고침 시 재진입을 막는다.
   const qs = new URLSearchParams(location.search); const b = qs.get('b');

@@ -8,7 +8,7 @@ def rep(old,new):
     s=s.replace(old,new,1)
 
 # ── 라우터: 조각마다 디코딩 (통째로 디코딩하면 #/register/%2Fstamp%2F2 의 복귀 주소가 쪼개져 등록 뒤 홈으로 감 → 도장 안 찍힘)
-if "try{ h = decodeURIComponent(h); }" in s: rep("""  let h = location.hash.replace(/^#/, '') || '/'; try{ h = decodeURIComponent(h); }catch(e){}   // 부스 번호가 한글(본1 등)이면 주소가 인코딩돼 있음
+if "let h = location.hash.replace(/^#/, '') || '/'; try{ h = decodeURIComponent(h); }" in s: rep("""  let h = location.hash.replace(/^#/, '') || '/'; try{ h = decodeURIComponent(h); }catch(e){}   // 부스 번호가 한글(본1 등)이면 주소가 인코딩돼 있음
   const [_, a, b, c] = h.split('/');""",
 """  const h = location.hash.replace(/^#/, '') || '/';
   const [_, a, b, c] = h.split('/').map(x => { try{ return decodeURIComponent(x); }catch(e){ return x; } });   // 조각마다 디코딩: 한글 부스 번호(본1)도, 등록 복귀 주소(%2Fstamp%2F2)도 살아남음""")   # 축전 앱이 이미 고쳤으면 건너뜀

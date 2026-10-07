@@ -1,7 +1,7 @@
 -- =====================================================================
--- booth-lite 스탬프앱 · Supabase 설정 SQL (축전 앱과 같은 구조. booth-lite 전용 새 Supabase 프로젝트의 SQL Editor 에서 전체 실행)
+-- booth-lite 스탬프앱 · Supabase 설정 SQL (축전 앱과 같은 구조 1~17절 + 18절. booth-lite 전용 새 Supabase 프로젝트의 SQL Editor 에서 전체 실행)
 -- 대시보드 › SQL Editor 에 통째로 붙여넣고 Run. 다시 실행해도 됨.
--- 등록 항목은 소속·나이·이름 (2026-10-07). 열 이름은 축전 앱과 같게 두고 뜻만 다름: school = 소속, grade = 나이 숫자('12'), gender = 연락처 (관리자 › 행사 설정에서 항목 사용/필수 선택)
+-- 등록 항목은 소속·나이·연락처·이름. 열 이름은 축전 앱과 같게 두고 뜻만 다름: school = 소속, grade = 나이 숫자('12'), gender = 연락처
 -- ---------------------------------------------------------------------
 -- 권한 모델 (anon 키 하나만 씀, Auth 없음)
 --   anon : booths·settings select 만. 방문객 데이터는 RPC 로만 — visitor_create·visitor_get·visitor_stamps·visitor_recover(uuid 본인 확인)·add_stamp(토큰·간격 검사)
@@ -125,6 +125,7 @@ language plpgsql security definer set search_path = public, extensions as $$
 begin perform admin_ok(pw); delete from stamps where true; delete from visitors where true; end $$;
 
 -- ② 선물 지급/취소
+drop function if exists admin_set_gift(text, uuid, boolean);   -- 17절에서 boolean 으로 바뀌어 전체 재실행 때 충돌 방지
 create or replace function admin_set_gift(pw text, vid uuid, given boolean) returns void
 language plpgsql security definer set search_path = public, extensions as $$
 begin
@@ -160,7 +161,7 @@ create policy booth_files_write on storage.objects for insert to anon with check
 
 -- 6. 치팅 방지 (2026-09-14) ---------------------------------------------
 -- 문제: QR 이 ?b=7 뿐이면 주소창에 1~90 쳐서 1분 만에 완주 가능.
--- ① 부스 토큰: QR 주소가 ?b=7&t=xxxxxxxxxx. 토큰은 booth_tokens 에 있고 anon 은 못 읽음(정책 없음). add_stamp 가 검사.
+-- ① 부스 토큰: QR 주소가 ?b=7&t=토큰(16절부터 32자). 토큰은 booth_tokens 에 있고 anon 은 못 읽음(정책 없음). add_stamp 가 검사.
 --    토큰은 부스 저장 때 자동 발급, 한 번 발급된 건 안 바뀜(인쇄한 QR 유지). 관리자 › QR 시트가 admin_booth_tokens 로 받아 QR 에 넣음.
 -- ② 시간 간격: 같은 사람의 도장 사이 최소 stamp_gap_sec() 초. 링크를 받아도 7개 찍는 데 10분 넘게 걸려 치팅 이득이 없음.
 -- 도장은 이제 add_stamp RPC 로만 들어감. anon 의 stamps 직접 insert 는 막음.
@@ -520,9 +521,93 @@ begin
 end $$;
 grant execute on function admin_save_booths(text, jsonb) to anon;
 
--- 16. 방문객 번호표 (2026-10-07, booth-lite) ---------------------------------------------
+-- 16. 부스 토큰 32자 (2026-10-08) ---------------------------------------------
+-- 토큰을 10자(40비트)에서 32자(128비트)로 늘리고 전부 재발급. ★ 전에 뽑은 QR 시트는 무효가 되니 인쇄 전에 실행.
+-- 실행 후 관리자 › QR 시트를 다시 열면 새 토큰으로 QR 이 그려짐. 앱 코드 변경 없음(길이 제한 없음).
+create or replace function ensure_booth_tokens() returns void
+language sql security definer set search_path = public, extensions as $$
+  insert into booth_tokens (booth_id, token)
+  select b.id, encode(gen_random_bytes(16), 'hex') from booths b
+  left join booth_tokens t on t.booth_id = b.id where t.booth_id is null;
+$$;
+revoke all on function ensure_booth_tokens() from public, anon;
+delete from booth_tokens where length(token) < 32;   -- 옛 10자 토큰만 지움 → 파일 전체를 다시 실행해도 32자 토큰은 유지
+select ensure_booth_tokens();
+
+-- 17. 운영 안정화 (2026-10-08) ---------------------------------------------
+-- ① 관리자 잠금은 '틀린 비번'만 막음. 맞는 비번은 잠금 중에도 통과 → 외부인이 틀린 비번을 반복 보내 운영본부(선물 수령·대시보드·수동 도장)를 멈추던 구멍 차단.
+--    순서: 해시 비교 먼저 → 맞으면 OK. 틀리면 잠금 중이면 ADMIN_LOCKED, 아니면 ADMIN_UNAUTHORIZED.
+--    실패 횟수 기록(10분 10회 → 1분 잠금)은 admin_login(false 반환)에서만 — 다른 RPC 는 예외로 끝나 기록이 롤백되므로(11절 주석과 같은 이유) 거기선 세지 않음. 무차별 대입은 bcrypt 비용 + 8자 이상 비번으로 막음.
+create or replace function admin_note_fail() returns void
+language plpgsql security definer set search_path = public, extensions as $$
+declare f admin_login_fail;
+begin
+  update admin_login_fail set
+    fails        = case when window_start is null or window_start < now() - interval '10 min' then 1 else fails + 1 end,
+    window_start = case when window_start is null or window_start < now() - interval '10 min' then now() else window_start end,
+    last_fail_at = now(), total_fails = total_fails + 1
+  where id = 1 returning * into f;
+  if f.fails >= 10 then
+    update admin_login_fail set locked_until = now() + interval '1 min', fails = 0, window_start = null, total_locks = total_locks + 1 where id = 1;
+  end if;
+end $$;
+revoke all on function admin_note_fail() from public, anon;
+
+create or replace function admin_ok(pw text) returns void
+language plpgsql security definer set search_path = public, extensions as $$
+declare secs int;
+begin
+  if exists (select 1 from admin_secret where pw_hash = crypt(pw, pw_hash)) then return; end if;
+  secs := admin_locked_secs();
+  if secs > 0 then raise exception 'ADMIN_LOCKED:%', secs; end if;
+  raise exception 'ADMIN_UNAUTHORIZED';
+end $$;
+revoke all on function admin_ok(text) from public, anon;
+
+create or replace function admin_login(pw text) returns boolean
+language plpgsql security definer set search_path = public, extensions as $$
+declare secs int;
+begin
+  if exists (select 1 from admin_secret where pw_hash = crypt(pw, pw_hash)) then
+    update admin_login_fail set fails = 0, window_start = null where id = 1 and fails > 0;
+    return true;
+  end if;
+  secs := admin_locked_secs();
+  if secs > 0 then raise exception 'ADMIN_LOCKED:%', secs; end if;
+  perform admin_note_fail();
+  return false;
+end $$;
+grant execute on function admin_login(text) to anon;
+
+-- ② 설정 저장은 키 병합. 관리자 둘(또는 탭 둘)이 다른 키(운영 상태·분류·공지)를 저장해도 서로 안 지움. 앱도 2026-10-08 패치부터 저장 직전 서버값을 읽어 병합(savePatch). 객체가 아니면 거절.
+create or replace function admin_save_settings(pw text, data jsonb) returns void
+language plpgsql security definer set search_path = public, extensions as $$
+begin
+  perform admin_ok(pw);
+  if data is null or jsonb_typeof(data) <> 'object' then raise exception 'BAD_SETTINGS'; end if;
+  insert into settings (id, data, updated_at) values (1, data, now())
+  on conflict (id) do update set data = coalesce(settings.data, '{}'::jsonb) || excluded.data, updated_at = now();
+end $$;
+grant execute on function admin_save_settings(text, jsonb) to anon;
+
+-- ③ 선물 수령은 '아직 안 받은 사람'만 처리하고 결과(true=처리됨/false=이미 받음)를 돌려줌. 관리자 여러 명이 같은 학생을 동시에 처리해도 한 번만.
+--    반환형이 바뀌어 drop 후 재생성.
+drop function if exists admin_set_gift(text, uuid, boolean);
+create function admin_set_gift(pw text, vid uuid, given boolean) returns boolean
+language plpgsql security definer set search_path = public, extensions as $$
+begin
+  perform admin_ok(pw);
+  if given then
+    update visitors set gift_received_at = now() where id = vid and gift_received_at is null;
+  else
+    update visitors set gift_received_at = null where id = vid and gift_received_at is not null;
+  end if;
+  return found;
+end $$;
+grant execute on function admin_set_gift(text, uuid, boolean) to anon;
+-- 18. 방문객 번호표 (2026-10-07, booth-lite 전용 · 축전엔 없음) ---------------------------------------------
 -- 폰 없는 어린이가 부스 태블릿에서 "23번"처럼 말할 수 있게 등록 순서대로 번호를 매김. 6자리 코드보다 쉬움.
--- 이 절만 따로 실행해도 됨. visitor_create/visitor_get 은 'returning *' 라 자동으로 no 가 포함됨.
+-- 이 절만 따로 실행해도 됨(이미 실행했으면 다시 실행해도 안전). visitor_create/visitor_get 은 'returning *' 라 자동으로 no 가 포함됨.
 alter table visitors add column if not exists no serial;
 drop view if exists visitor_stats;
 create view visitor_stats as
