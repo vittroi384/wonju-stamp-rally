@@ -786,7 +786,7 @@ const LocalDB = {
   async stampsOf(visitorId){ const d=await this._all(); return d.stamps.filter(s=>s.visitorId===visitorId).sort((a,b)=>a.at-b.at); },
   async allStamps(){ return (await this._all()).stamps; },
   async allVisitors(){ return (await this._all()).visitors; },
-  async setGift(visitorId,on=true){ const d=await this._all(); const v=d.visitors.find(x=>x.id===visitorId); if(v){ v.giftAt=on?Date.now():null; await this._save(d); } },
+  async setGift(visitorId,on=true){ const d=await this._all(); const v=d.visitors.find(x=>x.id===visitorId); if(!v||(on?v.giftAt:!v.giftAt)) throw new Error(on?'이미 수령 처리된 학생이에요':'이미 취소된 상태예요'); v.giftAt=on?Date.now():null; await this._save(d); return true; },   // 서버와 같은 의미: 처리됐으면 true, 이미 그 상태면 throw
   async setSurvey(visitorId){ const d=await this._all(); const v=d.visitors.find(x=>x.id===visitorId); if(v&&!v.surveyAt){ v.surveyAt=Date.now(); await this._save(d); } },
   async submitSurvey(visitorId,answers){ const d=await this._all(); d.surveys=d.surveys||[]; if(!d.surveys.some(a=>a.visitorId===visitorId)) d.surveys.push({visitorId,answers,at:Date.now()}); const v=d.visitors.find(x=>x.id===visitorId); if(v&&!v.surveyAt) v.surveyAt=Date.now(); await this._save(d); return {ok:true}; },
   async surveyAnswers(){ const d=await this._all(); const vm=Object.fromEntries(d.visitors.map(v=>[v.id,v])); return (d.surveys||[]).map(a=>({visitorId:a.visitorId,school:vm[a.visitorId]?.school||'',grade:vm[a.visitorId]?.grade||'',gender:vm[a.visitorId]?.gender||'',at:a.at,answers:a.answers})); },
@@ -838,7 +838,7 @@ const SupabaseDB = {
   _b(r){ return {id:r.id,n:r.number,name:r.name,cat:r.category,org:r.organization,desc:r.description,zone:r.zone||'',video:r.video_url||'',pdf:r.pdf_url||'',img:r.image_url||'',hours:r.operating_hours||'',variant:r.time_variant||null,target:r.target_audience||''}; },
   async booths(){ const rows=await this._q('booths?select=*&order=sort_order'); return rows.length?rows.map(r=>this._b(r)):null; },
   async saveBooths(list){ await this._adm('admin_save_booths',{rows:list.map((b,i)=>({id:b.id,number:b.n,name:b.name,category:b.cat,organization:b.org,description:b.desc,sort_order:i,zone:b.zone||'',video_url:b.video||'',pdf_url:b.pdf||'',image_url:b.img||'',operating_hours:b.hours||'',time_variant:b.variant||null,target_audience:b.target||''}))});
-    const data={...(S.settingsRaw||{}),boothsVersion:Date.now()}; await this.saveSettings(data); S.settingsRaw=data; await store.set('wj:booths_cache',{v:data.boothsVersion,list}); },   // 부스 버전 올림 → 방문객 폰 캐시 무효화
+    const data=await savePatch({boothsVersion:Date.now()}); await store.set('wj:booths_cache',{v:data.boothsVersion,list}); },   // 부스 버전 올림 → 방문객 폰 캐시 무효화
   /* 방문객 데이터는 전부 RPC. anon 키로 visitors/stamps 테이블을 직접 읽을 수 없음(명단 노출 차단). uuid 를 아는 사람 = 본인 */
   async getVisitor(id){ const r=await this._rpc('visitor_get',{vid:id}); return this._v(r[0]); },
   async createVisitor({name,school,grade,gender}){ const r=await this._rpc('visitor_create',{nm:name,school,grade:grade||'',gender:gender||''}); return this._v(r[0]); },
@@ -860,7 +860,7 @@ const SupabaseDB = {
   async findVisitor(q){ return (await this._adm('admin_find_visitor',{q})).map(r=>({...this._v(r),n:r.n})); },
   async boothVisitors(boothId){ return (await this._admPages('admin_booth_visitors',{bid:boothId})).map(r=>({id:r.visitor_id,name:r.name,school:r.school,grade:r.grade||'',gender:r.gender||'',stampedAt:+new Date(r.stamped_at),n:+r.n})); },
   async adminAddStamp(visitorId,boothId){ const r=await this._adm('admin_add_stamp',{vid:visitorId,bid:boothId}); return r.dup?{ok:false,dup:true}:{ok:true,stamp:this._s(r.stamp)}; },
-  async setGift(visitorId,on=true){ await this._adm('admin_set_gift',{vid:visitorId,given:!!on}); },
+  async setGift(visitorId,on=true){ const r=await this._adm('admin_set_gift',{vid:visitorId,given:!!on}); if(r===false) throw new Error(on?'이미 수령 처리된 학생이에요':'이미 취소된 상태예요'); return true; },   // SQL 17절: true=처리됨, false=이미 그 상태(관리자 둘이 동시에 처리해도 한 번만)
   async setSurvey(visitorId){ await this._rpc('visitor_survey_done',{vid:visitorId}); },   // anon 호출 가능한 RPC. 최초 1회만 기록
   /* 앱 내 설문 제출: 서버가 완주 여부를 확인하고 응답 저장 + survey_done_at. NOT_DONE 이면 완주 전 */
   async submitSurvey(visitorId,answers){ try{ return await this._rpc('visitor_survey_submit',{vid:visitorId,ans:answers}); }catch(e){ if(/NOT_DONE/.test(e.message)) throw new Error('아직 완주 전이에요'); if(/PGRST202|visitor_survey_submit/.test(e.message)) throw new Error('서버에 설문 기능이 아직 없어요 (SQL 9절 실행 필요)'); throw e; } },
@@ -945,6 +945,14 @@ function applySettings(s){
 /* 설문 방식: 링크가 있으면 외부(구글폼) / 없고 문항이 있으면 앱 내 설문 / 둘 다 없으면 자기신고 버튼만 */
 const surveyMode = () => CONFIG.surveyUrl ? 'link' : SURVEY.length ? 'app' : 'none';
 async function loadSettings(){ try{ applySettings(await DB.settings()); }catch(e){} }
+/* 설정 저장 공용. 바꿀 키만 patch 로 받아 저장 직전 서버(로컬이면 저장소)의 최신값을 읽어 병합 → 다른 관리자·탭이 저장한 키(운영 상태·분류·공지·boothsVersion)를 안 지움.
+   서버 admin_save_settings 도 키 병합(SQL 17절)이라 이중 안전. 성공 후에만 S.settingsRaw 교체(applySettings). 실패는 throw → 부르는 쪽에서 '저장 실패:' 토스트 */
+async function savePatch(patch){
+  let fresh = S.settingsRaw || {};
+  try{ const srv = await DB.settings(); if(srv && typeof srv === 'object') fresh = srv; }catch(e){}   // 못 읽으면 들고 있던 값으로
+  const data = { ...fresh, ...patch };
+  await DB.saveSettings(data); applySettings(data); return data;
+}
 /* 부스 목록 캐시 (폰 저장 wj:booths_cache = {v, list}). settings.boothsVersion 이 캐시와 같으면 서버 요청을 아예 안 보냄 —
    리로드마다 4KB(gzip)/25KB(원본) 나가던 걸 0으로. 관리자가 부스를 저장하면 boothsVersion 이 올라가 다음 로드 때만 새로 받음 */
 async function loadBoothsCached(){
@@ -2114,7 +2122,11 @@ function admGift(st){
       <td style="text-align:right">${v.giftAt ? `<button class="btn xs line" data-undo="${v.id}">취소</button>` : `<button class="btn xs sun" data-give="${v.id}">수령 처리</button>`}</td></tr>`).join('') : '<tr><td colspan="9" class="empty">해당하는 달성자가 없어요</td></tr>';
     $('#gCnt').textContent = `· 설문 완료 ${list.filter(v => v.surveyAt).length} · 미수령 ${list.filter(v => !v.giftAt).length}`;
     /* 수령/취소는 그 사람 행만 바꾸고 목록만 다시 그림 (전체 재렌더로 검색어·스크롤이 날아가던 문제). 실패하면 토스트 */
-    const setGift = async (id, on) => { const v = list.find(x => x.id === id); try{ await DB.setGift(id, on); }catch(e){ draw(); return toast('저장 실패: ' + (e.message || '통신 오류')); } if(v) v.giftAt = on ? Date.now() : null; toast(on ? '수령 처리했어요' : '수령 처리를 취소했어요'); draw(); };
+    const setGift = async (id, on) => { const v = list.find(x => x.id === id);
+      /* 처리 직전 서버 최신값으로 다시 확인 — 다른 관리자 폰이 먼저 처리했으면 여기서 막고 표를 맞춘다 */
+      let cur = null; try{ cur = await DB.getVisitor(id); }catch(e){}
+      if(cur && (on ? cur.giftAt : !cur.giftAt)){ if(v) v.giftAt = cur.giftAt || null; draw(); return toast(on ? `이미 수령 처리된 학생이에요 (${fmtTime(cur.giftAt)})` : '이미 취소된 상태예요'); }
+      try{ await DB.setGift(id, on); }catch(e){ if(/^이미 /.test(e.message || '')){ if(v) v.giftAt = on ? (v.giftAt || Date.now()) : null; draw(); return toast(e.message); } draw(); return toast('저장 실패: ' + (e.message || '통신 오류')); } if(v) v.giftAt = on ? Date.now() : null; toast(on ? '수령 처리했어요' : '수령 처리를 취소했어요'); draw(); };
     $$('[data-give]').forEach(b => b.onclick = () => { b.disabled = true; setGift(b.dataset.give, true); });
     $$('[data-undo]').forEach(b => b.onclick = () => { if(confirm('수령 처리를 취소할까요?')) setGift(b.dataset.undo, false); });
   };
@@ -2128,6 +2140,7 @@ function admGift(st){
         let v = list.find(x => m ? x.id === m[1] : shortCode(x.id) === code);
         if(!v && code.length === 6){ try{ v = (await DB.findVisitor(code)).find(x => shortCode(x.id) === code); }catch(e){} }
         if(!v){ $('#scanMsg').innerHTML = `<b>교환권이 아니거나 못 찾았어요</b>${esc(String(text).slice(0, 40))}<br><button class="btn sun sm" id="scanNext">다시 찍기</button>`; $('#scanNext').onclick = scanner.resume; return; }
+        try{ const cur = await DB.getVisitor(v.id); if(cur){ v.giftAt = cur.giftAt; v.surveyAt = cur.surveyAt; } }catch(e){}   // 카드 띄우기 전 서버 최신값 (다른 관리자가 이미 처리했으면 '이미 받았어요')
         const n = v.n ?? perVisitor[v.id] ?? 0, done = n >= CONFIG.stampGoal, ok = done && v.surveyAt && !v.giftAt;
         const why = v.giftAt ? `이미 ${fmtTime(v.giftAt)}에 받았어요` : !done ? `아직 완주 전 (도장 ${n}/${CONFIG.stampGoal})` : !v.surveyAt ? '설문을 아직 안 했어요' : '';
         $('#scanMsg').innerHTML = `<div style="background:#fff;color:var(--ink);border-radius:18px;padding:16px;max-width:340px;margin:0 auto;text-align:left">
@@ -2136,7 +2149,11 @@ function admGift(st){
             ${why ? `<div style="margin-top:10px;color:var(--coral);font-weight:800">✋ ${why}</div>` : `<div style="margin-top:10px;color:#12704F;font-weight:800">✅ 수령 가능</div>`}
             <div class="row" style="margin-top:12px;gap:8px">${ok ? `<button class="btn sun grow" id="scanGive">🎁 수령 처리</button>` : ''}<button class="btn line ${ok ? '' : 'grow'}" id="scanNext">${ok ? '건너뛰기' : '다음 학생'}</button></div></div>`;
         $('#scanNext').onclick = scanner.resume;
-        const give = $('#scanGive'); if(give) give.onclick = async () => { give.disabled = true; try{ await DB.setGift(v.id, true); v.giftAt = Date.now(); changed = true; toast(`${v.name} 수령 처리 완료`); $('#scanMsg').innerHTML = `<b style="color:var(--mint)">✅ ${esc(v.name)} 수령 완료</b>다음 학생 QR을 찍어주세요`; setTimeout(scanner.resume, 1200); }catch(e){ give.disabled = false; toast(e.message); } };
+        const give = $('#scanGive'); if(give) give.onclick = async () => { give.disabled = true;
+          const already = at => { v.giftAt = at || Date.now(); changed = true; $('#scanMsg').innerHTML = `<b>✋ 이미 ${fmtTime(v.giftAt)}에 받았어요</b>${esc(v.name)} · 다른 관리자가 먼저 처리했어요<br><button class="btn sun sm" id="scanNext">다음 학생</button>`; $('#scanNext').onclick = scanner.resume; };
+          try{ const cur = await DB.getVisitor(v.id); if(cur && cur.giftAt) return already(cur.giftAt); }catch(e){}   // 처리 직전 재조회
+          try{ await DB.setGift(v.id, true); v.giftAt = Date.now(); changed = true; toast(`${v.name} 수령 처리 완료`); $('#scanMsg').innerHTML = `<b style="color:var(--mint)">✅ ${esc(v.name)} 수령 완료</b>다음 학생 QR을 찍어주세요`; setTimeout(scanner.resume, 1200); }
+          catch(e){ if(/^이미 /.test(e.message || '')) return already(); give.disabled = false; toast('저장 실패: ' + (e.message || '통신 오류')); } };
       } });
   };
   const find = async () => {
@@ -2197,19 +2214,19 @@ function admBooths(){
     const used = new Set(list.flatMap(b => [b.cat, b.variant && b.variant.cat].filter(Boolean)));
     for(let i = CATS.length - 1; i >= 0; i--) if(CATS[i].custom && !used.has(CATS[i].id)) CATS.splice(i, 1);
     const cats = CATS.filter(c => c.custom).map(c => ({ id: c.id, name: c.name, color: c.color }));
-    const raw = S.settingsRaw || {}, data = { ...raw, categories: cats }; let changed = JSON.stringify(raw.categories || []) !== JSON.stringify(cats);
+    const raw = S.settingsRaw || {}, patch = { categories: cats }; let changed = JSON.stringify(raw.categories || []) !== JSON.stringify(cats);
     const ids = new Set(list.map(b => b.id));   // 삭제된 부스 id 가 쉬는 중·QR 제외 목록에 남아 개수가 안 맞던 문제
-    for(const k of ['closedBooths', 'noStampBooths']){ const a = raw[k]; if(Array.isArray(a)){ const f = a.filter(id => ids.has(id)); if(f.length !== a.length){ data[k] = f; changed = true; } } }
-    if(changed){ await DB.saveSettings(data); S.settingsRaw = data; }
+    for(const k of ['closedBooths', 'noStampBooths']){ const a = raw[k]; if(Array.isArray(a)){ const f = a.filter(id => ids.has(id)); if(f.length !== a.length){ patch[k] = f; changed = true; } } }
+    if(changed) await savePatch(patch);
   };
   $('#bSave').onclick = async () => { const seen = new Set(); for(const b of collect()){ if(!b.n || !b.name) return toast('번호와 이름은 비울 수 없어요'); if(!validN(b.n)) return toast(`${N_MSG} (${b.n})`); if(seen.has(normN(b.n))) return toast(`부스 번호 ${b.n}이(가) 중복돼요`); seen.add(normN(b.n)); } const list = collect(true); /* 검증 통과 뒤에만 새 분류 생성 */
     const bt = $('#bSave'); bt.disabled = true;
-    try{ await DB.saveBooths(list); S.booths = list; await saveCategories(list); }catch(e){ bt.disabled = false; return toast('저장 실패: ' + (e.message || '통신 오류')); }   // 실패하면 S.booths 를 바꾸지 않고 표는 그대로 (다시 저장 가능)
+    try{ await DB.saveBooths(list); S.booths = list; S.boothsDirty = false; await saveCategories(list); }catch(e){ bt.disabled = false; return toast('저장 실패: ' + (e.message || '통신 오류')); }   // 실패하면 S.booths 를 바꾸지 않고 표는 그대로 (다시 저장 가능)
     toast('저장했어요'); renderAdmin('booths'); };
-  $('#bAdd').onclick = () => { const list = collect(); if(list.length >= CONFIG.boothMax) return toast(`부스는 최대 ${CONFIG.boothMax}개까지예요`); const n = String(Math.max(0, ...list.map(b => parseInt(b.n) || 0)) + 1).padStart(2, '0'); if(!validN(n)) return toast(N_MSG); list.push({ id: 'b' + n + '-' + Date.now().toString(36), n, name: '', cat: 'etc', org: '', zone: '', desc: '', video: '', pdf: '', img: '', hours: '', variant: null, target: '' }); S.booths = list; renderAdmin('booths'); setTimeout(() => $$('#bList .brow').pop()?.querySelector('[data-f=name]').focus(), 50); };
-  $$('[data-del]').forEach(b => b.onclick = () => { const list = collect(); if(!confirm(`${list[b.dataset.del].n} 부스를 삭제할까요? 저장을 눌러야 반영돼요.`)) return; list.splice(b.dataset.del, 1); S.booths = list; renderAdmin('booths'); });
+  $('#bAdd').onclick = () => { const list = collect(); if(list.length >= CONFIG.boothMax) return toast(`부스는 최대 ${CONFIG.boothMax}개까지예요`); const n = String(Math.max(0, ...list.map(b => parseInt(b.n) || 0)) + 1).padStart(2, '0'); if(!validN(n)) return toast(N_MSG); list.push({ id: 'b' + n + '-' + Date.now().toString(36), n, name: '', cat: 'etc', org: '', zone: '', desc: '', video: '', pdf: '', img: '', hours: '', variant: null, target: '' }); S.booths = list; S.boothsDirty = true; renderAdmin('booths'); setTimeout(() => $$('#bList .brow').pop()?.querySelector('[data-f=name]').focus(), 50); };
+  $$('[data-del]').forEach(b => b.onclick = () => { const list = collect(); if(!confirm(`${list[b.dataset.del].n} 부스를 삭제할까요? 저장을 눌러야 반영돼요.`)) return; list.splice(b.dataset.del, 1); S.booths = list; S.boothsDirty = true; renderAdmin('booths'); });
   /* 순서: 왼쪽 ≡ 를 끌어서(pointer 이벤트, 마우스·터치 공통) 행을 옮기고, 놓으면 표의 행 순서대로 S.booths 를 다시 만듦. [번호순 정렬]은 번호(숫자 먼저, 본1·네1 같은 글자 번호는 뒤) 순 */
-  const reorderFromDom = () => { const list = collect(); S.booths = $$('#bList .brow').map(tr => list[+tr.dataset.i]); renderAdmin('booths'); };
+  const reorderFromDom = () => { const list = collect(); S.booths = $$('#bList .brow').map(tr => list[+tr.dataset.i]); S.boothsDirty = true; renderAdmin('booths'); };
   /* 리스너는 document 에 — 행을 옮기면(insertBefore) 손잡이가 잠깐 DOM 에서 빠져 포인터 캡처가 풀리므로 캡처에 기대지 않음 */
   $$('[data-drag]').forEach(h => h.onpointerdown = e => {
     e.preventDefault(); const tr = h.closest('.brow'), tb = tr.parentNode, from = $$('#bList .brow').indexOf(tr); tr.classList.add('dragging');
@@ -2224,7 +2241,7 @@ function admBooths(){
     document.addEventListener('pointermove', onMove); document.addEventListener('pointerup', onUp); document.addEventListener('pointercancel', onUp);
   });
   const nKey = n => { const m = String(n || '').trim().match(/^(\D*)(\d+)(.*)$/); return m ? [m[1] ? 1 : 0, m[1], +m[2], m[3]] : [2, String(n || ''), 0, '']; };
-  $('#bSort').onclick = () => { const list = collect(); list.sort((a, b) => { const x = nKey(a.n), y = nKey(b.n); for(let k = 0; k < 4; k++){ if(x[k] < y[k]) return -1; if(x[k] > y[k]) return 1; } return 0; }); S.booths = list; renderAdmin('booths'); toast('번호순으로 정렬했어요 · 저장을 눌러야 반영돼요'); };
+  $('#bSort').onclick = () => { const list = collect(); list.sort((a, b) => { const x = nKey(a.n), y = nKey(b.n); for(let k = 0; k < 4; k++){ if(x[k] < y[k]) return -1; if(x[k] > y[k]) return 1; } return 0; }); S.booths = list; S.boothsDirty = true; renderAdmin('booths'); toast('번호순으로 정렬했어요 · 저장을 눌러야 반영돼요'); };
   /* 자료(영상·PDF·사진) 편집 시트. 행의 hidden input(data-f=video/pdf/img)을 읽고 [확인] 때 다시 써넣음 → 저장은 표 아래 [변경사항 저장] 한 번 */
   const fname = u => { u = String(u || ''); if(u.startsWith('local:')) return '올린 파일'; try{ return decodeURIComponent(u.split('?')[0].split('/').pop()) || u; }catch(e){ return u; } };
   const pvImg = (box, url) => { box.innerHTML = ''; if(!url) return box.innerHTML = '<span class="small muted">아직 없어요</span>'; const im = document.createElement('img'); im.src = url; im.style.cssText = 'width:100%;max-width:320px;border-radius:12px;display:block;cursor:zoom-in'; im.onclick = () => openLightbox(url); im.onerror = () => { box.innerHTML = '<span class="small" style="color:var(--coral)">사진을 불러올 수 없어요</span>'; }; box.appendChild(im); };
@@ -2396,8 +2413,8 @@ function admBooths(){
     $('#stAllOff').onclick = () => { $$('#stGrid .stchip').forEach(el => el.classList.add('off')); cnt(); };
     $('#stQ').oninput = e => { const q = e.target.value.trim().toLowerCase(); $$('#stGrid .stchip').forEach(el => { el.hidden = !!q && !el.textContent.toLowerCase().includes(q); }); };
     $('#stOk').onclick = async () => {
-      const ids = $$('#stGrid .stchip.off').map(el => el.dataset.st); const data = { ...(S.settingsRaw || {}), [o.key]: ids };
-      try{ await DB.saveSettings(data); S.settingsRaw = data; }catch(e){ return toast(e.message); }
+      const ids = $$('#stGrid .stchip.off').map(el => el.dataset.st);
+      try{ await savePatch({ [o.key]: ids }); }catch(e){ return toast('저장 실패: ' + (e.message || '통신 오류')); }
       closeSheet(); toast(ids.length ? `${o.offWord} ${ids.length}개로 저장했어요` : `${o.allOn}(으)로 저장했어요`); o.after();
     };
     cnt();
@@ -2424,8 +2441,7 @@ function admBooths(){
     $('#cOk').onclick = async () => {
       const colors = {};
       for(const r of $$('#cGrid .crow')){ const v = $('input[type=color]', r).value.toUpperCase(); if(!isHex(v)) continue; const c = catOf(r.dataset.cat); if(v !== c.def.toUpperCase()) colors[c.id] = v; }
-      const data = { ...(S.settingsRaw || {}), categoryColors: colors };
-      try{ await DB.saveSettings(data); S.settingsRaw = data; }catch(e){ return toast(e.message); }
+      try{ await savePatch({ categoryColors: colors }); }catch(e){ return toast('저장 실패: ' + (e.message || '통신 오류')); }
       CATS.forEach(c => c.color = colors[c.id] || c.def);
       closeSheet(); toast('분류 색을 저장했어요'); renderAdmin('booths');
     };
@@ -2462,7 +2478,7 @@ function admBooths(){
     const prevByN = Object.fromEntries(S.booths.map(b => [normN(b.n), b]));   // 같은 번호의 기존 부스: id(쉬는 중·QR 제외·도장 기록이 id 로 묶임)와 시간대 전환(엑셀에 없음)은 유지
     const list = rows.map(r => ({ id: (prevByN[normN(r[0])] || {}).id || 'b' + r[0], n: r[0], name: r[1] || '', org: r[2] || '', cat: matchCategory(r[3], 'etc', true),
       zone: (ZONES.find(z => z.name === r[4] || z.id === r[4]) || ZONES[0]).id, desc: r[5] || '', video: r[6] || '', pdf: r[7] || '', img: r[8] || '', hours: r[9] || '', variant: (prevByN[normN(r[0])] || {}).variant || null, target: parseTarget(r[10]) }));
-    try{ await DB.saveBooths(list); S.booths = list; await saveCategories(list); }catch(err){ return toast('저장 실패: ' + (err.message || '통신 오류')); }
+    try{ await DB.saveBooths(list); S.booths = list; S.boothsDirty = false; await saveCategories(list); }catch(err){ return toast('저장 실패: ' + (err.message || '통신 오류')); }
     toast(`${rows.length}개 부스를 불러왔어요`); renderAdmin('booths'); };
 }
 /* 지도 편집(관리자 › 지도): 화장실·휴지통 표시를 지도 위에 놓는다. 도구 고르고 지도 탭 → 추가, 놓인 표시 탭 → 삭제. settings.facilities 에 바로 저장(방문객 폰은 부팅·5분마다 반영) */
@@ -2492,8 +2508,7 @@ function facTap(start){
   saveFacilities(list);
 }
 async function saveFacilities(list){
-  const data = { ...(S.settingsRaw || {}), facilities: list };
-  try{ await DB.saveSettings(data); S.settingsRaw = data; toast(list.length ? '저장했어요' : '모두 지웠어요'); }catch(e){ return toast(e.message); }
+  try{ await savePatch({ facilities: list }); toast(list.length ? '저장했어요' : '모두 지웠어요'); }catch(e){ return toast('저장 실패: ' + (e.message || '통신 오류')); }
   if(S.mapEdit && S.mapEdit.redraw && $('#facTools')) S.mapEdit.redraw();
 }
 /* 부스 운영 상태: settings.closedBooths(id 목록) 에 있으면 '쉬는 중'. 운영 시간 밖(hoursState before/after)도 흐리게. 도장은 막지 않음 */
@@ -2516,6 +2531,10 @@ function admQR(){
       ${S.booths.filter(qrNeeded).map(b => { const c = catOf(b.cat); return `<div class="qrc" style="--c:${c.color}"><div class="qr" id="qr-${esc(b.id)}"></div><div class="qrtxt"><div class="qrpill"><span class="dot"></span>${esc(c.name)}</div><div class="n"><small>BOOTH</small>${esc(b.n)}</div><div class="t">${esc(b.name)}</div><div class="u">${esc(b.org)}</div><div class="qrhow">📱 QR을 찍으면 도장이 <b>쾅!</b> ${CONFIG.stampGoal}개 모으면 선물</div><div class="qrbrand">${esc(CONFIG.eventTitle)}</div></div></div>`; }).join('')}</div>`);
   (async () => {
     let toks = {};
+    if(S.boothsDirty){   // 부스 탭에서 추가·삭제·순서를 바꾸고 저장 안 한 상태. 예전엔 토큰 발급을 위해 그 목록을 검증 없이 서버에 저장해 버렸음
+      $('#qrStatus').innerHTML = `<span style="color:var(--coral)">저장 안 한 부스 변경이 있어요. 부스 탭에서 [변경사항 저장] 후 다시 열어주세요.</span> <button class="btn xs sun" data-go="${esc(admPath('/booths'))}">부스 탭으로</button>`;
+      const g = $('.qrgrid'); if(g) g.hidden = true; return;
+    }
     if(DB === SupabaseDB){   // 서버 토큰. 부스가 아직 서버에 없으면(내장 시드 상태) 먼저 저장해서 발급받음
       try{
         toks = await DB.boothTokens();
@@ -2563,12 +2582,12 @@ function admEvent(){
     const goal = parseInt($('#evGoal').value); if(!(goal >= 1 && goal <= 30)) return toast('완주 개수는 1~30 사이로');
     const surveyMinSec = parseInt($('#evSurveySec').value); if(!(surveyMinSec >= 0 && surveyMinSec <= 600)) return toast('설문 최소 시간은 0~600초 사이로');
     const surveyCodeField = $('#evSurveyField').value.trim(); if(surveyCodeField && !/^[\w.]+$/.test(surveyCodeField)) return toast('항목 ID는 entry.숫자 형식이에요');
-    const data = { ...(S.settingsRaw || {}), eventTitle: $('#evTitle').value.trim(), eventDate: $('#evDate').value.trim(), venue: $('#evVenue').value.trim(), stampGoal: goal, surveyUrl: $('#evSurvey').value.trim(), surveyMinSec, surveyCodeField, giftDeadline: $('#evDeadline').value.trim(), contact: $('#evContact').value.trim(), notice: $('#evNotice').value.trim(),
+    const data = { eventTitle: $('#evTitle').value.trim(), eventDate: $('#evDate').value.trim(), venue: $('#evVenue').value.trim(), stampGoal: goal, surveyUrl: $('#evSurvey').value.trim(), surveyMinSec, surveyCodeField, giftDeadline: $('#evDeadline').value.trim(), contact: $('#evContact').value.trim(), notice: $('#evNotice').value.trim(),
       schedule: parse('#evSchedule', ['time', 'title', 'place']), resources: parse('#evResources', ['title', 'desc', 'url']) };
     if(!data.eventTitle) return toast('행사명을 적어주세요');
     if((data.surveyUrl && !/^https?:\/\//.test(data.surveyUrl)) || data.resources.some(r => !/^https?:\/\//.test(r.url))) return toast('링크는 http:// 또는 https:// 로 시작해야 해요');
     $('#evSave').disabled = true;
-    try{ await DB.saveSettings(data); applySettings(data); toast('저장했어요'); admEvent(); }catch(e){ $('#evSave').disabled = false; toast(e.message); }
+    try{ await savePatch(data); toast('저장했어요'); admEvent(); }catch(e){ $('#evSave').disabled = false; toast('저장 실패: ' + (e.message || '통신 오류')); }
   };
 }
 /* 설문 탭: 문항 편집(settings.survey 에 저장) + 응답 결과(문항별 집계·주관식 목록) + 응답 CSV */
@@ -2612,8 +2631,8 @@ function admSurvey(){
     for(const q of list){ if(!q.title) return toast('질문이 비어 있는 문항이 있어요'); if((q.type === 'single' || q.type === 'multi') && q.opts.length < 2) return toast(`'${q.title}' 보기를 2개 이상 적어주세요`); }
     const ids = new Set(); for(const q of list){ if(ids.has(q.id)) q.id = q.id + '_' + Math.random().toString(36).slice(2, 5); ids.add(q.id); }
     $('#sqSave').disabled = true;
-    try{ const data = { ...(S.settingsRaw || {}), survey: list.map(q => ({ id: q.id, type: q.type, title: q.title, sub: q.sub || '', required: !!q.required, ...(q.type === 'single' || q.type === 'multi' ? { opts: q.opts } : {}) })) }; await DB.saveSettings(data); applySettings(data); toast('저장했어요'); admSurvey(); }
-    catch(e){ $('#sqSave').disabled = false; toast(e.message); }
+    try{ await savePatch({ survey: list.map(q => ({ id: q.id, type: q.type, title: q.title, sub: q.sub || '', required: !!q.required, ...(q.type === 'single' || q.type === 'multi' ? { opts: q.opts } : {}) })) }); toast('저장했어요'); admSurvey(); }
+    catch(e){ $('#sqSave').disabled = false; toast('저장 실패: ' + (e.message || '통신 오류')); }
   };
   let rows = null;
   const load = async () => { $('#sqRes').innerHTML = '<div class="empty">불러오는 중…</div>'; try{ rows = await DB.surveyAnswers(); }catch(e){ $('#sqRes').innerHTML = `<div class="empty">${esc(e.message)}${/PGRST202|admin_survey_answers/.test(e.message) ? '<br>SQL 9절(앱 내 설문)을 실행해주세요' : ''}</div>`; return; } drawResults(); };
@@ -2662,7 +2681,7 @@ function admData(st){
   $('#boothReset').onclick = async () => { if(!confirm('저장된 부스 목록을 지우고 파일에 든 기본 배치도(90 + 운영·네컷 5)로 되돌릴까요? 도장 기록은 그대로예요.')) return;
     const bt = $('#boothReset'); bt.disabled = true;
     try{ if(DB === LocalDB){ try{ localStorage.removeItem('wj:booths'); }catch(e){} delete mem['wj:booths']; } else { await DB.saveBooths([]); }
-      await loadBooths(); await DB.saveBooths(S.booths); }catch(e){ bt.disabled = false; return toast('저장 실패: ' + (e.message || '통신 오류')); }
+      await loadBooths(); await DB.saveBooths(S.booths); S.boothsDirty = false; }catch(e){ bt.disabled = false; return toast('저장 실패: ' + (e.message || '통신 오류')); }
     toast('기본 배치도로 되돌렸어요'); go(admPath('/booths')); };
   $('#setPwGo').onclick = async () => { const v = $('#setPw').value.trim(); if(v.length < 8) return toast('8자 이상으로 해주세요');
     if(local){ mem['wj:pw'] = v; return toast('이 세션의 비밀번호를 바꿨어요'); }

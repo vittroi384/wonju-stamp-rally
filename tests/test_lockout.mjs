@@ -1,4 +1,4 @@
-// 관리자 비번 실패 잠금 (실서버, 11절 적용 후). 틀린 비번 10번 → 1분 잠김 → 맞는 비번도 거절 → 풀린 뒤 정상. 데이터 변경 없음
+// 관리자 비번 실패 잠금 (실서버, 17절 적용 후). 틀린 비번 10번 → 1분 잠김 → 틀린 비번만 ADMIN_LOCKED, 맞는 비번은 잠금 중에도 통과(외부인이 잠금 걸어 운영본부 멈추는 것 방지). 데이터 변경 없음
 // 사용: node test_lockout.mjs <맞는 비번>
 const fs = await import('fs'); const src = fs.readFileSync('C:/dev/stamp-rally-v3/원주축전_스탬프앱_3.html', 'utf8');
 const URL_ = src.match(/supabaseUrl: '([^']+)'/)[1], KEY = src.match(/supabaseAnonKey: '([^']+)'/)[1], PW = process.argv[2] || process.env.ADMIN_PW;
@@ -12,9 +12,11 @@ r = await rpc('admin_counts', { pw: 'wrong' }); check('다른 관리자 RPC 틀�
 r = await rpc('add_stamp', { vid: '00000000-0000-0000-0000-000000000000', bid: 'b1', tok: 'x' }); check('BAD_TOKEN 지연 없음', !r.ok && /BAD_TOKEN/.test(r.msg) && r.ms < 400, r.ms + 'ms');
 r = await rpc('visitor_recover', { code: 'zzzzzz', nm: '없음' }); check('recover 실패 지연 없음', r.ok && Array.isArray(r.body) && r.body.length === 0 && r.ms < 400, r.ms + 'ms');
 for(let i = 0; i < 9; i++) await rpc('admin_login', { pw: 'wrong' + i });   // 위 1번 + 9번 = 10번째에서 잠김
-r = await rpc('admin_login', { pw: PW }); const m = r.msg.match(/ADMIN_LOCKED:(\d+)/); check('10회 실패 후 맞는 비번도 ADMIN_LOCKED:초', !r.ok && !!m, r.msg);
-r = await rpc('admin_counts', { pw: PW }); check('잠긴 동안 다른 관리자 RPC 도 잠김', !r.ok && /ADMIN_LOCKED/.test(r.msg), r.msg);
-r = await rpc('admin_dashboard', { pw: PW }); check('대시보드 RPC 도 잠김', !r.ok && /ADMIN_LOCKED/.test(r.msg));
+r = await rpc('admin_login', { pw: 'wrong-x' }); const m = (r.msg || '').match(/ADMIN_LOCKED:(\d+)/); check('10회 실패 후 틀린 비번 → ADMIN_LOCKED:초', !r.ok && !!m, r.msg);
+r = await rpc('admin_login', { pw: PW }); check('잠긴 동안에도 맞는 비번은 통과', r.ok && r.body === true, r.msg);
+r = await rpc('admin_counts', { pw: 'wrong-y' }); check('잠긴 동안 다른 관리자 RPC 도 틀린 비번은 ADMIN_LOCKED', !r.ok && /ADMIN_LOCKED/.test(r.msg), r.msg);
+r = await rpc('admin_counts', { pw: PW }); check('잠긴 동안 다른 관리자 RPC 맞는 비번은 통과', r.ok, r.msg);
+r = await rpc('admin_dashboard', { pw: PW }); check('잠긴 동안 대시보드 RPC 맞는 비번 통과', r.ok, r.msg);
 const wait = (m ? +m[1] : 60) + 2; console.log(`  … ${wait}초 대기`); await sleep(wait * 1000);
 r = await rpc('admin_login', { pw: PW }); check('잠금 풀린 뒤 맞는 비번 → true', r.ok && r.body === true, r.ms + 'ms');
 r = await rpc('admin_counts', { pw: PW }); check('관리자 RPC 정상', r.ok);
