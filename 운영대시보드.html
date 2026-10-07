@@ -277,16 +277,20 @@ const adm = (fn, args = {}) => rpc(fn, { pw: pwStore.get(), ...args });
    상태
    ===================================================================== */
 const D = { booths: [], byId: {}, data: null, mode: 'n15', basic: false, timer: null, lastOk: 0, prevRecent: '', survey: [], surveyLink: false, allSort: 'n', allDir: 'desc', allQ: '', bv: { id: null, rows: [], q: '', at: 0 } };
-function boothsIn(zone){ return D.booths.filter(b => (b.zone || '') === zone); }
+function boothsIn(zone){ return (D.allBooths || D.booths).filter(b => (b.zone || '') === zone); }   // 자리 계산은 전체 목록으로(도장 없는 부스를 빼면 앱 지도와 자리·측문 위치가 어긋남). 그리기만 D.booths
+/* 시간대 전환 부스(time_variant {at,n,name,org,cat,stamp}): 앱 bv() 와 같은 규칙 — 지금 시각이 at 이후면 바뀐 번호·이름으로 보여줌(id·도장은 그대로), 전엔 원래 */
+const nowMin = () => { const d = new Date(); return d.getHours() * 60 + d.getMinutes(); };
+const toMin = t => { const m = String(t || '').match(/(\d{1,2}):(\d{2})/); return m ? +m[1] * 60 + +m[2] : null; };
+function bv(b){ const v = b && b.variant; if(!v || toMin(v.at) === null || nowMin() < toMin(v.at)) return b; return { ...b, n: String(v.n || b.n), name: String(v.name || b.name), org: String(v.org || b.org || ''), cat: v.cat || b.cat, switched: true }; }
 
 async function loadBooths(){
   const rows = await q('booths?select=*&order=sort_order');
-  D.allBooths = rows.map(r => ({ id: r.id, n: r.number, name: r.name, cat: r.category, org: r.organization, zone: r.zone || '' }));
-  D.byId = Object.fromEntries(D.allBooths.map(b => [b.id, b]));
+  D.allBooths = rows.map(r => ({ id: r.id, n: r.number, name: r.name, cat: r.category, org: r.organization, zone: r.zone || '', variant: r.time_variant && typeof r.time_variant === 'object' ? r.time_variant : null }));
   applyNoStamp();
 }
 /* 도장 없는 부스(settings.noStampBooths)는 히트맵·순위·전체 표에서 뺌 */
-function applyNoStamp(){ if(D.allBooths) D.booths = D.allBooths.filter(b => !(D.noStamp && D.noStamp.has(b.id))); }
+/* 전환 후 도장 부스가 되는 카드(variant.stamp 'yes')는 noStampBooths 에 있어도 남김(오후 도장이 안 보이던 문제). 렌더마다 다시 불러 전환 시각이 지나면 이름·번호가 바뀜 */
+function applyNoStamp(){ if(!D.allBooths) return; D.booths = D.allBooths.filter(b => !(D.noStamp && D.noStamp.has(b.id) && !(b.variant && b.variant.stamp === 'yes'))).map(bv); D.byId = Object.fromEntries(D.allBooths.map(b => [b.id, bv(b)])); }
 async function loadSettings(){
   try{ const rows = await q('settings?id=eq.1&select=data'); const s = rows[0]?.data; if(!s) return;
     if(s.eventTitle) CONFIG.eventTitle = s.eventTitle; if(parseInt(s.stampGoal) >= 1) CONFIG.stampGoal = parseInt(s.stampGoal);
@@ -346,7 +350,7 @@ setInterval(() => { const d = new Date(); $('#clock').textContent = [d.getHours(
    렌더
    ===================================================================== */
 function render(d){
-  const goal = d.goal || CONFIG.stampGoal; CONFIG.stampGoal = goal;
+  const goal = d.goal || CONFIG.stampGoal; CONFIG.stampGoal = goal; applyNoStamp();
   $('#banner').hidden = !D.basic;
   if(D.basic) $('#banner').innerHTML = `기본 집계 모드예요. <code>supabase_setup.sql</code> 의 <b>10절(운영 대시보드)</b>을 SQL Editor 에서 실행하면 최근 15분·10분 추이·학년·학교·깔때기·최근 도장이 켜져요.`;
   renderKpis(d, goal); renderMap(d); renderTrend(d); renderHour(d); renderHot(d); renderFunnel(d, goal); renderGrade(d); renderSchools(d); renderRecent(d); renderSurvey(d); renderAll(d);

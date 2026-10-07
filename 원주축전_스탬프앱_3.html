@@ -108,6 +108,9 @@ select.inp.sm{padding-right:30px;background-position:right 10px center}
 .row{display:flex;align-items:center;gap:10px}
 .grow{flex:1;min-width:0}
 .empty{text-align:center;color:var(--ink-3);padding:36px 12px;font-size:14px;line-height:1.6}
+.bootwait{display:flex;flex-direction:column;align-items:center;gap:14px;padding:38vh 20px 0;color:var(--ink-3);font-size:14px;font-weight:700;text-align:center;line-height:1.6}   /* 부팅 중 흰 화면 대신 */
+.bootwait .spin{width:34px;height:34px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--blue);animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
 .empty b{display:block;color:var(--ink);font-size:16px;margin-bottom:4px}
 
 /* ---------- stamp card (signature) ---------- */
@@ -917,7 +920,9 @@ function myLevel(){ const g = (S.me && S.me.grade) || ''; return g.startsWith('�
 function boothForMe(b){ const t = (b && b.target) || ''; if(!t || !S.me) return true; const L = myLevel(); return !L || L === t; }
 function targetChipHTML(b){ return b.target ? `<div><span class="btarget">${esc(targetName(b.target))} 대상</span></div>` : ''; }
 function boothByN(n){ return bv(S.booths.find(b => b.n === n)); }
-const normN = n => { n = String(n || '').trim(); return /^\d+$/.test(n) ? String(+n) : n; };   // 중복 검사용 번호 키: '02' 와 '2' 는 같은 번호
+const normN = n => { n = String(n || '').trim(); return /^\d+$/.test(n) ? String(+n) : n; };
+const validN = n => /^[0-9A-Za-z가-힣]{1,6}$/.test(String(n || ''));   // 부스 번호 규칙: 한글·영문·숫자 6자까지 (주소·QR·속성에 그대로 들어가므로)
+const N_MSG = '부스 번호는 한글·영문·숫자 6자까지';   // 중복 검사용 번호 키: '02' 와 '2' 는 같은 번호
 function boothByNLoose(n){ n = String(n ?? '').trim(); return boothByN(n) || (/^\d+$/.test(n) ? boothByN(String(+n)) : undefined); }   // '07'·'007' 처럼 앞 0 붙은 번호도 찾음 (구형 QR·손으로 친 주소)
 function admPath(sub){ return '/' + CONFIG.adminPath + (sub || ''); }
 /* 행사 설정: 관리자 › 행사 설정에서 저장한 값(서버 settings / 로컬 wj:settings)을 CONFIG·SCHEDULE·RESOURCES 위에 덮는다 */
@@ -1019,16 +1024,16 @@ let flushing = false;
 /* 오프라인 큐 재전송. S.pending 의 도장을 하나씩 addStamp. ok→내 도장에 추가 / dup→서버엔 이미 있음(타임아웃 뒤 실제론 들어간 경우)→서버 목록으로 맞춤 / tooFast→남겨서 30초 뒤 재시도 / badToken→버림 / 통신 실패→남김 */
 async function flushPending(){
   if(flushing || !S.me || !S.pending.length) return; flushing = true;
-  const rest = []; let dup = false;
+  const rest = []; let dup = false, sent = 0, bad = 0;
   for(const p of S.pending){
-    try{ const r = await DB.addStamp(S.me.id, p.boothId, p.token || qrTok.get(boothById(p.boothId)?.n)); if(r.ok) S.myStamps.push(r.stamp); else if(r.dup) dup = true; else if(r.tooFast) rest.push(p); }   // dup = 타임아웃 났지만 서버엔 들어간 것 → 서버 목록으로 맞춤 / tooFast = 30초 뒤 재시도 / badToken = 버림
+    try{ const r = await DB.addStamp(S.me.id, p.boothId, p.token || qrTok.get(boothById(p.boothId)?.n)); if(r.ok){ sent++; S.myStamps.push(r.stamp); } else if(r.dup){ sent++; dup = true; } else if(r.tooFast) rest.push(p); else bad++; }   // dup = 타임아웃 났지만 서버엔 들어간 것 → 서버 목록으로 맞춤 / tooFast = 30초 뒤 재시도 / badToken = 버림(따로 안내)
     catch(e){ rest.push(p); }
   }
   if(dup){ try{ S.myStamps = await DB.stampsOf(S.me.id); }catch(e){} }
-  const sent = S.pending.length - rest.length;
   S.pending = rest; await store.set('wj:pending', rest); await store.set('wj:stamps_cache', S.myStamps);
   flushing = false;
-  if(sent){ toast(`도장 ${sent}개를 서버에 보냈어요`); if(location.hash === '#/' || location.hash === '#/my' || !location.hash) route(); }
+  const msg = [sent ? `도장 ${sent}개를 서버에 보냈어요` : '', bad ? `확인 안 된 도장 ${bad}개는 취소됐어요. 부스 QR을 다시 찍어주세요` : ''].filter(Boolean).join(' · ');
+  if(msg){ toast(msg); if(location.hash === '#/' || location.hash === '#/my' || !location.hash) route(); }
 }
 window.addEventListener('online', flushPending);
 setInterval(() => { if(S.pending.length) flushPending(); }, 30000);
@@ -1152,7 +1157,9 @@ function segPath(band, ta, tb){
 /* =====================================================================
    ROUTER
    ===================================================================== */
-function go(path, replace){ if(replace){ history.replaceState(null,'','#'+path); route(); } else if(('#'+path)===location.hash){ route(); } else location.hash = '#'+path; }
+function go(path, replace){ const h = '#' + path; if(replace){ history.replaceState(null, '', h); route(); return; } const before = location.hash; location.hash = h; if(location.hash === before) route(); }   // 대입 후에도 해시가 같으면(같은 화면·한글 번호의 인코딩 차이) hashchange 가 안 오므로 직접 그림
+/* 등록·이어받기 뒤 돌아갈 주소: 앱 안의 해시 경로만 허용 */
+const safeReturn = r => /^\/[\w\/%가-힣.-]*$/.test(String(r || '')) ? String(r) : '';
 /* 라우터. location.hash 를 '/화면/인자' 로 쪼개 화면 함수를 부른다. go(path) 로 이동, hashchange 로도 호출 */
 function route(){
   const h = location.hash.replace(/^#/, '') || '/', dec = x => { try{ return decodeURIComponent(x); }catch(e){ return x; } };
@@ -1169,6 +1176,11 @@ function route(){
   return renderHome();
 }
 window.addEventListener('hashchange', route);
+/* 부스 번호·id 를 onclick 문자열에 넣지 않고 data-* 로 (번호에 따옴표·태그가 들어와도 스크립트가 안 됨). go / pickBooth / startRoute 는 여기서 한 번에 */
+document.addEventListener('click', e => { const t = e.target.closest ? e.target : null; if(!t) return;
+  const g = t.closest('[data-go]'); if(g) return go(g.dataset.go);
+  const pk = t.closest('[data-pick]'); if(pk) return pickBooth(pk.dataset.pick);
+  const rt = t.closest('[data-route]'); if(rt) return startRoute(rt.dataset.route, rt.dataset.mode || 'to'); });
 
 /* 공통 틀. 상단바(제목·부제·우측 버튼) + 본문 + 하단 탭(홈·지도·내 스탬프·안내). 관리자 화면은 noTabs·wide 로 넓게 */
 function shell(tab, title, body, opts={}){
@@ -1246,7 +1258,7 @@ function hoursChipHTML(b){
 }
 function boothItemHTML(b){
   const c = catOf(b.cat), done = stampedIds().has(b.id);
-  return `<button class="bitem ${boothOpen(b) ? '' : 'off'}" style="--c:${c.color}" onclick="go('/booth/${b.n}')">
+  return `<button class="bitem ${boothOpen(b) ? '' : 'off'}" style="--c:${c.color}" data-go="${esc('/booth/' + b.n)}">
     <div class="bnum ${done ? 'done' : ''}">${esc(bn(b))}</div>
     <div class="grow"><div class="bname">${esc(b.name)}</div><div class="borg">${esc(b.org)}</div><div class="bcat">${esc(c.name)}</div>${hoursChipHTML(b)}${targetChipHTML(b)}${hasStamp(b) ? '' : '<div><span class="btarget nost">도장 없음 · 체험만</span></div>'}</div>
     <span class="bgo">${I.chev}</span></button>`;
@@ -1257,7 +1269,7 @@ function filteredBooths(){
 }
 function catChipsHTML(){
   return CATS.map(c => { const n = S.booths.filter(b => bv(b).cat === c.id && boothForMe(b)).length; if(!n) return ''; const on = !S.hiddenCats.has(c.id);
-    return `<button class="chip ${on ? '' : 'off'}" data-cat="${c.id}" style="${on ? '' : 'opacity:.45'}"><span class="dot" style="background:${c.color}"></span>${esc(c.name)}<span class="n">${n}</span></button>`; }).join('');
+    return `<button class="chip ${on ? '' : 'off'}" data-cat="${esc(c.id)}" style="${on ? '' : 'opacity:.45'}"><span class="dot" style="background:${c.color}"></span>${esc(c.name)}<span class="n">${n}</span></button>`; }).join('');
 }
 function wireChips(root, after){
   $$('.chip[data-cat]', root).forEach(ch => ch.onclick = () => { const id = ch.dataset.cat; S.hiddenCats.has(id) ? S.hiddenCats.delete(id) : S.hiddenCats.add(id); after(); });
@@ -1284,14 +1296,16 @@ function renderHome(){
 
 /* 다른 폰·브라우저의 기록 이어받기: 내 스탬프 화면의 6자리 코드 + 이름. 운영본부에서 이름으로 찾아 코드를 알려줄 수도 있음 */
 function renderRecover(returnTo){
+  returnTo = safeReturn(returnTo);
   shell(null, '기록 이어받기', `
     <div class="card" style="display:flex;flex-direction:column;gap:14px">
       <p class="desc">전에 쓰던 폰(또는 카카오톡 브라우저 등)의 <b>내 스탬프</b> 화면 아래에 있는 <b>6자리 코드</b>와 이름을 적어주세요.<br>코드를 모르면 운영본부에서 이름으로 찾아드려요.</p>
       <div class="field"><label>6자리 코드</label><input class="inp" id="rcCode" placeholder="예: A1B2C3" maxlength="6" autocomplete="off" style="text-transform:uppercase;letter-spacing:.15em;font-weight:800"></div>
       <div class="field"><label>이름</label><input class="inp" id="rcName" placeholder="등록할 때 쓴 이름" maxlength="20" autocomplete="off"></div>
       <button class="btn blue full" id="rcGo">이어받기</button>
-      <button class="btn soft full" onclick="renderRegister(${JSON.stringify(returnTo || '')})">새로 등록할게요</button>
+      <button class="btn soft full" id="rcNew">새로 등록할게요</button>
     </div>`, { noTabs: true, back: true });
+  $('#rcNew').onclick = () => renderRegister(returnTo);
   $('#rcGo').onclick = async () => {
     const code = $('#rcCode').value.trim().toUpperCase(), name = $('#rcName').value.trim();
     if(code.length !== 6) return toast('코드 6자리를 적어주세요'), $('#rcCode').focus();
@@ -1308,6 +1322,7 @@ function renderRecover(returnTo){
   };
 }
 function renderRegister(returnTo){
+  returnTo = safeReturn(returnTo);
   shell(null, '', `
     <div class="reg-hero">
       <div class="eyebrow">${esc(CONFIG.eventTitle)}</div>
@@ -1385,7 +1400,7 @@ function renderBooth(n){
     </div>
     ${b.img ? `<div class="bimgwrap" id="bImgWrap" hidden><img class="bimg" id="bImg" alt="${esc(b.name)} 부스 사진"><span class="hint">탭하면 크게 보기</span></div>` : ''}
     <div class="card"><div class="kv"><div><div class="k">체험 소개</div></div><p class="desc">${esc(b.desc || DESC_BY_CAT[b.cat])}</p>
-      <div class="k" style="margin-top:4px">위치</div><div class="v" style="font-size:14px">${esc(zoneOf(b.zone).name)} <button class="more" style="border:0;background:none;color:var(--blue);font-weight:800;font-size:13px;padding:0 4px" onclick="go('/map/${b.n}')">지도 ›</button></div>${b.hours ? `<div class="k" style="margin-top:4px">운영 시간</div><div class="v" style="font-size:14px">${esc(b.hours)}${(() => { const h = hoursState(b); return h && h.label ? ` <span class="bhours ${h.state}" style="display:inline;margin:0">· ${h.label}</span>` : ''; })()}</div>` : ''}${b.variant && b.variant.at ? `<div class="k" style="margin-top:4px">시간대</div><div class="v" style="font-size:14px">${b.switched ? `${esc(b.variant.at)} 전엔 ${b.variant.n ? esc(b.n) + ' ' : ''}${esc(b.baseName)}` : `${esc(b.variant.at)}부터 <b>${b.variant.n ? esc(b.variant.n) + ' ' : ''}${esc(b.variant.name)}</b>(으)로 바뀌어요`}</div>` : ''}</div></div>
+      <div class="k" style="margin-top:4px">위치</div><div class="v" style="font-size:14px">${esc(zoneOf(b.zone).name)} <button class="more" style="border:0;background:none;color:var(--blue);font-weight:800;font-size:13px;padding:0 4px" data-go="${esc('/map/' + b.n)}">지도 ›</button></div>${b.hours ? `<div class="k" style="margin-top:4px">운영 시간</div><div class="v" style="font-size:14px">${esc(b.hours)}${(() => { const h = hoursState(b); return h && h.label ? ` <span class="bhours ${h.state}" style="display:inline;margin:0">· ${h.label}</span>` : ''; })()}</div>` : ''}${b.variant && b.variant.at ? `<div class="k" style="margin-top:4px">시간대</div><div class="v" style="font-size:14px">${b.switched ? `${esc(b.variant.at)} 전엔 ${b.variant.n ? esc(b.n) + ' ' : ''}${esc(b.baseName)}` : `${esc(b.variant.at)}부터 <b>${b.variant.n ? esc(b.variant.n) + ' ' : ''}${esc(b.variant.name)}</b>(으)로 바뀌어요`}</div>` : ''}</div></div>
     ${ytId(b.video) ? `<div class="card tight"><div class="kv"><div class="k">체험 영상</div><div class="yt"><iframe src="https://www.youtube-nocookie.com/embed/${ytId(b.video)}?rel=0" title="${esc(b.name)} 영상" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div></div></div>` : ''}
     ${b.pdf ? `<a class="btn line full" id="bPdf" target="_blank" rel="noopener" hidden>${I.doc} 부스 자료 PDF 보기</a>` : ''}
     ${!st && !hasStamp(b) ? `<div class="stampstate">
@@ -1397,8 +1412,8 @@ function renderBooth(n){
     </div>`}
     ${closedSet().has(b.id) ? `<div class="notice">${I.bell}<span>지금은 잠시 쉬는 중이에요. 다시 열리면 흐린 표시가 사라져요</span></div>` : ''}
     ${st || !hasStamp(b) ? '' : boothForMe(b) ? `<button class="btn sun full" onclick="openScanner()">${I.qr} QR 찍고 도장 받기</button>` : `<div class="notice">${I.bell}<span>${esc(targetName(b.target))} 친구들만 참여하는 부스예요</span></div>`}
-    <button class="btn ${st ? '' : 'line'} full" onclick="go('/map/${b.n}')">${I.pin} 지도에서 위치 보기</button>
-    ${S.admin ? `<button class="btn line full" onclick="go('/stamp/${b.n}')">${I.qr} QR 링크 미리보기 (관리자)</button>` : ''}`,
+    <button class="btn ${st ? '' : 'line'} full" data-go="${esc('/map/' + b.n)}">${I.pin} 지도에서 위치 보기</button>
+    ${S.admin ? `<button class="btn line full" data-go="${esc('/stamp/' + b.n)}">${I.qr} QR 링크 미리보기 (관리자)</button>` : ''}`,
     { back: true });
   if(b.img) resolveFileUrl(b.img).then(u => { const el = $('#bImg'); if(el && u){ el.src = u; el.onclick = () => openLightbox(u); $('#bImgWrap').hidden = false; } });
   if(b.pdf) resolveFileUrl(b.pdf).then(u => { const el = $('#bPdf'); if(el && u){ el.href = u; el.hidden = false; } });
@@ -1432,6 +1447,7 @@ function renderStamp(n){
       <button class="btn sun full" style="max-width:340px" onclick="go('/')">부스 목록 보기</button>`;
     return;
   }
+  const here = () => { const area = $('#stampArea'); let h = location.hash; try{ h = decodeURIComponent(h); }catch(e){} return area && h === '#/stamp/' + n ? area : null; };   // await 사이에 다른 화면으로 갔으면(뒤로가기·빠른 이동) 결과를 그리지 않음
   (async () => {
     let res; const token = qrTok.get(b.n);
     if(stampedIds().has(b.id)) res = { ok: false, dup: true };                       // 이미 찍었거나 전송 대기 중
@@ -1440,7 +1456,7 @@ function renderStamp(n){
       catch(e){ S.pending.push({ boothId: b.id, token, at: Date.now() }); await store.set('wj:pending', S.pending); res = { ok: true, queued: true }; }   // 통신 실패 → 폰에 저장, 나중에 자동 전송
     }
     if(res.badToken || res.tooFast){   // 서버가 거절: 토큰 없음(주소창에 번호만 침·링크 위조) / 너무 빠름(링크 공유로 연달아 찍기)
-      $('#stampArea').innerHTML = `
+      const area = here(); if(!area) return; area.innerHTML = `
         <div class="bigstamp dup"><div><div class="n">✋</div><div class="t">${res.badToken ? '확인 불가' : '잠깐만요'}</div></div></div>
         <div>
           <div class="stamp-h">${res.badToken ? '부스 앞 QR을 찍어주세요' : `${res.wait}초 후에 찍을 수 있어요`}</div>
@@ -1451,8 +1467,9 @@ function renderStamp(n){
       return;
     }
     const local = allStampsLocal(), n0 = local.length, goal = CONFIG.stampGoal, justDone = res.ok && n0 === goal && !S.pending.length;
+    const area = here(); if(!area) return;
     if(justDone) confetti();
-    $('#stampArea').innerHTML = `
+    area.innerHTML = `
       <div class="bigstamp ${res.dup ? 'dup' : ''}"><div><div class="n">${esc(bn(b))}</div><div class="t">${res.dup ? '이미 찍었어요' : '체험 완료'}</div></div></div>
       <div>
         <div class="stamp-h">${res.dup ? '이 부스는 이미 찍었어요' : justDone ? `${goal}개 완주! 🎉` : n0 >= goal && S.pending.length ? '전송이 끝나면 완주예요' : `${esc(b.name)}`}</div>
@@ -1460,7 +1477,7 @@ function renderStamp(n){
       </div>
       ${res.queued ? `<div class="notice" style="max-width:340px;width:100%">${I.bell}<span>통신이 불안정해서 폰에 저장해 뒀어요. 연결되면 자동으로 보내져요.</span></div>` : ''}
       <div class="slots" style="width:100%;max-width:340px;--cols:${slotCols(goal)}">${Array.from({ length: goal }, (_, i) => { const s = local[i]; return s ? `<div class="slot ink ${s.pending ? 'pend' : ''}" style="animation-delay:${.2 + i * .06}s"><span class="num">${esc(bn(boothById(s.boothId)))}</span></div>` : `<div class="slot ${i === goal - 1 ? 'gift' : ''}">${i === goal - 1 ? '🎁' : i + 1}</div>`; }).join('')}</div>
-      ${justDone ? `<button class="btn sun full" style="max-width:340px" onclick="go('/my')">📝 설문 참여하고 교환권 받기</button>` : `<button class="btn full" style="max-width:340px" onclick="go('/map/${b.n}')">${I.map} 다음 부스 찾기</button>`}
+      ${justDone ? `<button class="btn sun full" style="max-width:340px" onclick="go('/my')">📝 설문 참여하고 교환권 받기</button>` : `<button class="btn full" style="max-width:340px" data-go="${esc('/map/' + b.n)}">${I.map} 다음 부스 찾기</button>`}
       <button class="btn soft sm" onclick="go('/')">홈으로</button>`;
   })();
 }
@@ -1503,7 +1520,7 @@ function renderMy(){
     </div>`) : ''}
     <div class="h-sec">방문한 부스 <span class="muted small">${allStampsLocal().length}곳</span></div>
     ${S.pending.length ? `<div class="notice">${I.bell}<span>도장 ${S.pending.length}개가 아직 서버에 안 갔어요. 통신되면 자동 전송돼요. <b style="cursor:pointer" onclick="flushPending()">지금 보내기</b></span></div>` : ''}
-    ${allStampsLocal().length ? `<div class="stamp-grid">${allStampsLocal().reverse().map(s => { const b = boothById(s.boothId); return `<div class="sg" onclick="go('/booth/${b?.n}')"><div class="n ${s.pending ? 'pend' : ''}">${esc(bn(b) || '?')}</div><div class="t">${esc(b?.name || '')}</div><div class="tm">${s.pending ? '전송 대기' : fmtTime(s.at)}</div></div>`; }).join('')}</div>`
+    ${allStampsLocal().length ? `<div class="stamp-grid">${allStampsLocal().reverse().map(s => { const b = boothById(s.boothId); return `<div class="sg" data-go="${esc('/booth/' + (b ? b.n : ''))}"><div class="n ${s.pending ? 'pend' : ''}">${esc(bn(b) || '?')}</div><div class="t">${esc(b?.name || '')}</div><div class="tm">${s.pending ? '전송 대기' : fmtTime(s.at)}</div></div>`; }).join('')}</div>`
         : `<div class="empty"><b>아직 도장이 없어요</b>가까운 부스의 QR부터 찍어보세요</div><button class="btn full" onclick="go('/map')">${I.map} 지도 열기</button>`}`);
   if($('#myQr')) loadQRCode().then(() => { const el = $('#myQr'); if(el && !el.firstChild) new QRCode(el, { text: 'WJ:' + S.me.id, width: 164, height: 164, correctLevel: QRCode.CorrectLevel.M }); }).catch(() => { const el = $('#myQr'); if(el) el.innerHTML = '<div class="small muted" style="padding:20px">QR 그리기 실패 — 아래 코드로 확인받으세요</div>'; });
   /* 자기신고 보강(A안): '설문 참여하기'를 누른 시각을 폰에 저장하고, surveyMinSec 초가 지나야 '다 했어요'가 켜진다.
@@ -1642,19 +1659,19 @@ function mapSVG(){
     const cls = `tile ${visible.has(b.id) ? '' : 'dim'} ${boothOpen(vb) ? '' : 'off'} ${done.has(b.id) ? 'done' : ''} ${S.focus === b.id ? 'hi' : ''}`;
     if(p.bus){                                                                                                             // 측1문 밖 버스: 창문 3개 + 바퀴 2개
       const bx = p.x - p.w / 2, by = p.y - p.h / 2;
-      s += `<g class="${cls}" data-id="${b.id}" data-x="${p.x.toFixed(0)}" data-y="${p.y.toFixed(0)}" transform="rotate(${(p.rot || 0).toFixed(1)} ${p.x.toFixed(1)} ${p.y.toFixed(1)})"><rect class="bg" x="${bx}" y="${by}" width="${p.w}" height="${p.h}" rx="12" fill="${c.color}" stroke="#fff" stroke-width="2"/>
+      s += `<g class="${cls}" data-id="${esc(b.id)}" data-x="${p.x.toFixed(0)}" data-y="${p.y.toFixed(0)}" transform="rotate(${(p.rot || 0).toFixed(1)} ${p.x.toFixed(1)} ${p.y.toFixed(1)})"><rect class="bg" x="${bx}" y="${by}" width="${p.w}" height="${p.h}" rx="12" fill="${c.color}" stroke="#fff" stroke-width="2"/>
         ${[0, 1, 2].map(k => `<rect x="${bx + 10 + k * 28}" y="${by + 7}" width="20" height="12" rx="3" fill="rgba(255,255,255,.88)"/>`).join('')}
         <circle cx="${bx + 22}" cy="${by + p.h}" r="6" fill="var(--ink)" stroke="#fff" stroke-width="2"/><circle cx="${bx + p.w - 22}" cy="${by + p.h}" r="6" fill="var(--ink)" stroke="#fff" stroke-width="2"/>
         <text class="num" x="${p.x}" y="${by + 31}" font-size="15">${esc(bn(bv(b)))}</text></g>`;
       return;
     }
     if(p.rect){                                                                                                            // 골대 뒤 열: 둥근 네모
-      s += `<g class="${cls}" data-id="${b.id}" data-x="${p.x.toFixed(0)}" data-y="${p.y.toFixed(0)}"><rect class="bg" x="${p.x - p.w / 2}" y="${p.y - p.h / 2}" width="${p.w}" height="${p.h}" rx="9" fill="${c.color}" stroke="#fff" stroke-width="2"/>
+      s += `<g class="${cls}" data-id="${esc(b.id)}" data-x="${p.x.toFixed(0)}" data-y="${p.y.toFixed(0)}"><rect class="bg" x="${p.x - p.w / 2}" y="${p.y - p.h / 2}" width="${p.w}" height="${p.h}" rx="9" fill="${c.color}" stroke="#fff" stroke-width="2"/>
         <text class="num" x="${p.x}" y="${p.y}" font-size="15">${esc(bn(bv(b)))}</text></g>`;
       return;
     }
     const fs = Math.max(10, Math.min(18, p.segW * .42));
-    s += `<g class="${cls}" data-id="${b.id}" data-x="${p.x.toFixed(0)}" data-y="${p.y.toFixed(0)}">
+    s += `<g class="${cls}" data-id="${esc(b.id)}" data-x="${p.x.toFixed(0)}" data-y="${p.y.toFixed(0)}">
       <path class="bg" d="${segPath(p.band, p.ta, p.tb)}" fill="${c.color}" stroke="#fff" stroke-width="2"/>
       <text class="num" x="${p.x.toFixed(1)}" y="${p.y.toFixed(1)}" font-size="${fs.toFixed(1)}">${esc(bn(bv(b)))}</text></g>`;
   });
@@ -1687,7 +1704,7 @@ function markNear(zoomed){
   if(S.focus && !near.some(o => o.id === S.focus) && visible.has(S.focus)){ solo = S.focus; near.unshift({ id: S.focus, d: 0 }); }
   const key = near.map(o => o.id).join(',') + '|' + S.focus; if(key === nearKey) return; nearKey = key;
   const done = stampedIds();
-  strip.innerHTML = near.map(o => { const b = boothById(o.id), col = catOf(b.cat).color; return `<button class="nchip ${done.has(b.id) ? 'done' : ''} ${S.focus === b.id ? 'on' : ''}" style="--c:${col}" onclick="pickBooth('${b.id}')"><span class="bn">${esc(bn(b))}</span>${esc(b.name)}</button>`; }).join('');
+  strip.innerHTML = near.map(o => { const b = boothById(o.id), col = catOf(b.cat).color; return `<button class="nchip ${done.has(b.id) ? 'done' : ''} ${S.focus === b.id ? 'on' : ''}" style="--c:${col}" data-pick="${esc(b.id)}"><span class="bn">${esc(bn(b))}</span>${esc(b.name)}</button>`; }).join('');
   let shelf = near.map(o => o.id).filter(id => id !== solo);
   if(solo){ const sp = (mapPos || (mapPos = boothPos()))[solo]; if(sp) shelf = shelf.filter(id => { const q = mapPos[id]; return !q || Math.hypot(q.x - sp.x, q.y - sp.y) > 150; }); }   // 선택 이름표 자리와 겹칠 이웃은 뺀다
   layer.innerHTML = layoutLabels(shelf) + (solo ? layoutLabels([solo]) : '');
@@ -1753,7 +1770,7 @@ function layoutLabels(ids){
 /* 선택한 칸을 맨 위로 올려서 굵은 테두리가 옆 칸 흰 선에 가려지지 않게 한다 */
 function markFocus(id){
   $$('.tile').forEach(t => t.classList.toggle('hi', t.dataset.id === id));
-  const t = $(`.tile[data-id="${id}"]`), L = $('#lblLayer'); if(t && L && t.parentNode === L.parentNode) t.parentNode.insertBefore(t, L);
+  const t = $(`.tile[data-id="${CSS.escape(id)}"]`), L = $('#lblLayer'); if(t && L && t.parentNode === L.parentNode) t.parentNode.insertBefore(t, L);
 }
 function pickBooth(id){ S.focus = id; nearKey = ''; markFocus(id); centerOnVisible(id, Math.max(view.k, 2.2)); openBoothSheet(id); }
 function svgPoint(svg, x, y){ const pt = svg.createSVGPoint(); pt.x = x; pt.y = y; return pt.matrixTransform(svg.getScreenCTM().inverse()); }
@@ -1847,15 +1864,15 @@ function openBoothSheet(id){
     </div>
     <p class="desc small" style="margin:14px 0 16px">${esc(b.desc || DESC_BY_CAT[b.cat])}</p>
     <div class="row">
-      ${st ? `<button class="btn sun full" onclick="go('/booth/${b.n}')">${I.check} 도장 찍음 · 자세히</button>`
-           : !hasStamp(b) ? `<button class="btn line full" onclick="go('/booth/${b.n}')">부스 소개 보기</button>`
+      ${st ? `<button class="btn sun full" data-go="${esc('/booth/' + b.n)}">${I.check} 도장 찍음 · 자세히</button>`
+           : !hasStamp(b) ? `<button class="btn line full" data-go="${esc('/booth/' + b.n)}">부스 소개 보기</button>`
            : boothForMe(b) ? `<button class="btn sun full" onclick="closeSheet();openScanner()">${I.qr} QR 찍고 도장 받기</button>` : `<div class="notice" style="width:100%">${I.bell}<span>${esc(targetName(b.target))} 친구들만 참여하는 부스예요</span></div>`}
     </div>
     <div class="row" style="margin-top:8px">
-      <button class="btn line full pair" onclick="startRoute('${id}','to')">${I.pin} 정문에서 가는 길</button>
-      <button class="btn line full pair" onclick="startRoute('${id}','exit')">${I.exit} 가까운 출구</button>
+      <button class="btn line full pair" data-route="${esc(id)}" data-mode="to">${I.pin} 정문에서 가는 길</button>
+      <button class="btn line full pair" data-route="${esc(id)}" data-mode="exit">${I.exit} 가까운 출구</button>
     </div>
-    <button class="btn soft sm full" style="margin-top:8px" onclick="go('/booth/${b.n}')">부스 소개 보기</button>`);
+    <button class="btn soft sm full" style="margin-top:8px" data-go="${esc('/booth/' + b.n)}">부스 소개 보기</button>`);
 }
 function showRouteHint(id){
   const b = boothById(id); const h = $('#mapHint'); if(!h) return;
@@ -2097,7 +2114,7 @@ function admGift(st){
       <td style="text-align:right">${v.giftAt ? `<button class="btn xs line" data-undo="${v.id}">취소</button>` : `<button class="btn xs sun" data-give="${v.id}">수령 처리</button>`}</td></tr>`).join('') : '<tr><td colspan="9" class="empty">해당하는 달성자가 없어요</td></tr>';
     $('#gCnt').textContent = `· 설문 완료 ${list.filter(v => v.surveyAt).length} · 미수령 ${list.filter(v => !v.giftAt).length}`;
     /* 수령/취소는 그 사람 행만 바꾸고 목록만 다시 그림 (전체 재렌더로 검색어·스크롤이 날아가던 문제). 실패하면 토스트 */
-    const setGift = async (id, on) => { const v = list.find(x => x.id === id); try{ await DB.setGift(id, on); }catch(e){ return toast(e.message || '처리 실패'); } if(v) v.giftAt = on ? Date.now() : null; toast(on ? '수령 처리했어요' : '수령 처리를 취소했어요'); draw(); };
+    const setGift = async (id, on) => { const v = list.find(x => x.id === id); try{ await DB.setGift(id, on); }catch(e){ draw(); return toast('저장 실패: ' + (e.message || '통신 오류')); } if(v) v.giftAt = on ? Date.now() : null; toast(on ? '수령 처리했어요' : '수령 처리를 취소했어요'); draw(); };
     $$('[data-give]').forEach(b => b.onclick = () => { b.disabled = true; setGift(b.dataset.give, true); });
     $$('[data-undo]').forEach(b => b.onclick = () => { if(confirm('수령 처리를 취소할까요?')) setGift(b.dataset.undo, false); });
   };
@@ -2149,7 +2166,7 @@ function admBooths(){
       <button class="btn sm line" id="bStatus" title="쉬는 부스를 한 화면에서 고르기">운영 상태</button>
       <button class="btn sm line" id="bNoStamp" title="QR 안 하는(도장 없는) 부스 고르기">QR 제외</button>
       <button class="btn sm line" id="bColors" title="분류별 색 바꾸기 (홈 칩·지도·QR 인쇄물에 반영)">분류 색</button>
-      <span class="small muted">${S.booths.length}/${CONFIG.boothMax}개 · 같은 구역 안에서는 표 순서가 지도 순서예요 (트랙 둘레는 정문 오른쪽부터 시계방향) · 왼쪽 ≡ 를 끌어서 순서를 바꿔요<br>분류: ${CATS.map(c => c.name).join(' / ')} — 일부만 적어도 알아듣고, 없는 이름을 적으면 새 분류가 생겨요</span>
+      <span class="small muted">${S.booths.length}/${CONFIG.boothMax}개 · 같은 구역 안에서는 표 순서가 지도 순서예요 (트랙 둘레는 정문 오른쪽부터 시계방향) · 왼쪽 ≡ 를 끌어서 순서를 바꿔요<br>분류: ${esc(CATS.map(c => c.name).join(' / '))} — 일부만 적어도 알아듣고, 없는 이름을 적으면 새 분류가 생겨요</span>
     </div>
     <div class="blist" id="bList">
       ${S.booths.map((b, i) => `<div class="brow" data-i="${i}">
@@ -2185,8 +2202,11 @@ function admBooths(){
     for(const k of ['closedBooths', 'noStampBooths']){ const a = raw[k]; if(Array.isArray(a)){ const f = a.filter(id => ids.has(id)); if(f.length !== a.length){ data[k] = f; changed = true; } } }
     if(changed){ await DB.saveSettings(data); S.settingsRaw = data; }
   };
-  $('#bSave').onclick = async () => { const seen = new Set(); for(const b of collect()){ if(!b.n || !b.name) return toast('번호와 이름은 비울 수 없어요'); if(seen.has(normN(b.n))) return toast(`부스 번호 ${b.n}이(가) 중복돼요`); seen.add(normN(b.n)); } const list = collect(true); /* 검증 통과 뒤에만 새 분류 생성 */ S.booths = list; await DB.saveBooths(list); await saveCategories(list); toast('저장했어요'); renderAdmin('booths'); };
-  $('#bAdd').onclick = () => { const list = collect(); if(list.length >= CONFIG.boothMax) return toast(`부스는 최대 ${CONFIG.boothMax}개까지예요`); const n = String(Math.max(0, ...list.map(b => parseInt(b.n) || 0)) + 1).padStart(2, '0'); list.push({ id: 'b' + n + '-' + Date.now().toString(36), n, name: '', cat: 'etc', org: '', zone: '', desc: '', video: '', pdf: '', img: '', hours: '', variant: null, target: '' }); S.booths = list; renderAdmin('booths'); setTimeout(() => $$('#bList .brow').pop()?.querySelector('[data-f=name]').focus(), 50); };
+  $('#bSave').onclick = async () => { const seen = new Set(); for(const b of collect()){ if(!b.n || !b.name) return toast('번호와 이름은 비울 수 없어요'); if(!validN(b.n)) return toast(`${N_MSG} (${b.n})`); if(seen.has(normN(b.n))) return toast(`부스 번호 ${b.n}이(가) 중복돼요`); seen.add(normN(b.n)); } const list = collect(true); /* 검증 통과 뒤에만 새 분류 생성 */
+    const bt = $('#bSave'); bt.disabled = true;
+    try{ await DB.saveBooths(list); S.booths = list; await saveCategories(list); }catch(e){ bt.disabled = false; return toast('저장 실패: ' + (e.message || '통신 오류')); }   // 실패하면 S.booths 를 바꾸지 않고 표는 그대로 (다시 저장 가능)
+    toast('저장했어요'); renderAdmin('booths'); };
+  $('#bAdd').onclick = () => { const list = collect(); if(list.length >= CONFIG.boothMax) return toast(`부스는 최대 ${CONFIG.boothMax}개까지예요`); const n = String(Math.max(0, ...list.map(b => parseInt(b.n) || 0)) + 1).padStart(2, '0'); if(!validN(n)) return toast(N_MSG); list.push({ id: 'b' + n + '-' + Date.now().toString(36), n, name: '', cat: 'etc', org: '', zone: '', desc: '', video: '', pdf: '', img: '', hours: '', variant: null, target: '' }); S.booths = list; renderAdmin('booths'); setTimeout(() => $$('#bList .brow').pop()?.querySelector('[data-f=name]').focus(), 50); };
   $$('[data-del]').forEach(b => b.onclick = () => { const list = collect(); if(!confirm(`${list[b.dataset.del].n} 부스를 삭제할까요? 저장을 눌러야 반영돼요.`)) return; list.splice(b.dataset.del, 1); S.booths = list; renderAdmin('booths'); });
   /* 순서: 왼쪽 ≡ 를 끌어서(pointer 이벤트, 마우스·터치 공통) 행을 옮기고, 놓으면 표의 행 순서대로 S.booths 를 다시 만듦. [번호순 정렬]은 번호(숫자 먼저, 본1·네1 같은 글자 번호는 뒤) 순 */
   const reorderFromDom = () => { const list = collect(); S.booths = $$('#bList .brow').map(tr => list[+tr.dataset.i]); renderAdmin('booths'); };
@@ -2305,6 +2325,10 @@ function admBooths(){
     const tmVal = id => { const t = $(id).value.trim(); if(!t) return ''; if(!tmOk(t)) throw new Error(`시각은 24시간 HH:MM 으로 적어주세요 (${t})`); return pad(t); };
     /* 시·분 칩: 포커스된 칸(.act)의 줄 아래로 옮겨 붙음. 칩을 눌러도 포커스가 안 빠지게 pointerdown/mousedown 막음 */
     const pick = document.createElement('div'); pick.className = 'tmpick'; pick.hidden = true; let cur = null;
+    const hidePick = () => { if(cur) cur.classList.remove('act'); cur = null; pick.hidden = true; };
+    /* 패널은 줄 아래 그대로 두고(내용이 밀리지 않음) 패널·시각 칸 밖을 클릭한 '뒤'에 닫는다. blur 에서 바로 닫으면 아래 버튼이 위로 올라와 그 탭이 빗나갔음 */
+    const onDocClick = e => { if(!$('#sheet').classList.contains('show')){ document.removeEventListener('click', onDocClick); return; } if(pick.hidden || !e.target.closest) return; if(e.target.closest('.tmpick') || e.target.closest('.tmi')) return; hidePick(); };
+    document.addEventListener('click', onDocClick);
     const HOURS = Array.from({ length: 9 }, (_, i) => i + 9), MINS = [0, 10, 20, 30, 40, 50], p2 = n => String(n).padStart(2, '0');
     pick.innerHTML = `<div class="tmrow"><span class="tmlab">시</span>${HOURS.map(h => `<button type="button" class="tmc" data-h="${h}">${p2(h)}</button>`).join('')}</div><div class="tmrow"><span class="tmlab">분</span>${MINS.map(m => `<button type="button" class="tmc" data-m="${m}">${p2(m)}</button>`).join('')}</div>`;
     const parts = el => (el.value.match(/^(\d{1,2}):(\d{2})$/) || []).slice(1).map(Number);
@@ -2313,8 +2337,9 @@ function admBooths(){
     pick.onclick = e => { const c = e.target.closest('.tmc'); if(!c || !cur) return; const [h, m] = parts(cur); const nh = c.dataset.h !== undefined ? +c.dataset.h : (isNaN(h) ? 10 : h), nm = c.dataset.m !== undefined ? +c.dataset.m : (isNaN(m) ? 0 : m); cur.value = p2(nh) + ':' + p2(nm); fmtTm(cur); sync(); };
     $$('.tmi').forEach(el => {
       el.oninput = () => { fmtTm(el); sync(); };
-      el.onfocus = () => { if(cur) cur.classList.remove('act'); cur = el; el.classList.add('act'); el.closest('.tf').after(pick); pick.hidden = false; sync(); };
-      el.onblur = () => { if(/^\d{1,2}$/.test(el.value)) el.value = el.value.padStart(2, '0') + ':00'; if(/^\d:\d{2}$/.test(el.value)) el.value = '0' + el.value; fmtTm(el); el.classList.remove('act'); if(cur === el){ cur = null; pick.hidden = true; } };
+      el.onfocus = () => { if(cur) cur.classList.remove('act'); cur = el; el.classList.add('act'); const tf = el.closest('.tf'); if(pick.previousElementSibling !== tf) tf.after(pick); pick.hidden = false; sync(); };
+      el.onkeydown = e => { if(e.key === 'Tab' || e.key === 'Escape') hidePick(); };
+      el.onblur = () => { if(/^\d{1,2}$/.test(el.value)) el.value = el.value.padStart(2, '0') + ':00'; if(/^\d:\d{2}$/.test(el.value)) el.value = '0' + el.value; fmtTm(el); };   // 패널 닫기는 onDocClick 에서
     });
     $('#tSw').onchange = () => { $('#tSwBox').hidden = !$('#tSw').checked; };
     $('#tMed').onchange = () => { $('#tMedBox').hidden = !$('#tMed').checked; };
@@ -2430,12 +2455,15 @@ function admBooths(){
   $('#bImp').onchange = async e => { const f = e.target.files[0]; if(!f) return; e.target.value = '';
     let rows; try{ rows = (/\.xlsx$/i.test(f.name) ? await readXlsx(f) : parseCSV(await f.text()).slice(1)).filter(r => r[0]); }catch(err){ return toast(err.message || '파일을 읽지 못했어요'); }
     if(!rows.length) return toast('읽을 행이 없어요');
+    { const bad = rows.find(r => !validN(r[0])); if(bad) return toast(`${N_MSG} (${bad[0]})`); }
     { const seen = new Set(); for(const r of rows){ if(seen.has(normN(r[0]))) return toast(`부스 번호 ${r[0]}이(가) 두 번 있어요`); seen.add(normN(r[0])); } }
     { const e = rows.find(r => !r[1]); if(e) return toast(`부스명이 빈 줄이 있어요 (번호 ${e[0]})`); }
     if(rows.length > CONFIG.boothMax) return toast(`부스는 최대 ${CONFIG.boothMax}개까지예요 (${rows.length}개)`);
     const prevByN = Object.fromEntries(S.booths.map(b => [normN(b.n), b]));   // 같은 번호의 기존 부스: id(쉬는 중·QR 제외·도장 기록이 id 로 묶임)와 시간대 전환(엑셀에 없음)은 유지
-    S.booths = rows.map(r => ({ id: (prevByN[normN(r[0])] || {}).id || 'b' + r[0], n: r[0], name: r[1] || '', org: r[2] || '', cat: matchCategory(r[3], 'etc', true),
-      zone: (ZONES.find(z => z.name === r[4] || z.id === r[4]) || ZONES[0]).id, desc: r[5] || '', video: r[6] || '', pdf: r[7] || '', img: r[8] || '', hours: r[9] || '', variant: (prevByN[normN(r[0])] || {}).variant || null, target: parseTarget(r[10]) })); await DB.saveBooths(S.booths); await saveCategories(S.booths); toast(`${rows.length}개 부스를 불러왔어요`); renderAdmin('booths'); };
+    const list = rows.map(r => ({ id: (prevByN[normN(r[0])] || {}).id || 'b' + r[0], n: r[0], name: r[1] || '', org: r[2] || '', cat: matchCategory(r[3], 'etc', true),
+      zone: (ZONES.find(z => z.name === r[4] || z.id === r[4]) || ZONES[0]).id, desc: r[5] || '', video: r[6] || '', pdf: r[7] || '', img: r[8] || '', hours: r[9] || '', variant: (prevByN[normN(r[0])] || {}).variant || null, target: parseTarget(r[10]) }));
+    try{ await DB.saveBooths(list); S.booths = list; await saveCategories(list); }catch(err){ return toast('저장 실패: ' + (err.message || '통신 오류')); }
+    toast(`${rows.length}개 부스를 불러왔어요`); renderAdmin('booths'); };
 }
 /* 지도 편집(관리자 › 지도): 화장실·휴지통 표시를 지도 위에 놓는다. 도구 고르고 지도 탭 → 추가, 놓인 표시 탭 → 삭제. settings.facilities 에 바로 저장(방문객 폰은 부팅·5분마다 반영) */
 const FAC_TYPES = { wc: '화장실', bin: '휴지통' }, FAC_ICON = { wc: '🚻', bin: '🗑' };
@@ -2485,7 +2513,7 @@ function admQR(){
       <button class="btn sm" onclick="print()">인쇄</button></div>
     <div class="qrgrid">
       <div class="qrc entry" style="--c:var(--blue)"><div class="qr" id="qr-entry"></div><div class="qrtxt"><div class="qrpill"><span class="dot"></span>입장 · 안내판용</div><div class="n entry">START</div><div class="t">QR을 찍고 등록하면<br>스탬프 랠리 시작!</div><div class="u">${esc(base)}?join</div><div class="qrhow">📱 휴대폰 카메라로 QR을 찍어주세요</div><div class="qrbrand">${esc(CONFIG.eventTitle)}</div></div></div>
-      ${S.booths.filter(qrNeeded).map(b => { const c = catOf(b.cat); return `<div class="qrc" style="--c:${c.color}"><div class="qr" id="qr-${b.id}"></div><div class="qrtxt"><div class="qrpill"><span class="dot"></span>${esc(c.name)}</div><div class="n"><small>BOOTH</small>${esc(b.n)}</div><div class="t">${esc(b.name)}</div><div class="u">${esc(b.org)}</div><div class="qrhow">📱 QR을 찍으면 도장이 <b>쾅!</b> ${CONFIG.stampGoal}개 모으면 선물</div><div class="qrbrand">${esc(CONFIG.eventTitle)}</div></div></div>`; }).join('')}</div>`);
+      ${S.booths.filter(qrNeeded).map(b => { const c = catOf(b.cat); return `<div class="qrc" style="--c:${c.color}"><div class="qr" id="qr-${esc(b.id)}"></div><div class="qrtxt"><div class="qrpill"><span class="dot"></span>${esc(c.name)}</div><div class="n"><small>BOOTH</small>${esc(b.n)}</div><div class="t">${esc(b.name)}</div><div class="u">${esc(b.org)}</div><div class="qrhow">📱 QR을 찍으면 도장이 <b>쾅!</b> ${CONFIG.stampGoal}개 모으면 선물</div><div class="qrbrand">${esc(CONFIG.eventTitle)}</div></div></div>`; }).join('')}</div>`);
   (async () => {
     let toks = {};
     if(DB === SupabaseDB){   // 서버 토큰. 부스가 아직 서버에 없으면(내장 시드 상태) 먼저 저장해서 발급받음
@@ -2498,7 +2526,7 @@ function admQR(){
     }
     try{ await loadQRCode(); }catch(e){ $('#qrStatus').innerHTML = `<span style="color:var(--coral)">QR 라이브러리를 못 불러왔어요 (${esc(e.message)})</span>`; return; }
     new QRCode($('#qr-entry'), { text: `${base}?join`, width: 256, height: 256, correctLevel: QRCode.CorrectLevel.M });
-    S.booths.filter(qrNeeded).forEach(b => new QRCode($('#qr-' + b.id), { text: `${base}?b=${encodeURIComponent(b.n)}${toks[b.id] ? '&t=' + toks[b.id] : ''}`, width: 256, height: 256, correctLevel: QRCode.CorrectLevel.M }));
+    S.booths.filter(qrNeeded).forEach(b => new QRCode(document.getElementById('qr-' + b.id), { text: `${base}?b=${encodeURIComponent(b.n)}${toks[b.id] ? '&t=' + toks[b.id] : ''}`, width: 256, height: 256, correctLevel: QRCode.CorrectLevel.M }));
   })();
 }
 /* 행사 설정 폼. 저장 → DB.saveSettings → applySettings 로 즉시 반영. 일정·자료는 '한 줄에 하나, | 로 구분' 텍스트를 파싱 */
@@ -2632,13 +2660,15 @@ function admData(st){
   $('#exVisitors').onclick = async () => { const { stamps, visitors } = await fetchAll(); const cnt = {}; stamps.forEach(s => cnt[s.visitorId] = (cnt[s.visitorId] || 0) + 1); download('visitors.csv', '\ufeff' + [['등록시각', '이름', '학교', '학년', '학년군', '성별', '스탬프수', '설문완료', '선물수령']].concat(visitors.map(v => [new Date(v.createdAt).toLocaleString('ko-KR'), v.name, v.school || '', v.grade || '', gradeGroup(v.grade), v.gender || '', cnt[v.id] || 0, v.surveyAt ? new Date(v.surveyAt).toLocaleString('ko-KR') : '', v.giftAt ? new Date(v.giftAt).toLocaleString('ko-KR') : ''])).map(r => r.map(csv).join(',')).join('\n')); };
   $('#exSummary').onclick = () => { const cnt = {}; Object.entries(st.perBooth).forEach(([k, v]) => cnt[k] = v.n); download('booth_summary.csv', '\ufeff' + [['부스번호', '부스명', '운영기관', '분류', '스탬프수']].concat(S.booths.map(b => [b.n, b.name, b.org, catOf(b.cat).name, cnt[b.id] || 0])).map(r => r.map(csv).join(',')).join('\n')); };
   $('#boothReset').onclick = async () => { if(!confirm('저장된 부스 목록을 지우고 파일에 든 기본 배치도(90 + 운영·네컷 5)로 되돌릴까요? 도장 기록은 그대로예요.')) return;
-    if(DB === LocalDB){ try{ localStorage.removeItem('wj:booths'); }catch(e){} delete mem['wj:booths']; } else { await DB.saveBooths([]); }
-    await loadBooths(); await DB.saveBooths(S.booths); toast('기본 배치도로 되돌렸어요'); go(admPath('/booths')); };
+    const bt = $('#boothReset'); bt.disabled = true;
+    try{ if(DB === LocalDB){ try{ localStorage.removeItem('wj:booths'); }catch(e){} delete mem['wj:booths']; } else { await DB.saveBooths([]); }
+      await loadBooths(); await DB.saveBooths(S.booths); }catch(e){ bt.disabled = false; return toast('저장 실패: ' + (e.message || '통신 오류')); }
+    toast('기본 배치도로 되돌렸어요'); go(admPath('/booths')); };
   $('#setPwGo').onclick = async () => { const v = $('#setPw').value.trim(); if(v.length < 8) return toast('8자 이상으로 해주세요');
     if(local){ mem['wj:pw'] = v; return toast('이 세션의 비밀번호를 바꿨어요'); }
     try{ await DB.setPassword(v); $('#setPw').value = ''; toast('비밀번호를 바꿨어요'); }catch(e){ toast(e.message); } };
-  const demo = $('#demoGo'); if(demo) demo.onclick = async () => { if(!confirm('기존 기록을 지우고 데모 데이터를 만들까요?')) return; await DB.seedDemo(S.booths); toast('데모 데이터를 만들었어요'); go(admPath('/dash')); };
-  $('#purgeGo').onclick = async () => { if(prompt('정말 삭제하려면 "삭제"라고 입력하세요') !== '삭제') return; await DB.purgeVisitors(); S.me = null; S.myStamps = []; S.surveyOpenAt = 0; toast('모두 삭제했어요'); renderAdmin('data'); };
+  const demo = $('#demoGo'); if(demo) demo.onclick = async () => { if(!confirm('기존 기록을 지우고 데모 데이터를 만들까요?')) return; demo.disabled = true; try{ await DB.seedDemo(S.booths); }catch(e){ demo.disabled = false; return toast('저장 실패: ' + (e.message || '통신 오류')); } toast('데모 데이터를 만들었어요'); go(admPath('/dash')); };
+  $('#purgeGo').onclick = async () => { if(prompt('정말 삭제하려면 "삭제"라고 입력하세요') !== '삭제') return; const bt = $('#purgeGo'); bt.disabled = true; try{ await DB.purgeVisitors(); }catch(e){ bt.disabled = false; return toast('삭제 실패: ' + (e.message || '통신 오류')); } S.me = null; S.myStamps = []; S.surveyOpenAt = 0; toast('모두 삭제했어요'); renderAdmin('data'); };
 }
 const csv = v => { v = String(v ?? ''); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
 function parseCSV(t){ const rows = [], re = /("([^"]|"")*"|[^,\n\r]*)(,|\r?\n|$)/g; let row = [], m; t = t.replace(/^\ufeff/, ''); if(!/\n$/.test(t)) t += '\n';   /* \ub9c8\uc9c0\ub9c9 \uce78\uc774 \ube44\uace0 \ub05d\uc5d0 \uc904\ubc14\uafc8\uc774 \uc5c6\uc73c\uba74 \ub9c8\uc9c0\ub9c9 \ud589\uc774 \ube60\uc9c0\ub358 \ubb38\uc81c */ while((m = re.exec(t)) && m[0] !== ''){ let f = m[1]; if(f.startsWith('"')) f = f.slice(1, -1).replace(/""/g, '"'); row.push(f.trim()); if(m[3] !== ','){ rows.push(row); row = []; } } return rows.filter(r => r.some(x => x)); }
@@ -2653,10 +2683,12 @@ function download(name, text){ const a = document.createElement('a'); a.href = U
    5. QR 딥링크(?b=번호&t=토큰) 또는 입장 QR(?join) 을 해시 라우트로 바꾸고 route()
    ===================================================================== */
 (async function boot(){
+  $('#frame').innerHTML = `<main class="content"><div class="bootwait"><div class="spin"></div><div>불러오는 중…</div><div class="small" id="bootSlow" style="display:none">서버 응답이 느려요.<br>잠시 후 다시 열어주세요</div></div></main>`;   // 데이터 오기 전 흰 화면 방지
+  const slowT = setTimeout(() => { const el = $('#bootSlow'); if(el) el.style.display = ''; }, 8000);
   if(DB === SupabaseDB && adminAuth.pw()) S.admin = true;   // 새로고침해도 관리자 유지 (탭 닫으면 사라짐). 비번이 바뀌었으면 첫 관리자 RPC 에서 로그아웃됨
-  await loadSettings(); await loadBoothsCached();   // 설정 먼저(부스 버전 포함) → 버전 같으면 부스 요청 생략
+  await Promise.all([loadSettings().then(loadBoothsCached), loadMe()]);   // 설정→부스(버전 의존)는 순서대로, 내 정보는 병렬
   S.swSig = S.booths.map(b => bv(b).switched ? 1 : 0).join('');   // 전환 시그니처를 지금 상태로 — 전환 시각 직전에 열면 첫 틱이 초기화로 먹혀 재그리기를 놓치던 문제
-  await loadMe();
+  clearTimeout(slowT);
   flushPending();
   // QR 딥링크: ?b=07&t=토큰 → 스탬프 화면. 토큰은 세션에 두고 주소창에서 쿼리는 지워서 새로고침 시 재진입을 막는다.
   const qs = new URLSearchParams(location.search); const b = qs.get('b');
