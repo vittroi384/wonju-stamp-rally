@@ -2,10 +2,12 @@
 // 사용: node tests/shots_public.mjs   (저장소 루트에서. assets/ 에 저장)
 import { chromium } from 'playwright';
 import fs from 'fs';
-const DIR = process.cwd().replace(/\\/g, '/') + '/', OUT = DIR + 'assets/';
+import { fileURLToPath, pathToFileURL } from 'url'; import path from 'path';
+const DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..').replace(/\\/g, '/') + '/', F = p => pathToFileURL(DIR + p).href;   // 저장소 루트 (스크립트 위치 기준) · file:// URL
+const OUT = DIR + 'assets/';
 const src = fs.readFileSync(DIR + '원주축전_스탬프앱_3.html', 'utf8');
 fs.writeFileSync(DIR + 'tests/_local.html', src.replace(/supabaseUrl: '[^']*'/, "supabaseUrl: ''").replace(/\.\/qrcode\.min\.js|\.\/jsQR\.js/g, m => '..' + m.slice(1)));
-const APP = 'file:///' + DIR + 'tests/_local.html';
+const APP = F('tests/_local.html');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const pick = a => a[Math.floor(Math.random() * a.length)];
 const b = await chromium.launch({ channel: 'chrome' });
@@ -51,7 +53,7 @@ await a.evaluate(() => location.hash = '#/admin/survey'); await a.waitForSelecto
 await ctx.close();
 // 대시보드: 로그인 없이 가짜 집계로 직접 render
 const d = await b.newPage({ viewport: { width: 1600, height: 1000 } });
-await d.goto('file:///' + DIR + '운영대시보드.html'); await d.waitForSelector('#pw');
+await d.goto(F('운영대시보드.html')); await d.waitForSelector('#pw');
 const booths = JSON.parse(src.match(/const SEED_BOOTHS = (\[.*?\]);/)[1]);
 await d.evaluate(({ booths }) => {
   const pick = a => a[Math.floor(Math.random() * a.length)];

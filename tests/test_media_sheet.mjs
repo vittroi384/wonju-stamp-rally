@@ -1,11 +1,13 @@
 // 관리자 › 부스 표 자료 [편집] 시트 (로컬 모드)
 import { chromium } from 'playwright'; import fs from 'fs';
-const DIR = 'C:/dev/stamp-rally-v3/'; const src = fs.readFileSync(DIR + '원주축전_스탬프앱_3.html', 'utf8');
+import { fileURLToPath, pathToFileURL } from 'url'; import path from 'path';
+const DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..').replace(/\\/g, '/') + '/', F = p => pathToFileURL(DIR + p).href;   // 저장소 루트 (스크립트 위치 기준) · file:// URL
+const OUT = DIR + 'tests/out/'; fs.mkdirSync(OUT, { recursive: true }); const src = fs.readFileSync(DIR + '원주축전_스탬프앱_3.html', 'utf8');
 fs.writeFileSync(DIR + 'tests/_local.html', src.replace(/supabaseUrl: '[^']*'/, "supabaseUrl: ''").replace(/\.\/qrcode\.min\.js|\.\/jsQR\.js/g, m => '..' + m.slice(1)));
 const fails = [], errs = []; const check = (n, ok, x = '') => { console.log((ok ? '  ✓ ' : '  ✗ ') + n + (x ? ' — ' + x : '')); if(!ok) fails.push(n); };
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const b = await chromium.launch({ channel: 'chrome' }); const p = await b.newPage({ viewport: { width: 1280, height: 900 } }); p.on('pageerror', e => errs.push(e.message));
-await p.goto('file:///' + DIR + 'tests/_local.html'); await p.waitForFunction(() => S.booths.length > 0 && document.querySelector('#main'));
+await p.goto(F('tests/_local.html')); await p.waitForFunction(() => S.booths.length > 0 && document.querySelector('#main'));
 await p.evaluate(() => location.hash = '#/admin'); await p.waitForSelector('#pw'); await p.fill('#pw', '1234'); await p.keyboard.press('Enter'); await p.waitForFunction(() => S.admin); await p.waitForSelector('.stats');
 await p.evaluate(() => location.hash = '#/admin/booths'); await p.waitForSelector('[data-media]');
 check('카드 목록(표 아님), 옆으로 안 넘침', await p.evaluate(() => !$('.table') && $$('#bList .brow').length === S.booths.length && $('#bList').scrollWidth <= $('#bList').clientWidth));
@@ -41,9 +43,9 @@ check('저장 후 값 유지·칩 켜짐', await p.evaluate(() => S.booths[0].vi
 // 다시 열면 값이 들어 있는지
 await p.click('.brow[data-i="0"] [data-media]'); await p.waitForSelector('#sheet.show #mOk'); await sleep(300);
 check('재편집 시 값 채워짐', await p.evaluate(() => $('#mVideo').value.includes('dQw4w9WgXcQ') && $('#mPdf').value === 'https://example.com/a.pdf' && !!$('#mImgPv img')));
-await p.screenshot({ path: 'C:/Users/jjook/AppData/Local/Temp/claude/C--dev/70bba92c-1743-4543-8c0c-20fe1e790450/scratchpad/media_sheet.png' });
+await p.screenshot({ path: OUT + 'media_sheet.png' });
 await p.evaluate(() => closeSheet()); await sleep(400);
-await p.screenshot({ path: 'C:/Users/jjook/AppData/Local/Temp/claude/C--dev/70bba92c-1743-4543-8c0c-20fe1e790450/scratchpad/booth_table.png' });
+await p.screenshot({ path: OUT + 'booth_table.png' });
 // 방문객 부스 소개에 반영
 const bn = await p.evaluate(() => S.booths[0].n); await p.evaluate(n => location.hash = '#/booth/' + n, bn); await sleep(800);
 check('방문객 부스 소개: 영상·PDF 버튼', await p.evaluate(() => !!$('.yt iframe') && !!$('#bPdf')));

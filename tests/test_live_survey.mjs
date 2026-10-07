@@ -1,6 +1,8 @@
 // 실서버: 앱 내 설문 제출(visitor_survey_submit) + 관리자 설문 결과 + 대시보드 풀 모드
 import { chromium } from 'playwright';
-const DIR='C:/dev/stamp-rally-v3/', APP='file:///'+DIR+'원주축전_스탬프앱_3.html', DASH='file:///'+DIR+'운영대시보드.html';
+import { fileURLToPath, pathToFileURL } from 'url'; import path from 'path';
+const DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..').replace(/\\/g, '/') + '/', F = p => pathToFileURL(DIR + p).href;   // 저장소 루트 (스크립트 위치 기준) · file:// URL
+const APP=F('원주축전_스탬프앱_3.html'), DASH=F('운영대시보드.html');
 const U='https://YOUR-PROJECT.supabase.co', K='YOUR_SUPABASE_ANON_KEY';
 const PW = process.env.ADMIN_PW; if(!PW){ console.error('ADMIN_PW 환경변수에 관리자 비번 넣고 실행:  $env:ADMIN_PW="비번"; node tests/파일.mjs'); process.exit(1); }
 const H={apikey:K,Authorization:`Bearer ${K}`,'Content-Type':'application/json'};

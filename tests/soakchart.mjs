@@ -1,10 +1,12 @@
 // 지속 테스트 결과 + 폭주 테스트(2026-09-14) 비교 차트 → HTML + PNG
 import fs from 'fs';
 import { chromium } from 'playwright';
-const DIR = 'C:/dev/stamp-rally-v3/';
+import { fileURLToPath, pathToFileURL } from 'url'; import path from 'path';
+const DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..').replace(/\\/g, '/') + '/', F = p => pathToFileURL(DIR + p).href;   // 저장소 루트 (스크립트 위치 기준) · file:// URL
 const soakFile = fs.readdirSync(DIR).filter(f => /^지속테스트_.*\.json$/.test(f)).sort().pop();
 const soak = JSON.parse(fs.readFileSync(DIR + soakFile, 'utf8'));
-const burst = JSON.parse(fs.readFileSync('C:/dev/stamp-rally/부하테스트_2026-09-14.json', 'utf8'));
+const burstFile = DIR + '부하테스트_2026-09-14.json';   // 폭주 테스트 결과(v2 시절). 없으면 비교 부분은 건너뜀
+const burst = fs.existsSync(burstFile) ? JSON.parse(fs.readFileSync(burstFile, 'utf8')) : null; if(!burst) console.log('없음 → 폭주 테스트 비교 건너뜀:', burstFile);
 const date = soakFile.match(/\d{4}-\d{2}-\d{2}/)[0];
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -25,6 +27,7 @@ function timeline(){
 }
 /* ---------- 폭주 테스트 단계별: 막대 = p95, 색 = 에러율 ---------- */
 function burstChart(){
+  if(!burst) return '<div class="s">부하테스트_2026-09-14.json 없음 — 건너뜀</div>';
   const W = 760, H = 260, L = 54, R = 20, T = 26, Bt = 44, iw = W - L - R, ih = H - T - Bt;
   const maxMs = Math.max(...burst.map(b => b.p95)) * 1.15;
   const x = i => L + (i + .5) * iw / burst.length, bw = iw / burst.length * .58, y = v => T + ih - v / maxMs * ih;
@@ -39,7 +42,7 @@ function burstChart(){
   return s + '</svg>';
 }
 const kindRows = ['register', 'stamp', 'reopen', 'survey'].map(k => { const bs = soak.buckets.map(b => b.byKind[k]).filter(Boolean); if(!bs.length) return ''; const n = bs.reduce((a, b) => a + b.n, 0), err = bs.reduce((a, b) => a + b.err, 0); const p95 = Math.max(...bs.map(b => b.p95)), p50 = Math.round(bs.reduce((a, b) => a + b.p50 * b.n, 0) / n); return `<tr><td>${{ register: '등록 (visitor_create)', stamp: '도장 (add_stamp)', reopen: '앱 다시 열기 (visitor_get·stamps)', survey: '설문 완료' }[k]}</td><td class="n">${n.toLocaleString()}</td><td class="n">${p50}</td><td class="n">${p95}</td><td class="n ${err ? 'bad' : ''}">${err}</td></tr>`; }).join('');
-const burstOk = burst.filter(b => b.errRate === 0).pop();
+const burstOk = burst ? burst.filter(b => b.errRate === 0).pop() : { users: '—', rps: '—', durationSec: '—', p50: '—', p95: '—', errRate: '—', dashP50: '—' }, burstLimit = burst && burst.find(b => b.errRate > 0);
 const html = `<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>지속 테스트 ${date}</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <style>
@@ -99,7 +102,7 @@ td.bad{color:var(--coral)}
       <tr><td>p50 / p95</td><td class="n">${burstOk.p50} / ${burstOk.p95} ms</td><td class="n">${soak.p50} / ${soak.p95} ms</td></tr>
       <tr><td>에러율</td><td class="n">${burstOk.errRate}%</td><td class="n">${soak.errRate}%</td></tr>
       <tr><td>대시보드 p50</td><td class="n">${burstOk.dashP50} ms</td><td class="n">${soak.dashP50} ms</td></tr>
-      <tr><td>한계 지점</td><td>${burst.find(b => b.errRate > 0) ? burst.find(b => b.errRate > 0).users + '명 동시부터 에러 (' + burst.find(b => b.errRate > 0).errRate + '%)' : '없음'}</td><td>${soak.errors ? soak.errors + '건 에러' : '없음 — 지연 상승도 없음'}</td></tr>
+      <tr><td>한계 지점</td><td>${burstLimit ? burstLimit.users + '명 동시부터 에러 (' + burstLimit.errRate + '%)' : burst ? '없음' : '—'}</td><td>${soak.errors ? soak.errors + '건 에러' : '없음 — 지연 상승도 없음'}</td></tr>
     </tbody></table>
     <div class="verdict">행사 실부하(하루 5만 명 = 초당 2~3명 등록, 도장은 그 7배)를 넘는 <b>초당 ${soak.arrivalsPerSec}명 도착이 ${soak.minutes}분 이어져도</b> 에러 ${soak.errors}건, p95 ${soak.p95}ms. ${soak.errors === 0 && soak.p95 < 500 ? '무료 플랜으로 행사 시간 내내 버티는 데 문제 없음. 위험은 개막 직후 같은 순간 폭주뿐이고, 그건 폭주 테스트 기준 800명 동시까지 괜찮음.' : '수치 확인 필요.'}</div>
   </div>
@@ -107,6 +110,6 @@ td.bad{color:var(--coral)}
 </body></html>`;
 fs.writeFileSync(DIR + `지속테스트_${date}.html`, html);
 const b = await chromium.launch({ channel: 'chrome' }); const p = await b.newPage({ viewport: { width: 1180, height: 900 }, deviceScaleFactor: 2 });
-await p.goto('file:///' + DIR + `지속테스트_${date}.html`); await p.waitForTimeout(1200);
+await p.goto(F(`지속테스트_${date}.html`)); await p.waitForTimeout(1200);
 await p.screenshot({ path: DIR + `지속테스트_${date}.png`, fullPage: true }); await b.close();
 console.log('saved', DIR + `지속테스트_${date}.png`);

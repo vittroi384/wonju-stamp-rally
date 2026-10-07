@@ -1,11 +1,13 @@
 // 관리자 › 부스 표 순서: ≡ 끌기 + 번호순 정렬 (로컬 모드)
 import { chromium } from 'playwright'; import fs from 'fs';
-const DIR = 'C:/dev/stamp-rally-v3/'; const src = fs.readFileSync(DIR + '원주축전_스탬프앱_3.html', 'utf8');
+import { fileURLToPath, pathToFileURL } from 'url'; import path from 'path';
+const DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..').replace(/\\/g, '/') + '/', F = p => pathToFileURL(DIR + p).href;   // 저장소 루트 (스크립트 위치 기준) · file:// URL
+const OUT = DIR + 'tests/out/'; fs.mkdirSync(OUT, { recursive: true }); const src = fs.readFileSync(DIR + '원주축전_스탬프앱_3.html', 'utf8');
 fs.writeFileSync(DIR + 'tests/_local2.html', src.replace(/supabaseUrl: '[^']*'/, "supabaseUrl: ''").replace(/\.\/qrcode\.min\.js|\.\/jsQR\.js/g, m => '..' + m.slice(1)));
 const fails = [], errs = []; const check = (n, ok, x = '') => { console.log((ok ? '  ✓ ' : '  ✗ ') + n + (x ? ' — ' + x : '')); if(!ok) fails.push(n); };
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const b = await chromium.launch({ channel: 'chrome' }); const p = await b.newPage({ viewport: { width: 1280, height: 900 } }); p.on('pageerror', e => errs.push(e.message));
-await p.goto('file:///' + DIR + 'tests/_local2.html'); await p.waitForFunction(() => S.booths.length > 0 && document.querySelector('#main'));
+await p.goto(F('tests/_local2.html')); await p.waitForFunction(() => S.booths.length > 0 && document.querySelector('#main'));
 await p.evaluate(() => location.hash = '#/admin'); await p.waitForSelector('#pw'); await p.fill('#pw', '1234'); await p.keyboard.press('Enter'); await p.waitForFunction(() => S.admin); await p.waitForSelector('.stats');
 await p.evaluate(() => location.hash = '#/admin/booths'); await p.waitForSelector('[data-drag]');
 const order = () => p.evaluate(() => $$('#bList .brow').map(tr => $('[data-f=n]', tr).value));
@@ -30,5 +32,5 @@ const nums = sorted.filter(n => /^\d+$/.test(n)).map(Number); check('숫자 번�
 check('정렬 후에도 편집값 유지', await p.evaluate(() => $$('[data-f=name]').some(i => i.value === '편집중')));
 await p.click('#bSave'); await sleep(500);
 check('저장 후 순서 유지', JSON.stringify(await p.evaluate(() => S.booths.map(b => b.n))) === JSON.stringify(sorted) && await p.evaluate(() => S.booths.some(b => b.name === '편집중')));
-await p.screenshot({ path: 'C:/Users/jjook/AppData/Local/Temp/claude/C--dev/70bba92c-1743-4543-8c0c-20fe1e790450/scratchpad/reorder.png' });
+await p.screenshot({ path: OUT + 'reorder.png' });
 console.log('ERRS', errs); console.log('FAILS', fails.length ? fails : 'none'); await b.close(); fs.unlinkSync(DIR + 'tests/_local2.html'); process.exit(fails.length || errs.length ? 1 : 0);

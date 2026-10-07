@@ -1,6 +1,8 @@
 // 관리자 비번 실패 잠금 (실서버, 17절 적용 후). 틀린 비번 10번 → 1분 잠김 → 틀린 비번만 ADMIN_LOCKED, 맞는 비번은 잠금 중에도 통과(외부인이 잠금 걸어 운영본부 멈추는 것 방지). 데이터 변경 없음
 // 사용: node test_lockout.mjs <맞는 비번>
-const fs = await import('fs'); const src = fs.readFileSync('C:/dev/stamp-rally-v3/원주축전_스탬프앱_3.html', 'utf8');
+import { fileURLToPath } from 'url'; import path from 'path';
+const DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..').replace(/\\/g, '/') + '/';   // 저장소 루트 (스크립트 위치 기준)
+const fs = await import('fs'); const src = fs.readFileSync(DIR + '원주축전_스탬프앱_3.html', 'utf8');
 const URL_ = src.match(/supabaseUrl: '([^']+)'/)[1], KEY = src.match(/supabaseAnonKey: '([^']+)'/)[1], PW = process.argv[2] || process.env.ADMIN_PW;
 if(!PW){ console.error('비번 필요: node tests/test_lockout.mjs 비번  또는 $env:ADMIN_PW'); process.exit(1); }
 const fails = []; const check = (n, ok, x = '') => { console.log((ok ? '  ✓ ' : '  ✗ ') + n + (x ? ' — ' + x : '')); if(!ok) fails.push(n); };

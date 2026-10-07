@@ -1,11 +1,13 @@
 // 관리자 교환권 QR 스캔 (로컬 모드, 테스트 모드 코드 입력으로 검증)
 import { chromium } from 'playwright'; import fs from 'fs';
-const DIR = 'C:/dev/stamp-rally-v3/'; const src = fs.readFileSync(DIR + '원주축전_스탬프앱_3.html', 'utf8');
+import { fileURLToPath, pathToFileURL } from 'url'; import path from 'path';
+const DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..').replace(/\\/g, '/') + '/', F = p => pathToFileURL(DIR + p).href;   // 저장소 루트 (스크립트 위치 기준) · file:// URL
+const src = fs.readFileSync(DIR + '원주축전_스탬프앱_3.html', 'utf8');
 fs.writeFileSync(DIR + 'tests/_local.html', src.replace(/supabaseUrl: '[^']*'/, "supabaseUrl: ''").replace(/\.\/qrcode\.min\.js|\.\/jsQR\.js/g, m => '..' + m.slice(1)));
 const fails = [], errs = []; const check = (n, ok, x = '') => { console.log((ok ? '  ✓ ' : '  ✗ ') + n + (x ? ' — ' + x : '')); if(!ok) fails.push(n); };
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const b = await chromium.launch({ channel: 'chrome' }); const p = await b.newPage({ viewport: { width: 1280, height: 900 } }); p.on('pageerror', e => errs.push(e.message));
-await p.goto('file:///' + DIR + 'tests/_local.html'); await p.waitForFunction(() => S.booths.length > 0 && document.querySelector('#main'));
+await p.goto(F('tests/_local.html')); await p.waitForFunction(() => S.booths.length > 0 && document.querySelector('#main'));
 // 방문객 3명: 완주+설문 / 완주+설문 전 / 완주 전
 const ids = await p.evaluate(async () => { const d = await LocalDB._all(); const mk = (name, n, survey) => { const v = { id: uuid(), name, school: '가온초', grade: '초4', gender: '여', consentedAt: Date.now(), createdAt: Date.now(), surveyAt: survey ? Date.now() : null, giftAt: null }; d.visitors.push(v); for(let i = 0; i < n; i++) d.stamps.push({ id: uuid(), visitorId: v.id, boothId: 'b' + (i + 1), at: Date.now() }); return v.id; }; const a = mk('완주설문', 7, true), b2 = mk('완주만', 7, false), c = mk('진행중', 3, false); await LocalDB._save(d); return { a, b2, c }; });
 await p.evaluate(() => location.hash = '#/admin'); await p.waitForSelector('#pw'); await p.fill('#pw', '1234'); await p.keyboard.press('Enter'); await p.waitForFunction(() => S.admin); await p.waitForSelector('.stats');

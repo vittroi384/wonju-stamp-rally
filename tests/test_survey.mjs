@@ -1,10 +1,12 @@
 // 앱 내 설문 테스트 (로컬 모드 복사본 — 서버 SQL 9절 실행 전이라 로컬 DB 로 흐름 검증)
 import { chromium } from 'playwright';
 import fs from 'fs';
-const DIR = 'C:/dev/stamp-rally-v3/', OUT = DIR + 'tests/out/';
+import { fileURLToPath, pathToFileURL } from 'url'; import path from 'path';
+const DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..').replace(/\\/g, '/') + '/', F = p => pathToFileURL(DIR + p).href;   // 저장소 루트 (스크립트 위치 기준) · file:// URL
+const OUT = DIR + 'tests/out/';
 const src = fs.readFileSync(DIR + '원주축전_스탬프앱_3.html', 'utf8');
 fs.writeFileSync(DIR + 'tests/_local.html', src.replace("supabaseUrl: 'https://YOUR-PROJECT.supabase.co'", "supabaseUrl: ''").replace("supabaseAnonKey: 'YOUR_SUPABASE_ANON_KEY'", "supabaseAnonKey: ''").replace(/\.\/qrcode\.min\.js|\.\/jsQR\.js/g, m => '..' + m.slice(1)));
-const APP = 'file:///' + DIR + 'tests/_local.html';
+const APP = F('tests/_local.html');
 const fails = [], errs = [];
 const check = (name, ok, extra = '') => { console.log((ok ? '  ✓ ' : '  ✗ ') + name + (extra ? ' — ' + extra : '')); if(!ok) fails.push(name); };
 const sleep = ms => new Promise(r => setTimeout(r, ms));
@@ -70,7 +72,7 @@ await ctx.close();
 
 console.log('[3] 실서버: 관리자 설문 탭이 SQL 미실행 상태를 안내하는지');
 const live = await b.newContext({ viewport: { width: 1280, height: 900 } }); const l = await live.newPage(); wire(l, 'live');
-await l.goto('file:///' + DIR + '원주축전_스탬프앱_3.html'); await l.waitForFunction(() => S.booths.length > 0 && document.querySelector('#main'));
+await l.goto(F('원주축전_스탬프앱_3.html')); await l.waitForFunction(() => S.booths.length > 0 && document.querySelector('#main'));
 await l.evaluate(() => location.hash = '#/admin'); await l.waitForSelector('#pw'); await l.fill('#pw', '1234'); await l.keyboard.press('Enter'); await l.waitForFunction(() => S.admin); await l.waitForSelector('.stats');
 await l.evaluate(() => location.hash = '#/admin/survey'); await l.waitForSelector('#sqLoad'); await l.click('#sqLoad'); await l.waitForFunction(() => !/불러오는 중/.test($('#sqRes').textContent), null, { timeout: 25000 });
 const msg = await l.evaluate(() => $('#sqRes').textContent);

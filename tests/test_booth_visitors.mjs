@@ -1,11 +1,13 @@
 // 부스 참여자 명단: 앱 현황 탭(로컬 모드) + 대시보드(RPC 는 가짜 응답으로 대체 — SQL 적용 전에도 UI 검증)
 import { chromium } from 'playwright'; import fs from 'fs';
-const DIR = 'C:/dev/stamp-rally-v3/'; const src = fs.readFileSync(DIR + '원주축전_스탬프앱_3.html', 'utf8');
+import { fileURLToPath, pathToFileURL } from 'url'; import path from 'path';
+const DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..').replace(/\\/g, '/') + '/', F = p => pathToFileURL(DIR + p).href;   // 저장소 루트 (스크립트 위치 기준) · file:// URL
+const src = fs.readFileSync(DIR + '원주축전_스탬프앱_3.html', 'utf8');
 fs.writeFileSync(DIR + 'tests/_local.html', src.replace(/supabaseUrl: '[^']*'/, "supabaseUrl: ''").replace(/\.\/qrcode\.min\.js|\.\/jsQR\.js/g, m => '..' + m.slice(1)));
 const fails = [], errs = []; const check = (n, ok, x = '') => { console.log((ok ? '  ✓ ' : '  ✗ ') + n + (x ? ' — ' + x : '')); if(!ok) fails.push(n); };
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const b = await chromium.launch({ channel: 'chrome' }); const p = await b.newPage({ viewport: { width: 1280, height: 900 } }); p.on('pageerror', e => errs.push(e.message));
-await p.goto('file:///' + DIR + 'tests/_local.html'); await p.waitForFunction(() => S.booths.length > 0 && document.querySelector('#main'));
+await p.goto(F('tests/_local.html')); await p.waitForFunction(() => S.booths.length > 0 && document.querySelector('#main'));
 await p.evaluate(async () => { const d = await LocalDB._all(); const mk = (name, school, stamps) => { const v = { id: uuid(), name, school, grade: '초4', gender: '여', consentedAt: Date.now(), createdAt: Date.now(), surveyAt: null, giftAt: null }; d.visitors.push(v); stamps.forEach((bid, i) => d.stamps.push({ id: uuid(), visitorId: v.id, boothId: bid, at: Date.now() - i * 60000 })); }; mk('김하늘', '가온초', ['b1', 'b2', 'b3']); mk('이서준', '나래중', ['b1']); mk('박지우', '가온초', ['b2']); await LocalDB._save(d); });
 await p.evaluate(() => location.hash = '#/admin'); await p.waitForSelector('#pw'); await p.fill('#pw', '1234'); await p.keyboard.press('Enter'); await p.waitForFunction(() => S.admin); await p.waitForSelector('[data-bv]');
 check('현황 표 줄에 data-bv', await p.evaluate(() => $$('[data-bv]').length) >= 90);
@@ -27,7 +29,7 @@ await d.route(/rest\/v1\//, async r => { const u = r.request().url();
   if(/booths\?/.test(u)) return r.fulfill({ contentType: 'application/json', body: JSON.stringify([{ id: 'b1', number: '1', name: '테스트부스', category: 'sci', organization: '기관', zone: 'A', sort_order: 1 }, { id: 'b2', number: '2', name: '둘', category: 'sci', organization: '', zone: 'A', sort_order: 2 }]) });
   if(/settings\?/.test(u)) return r.fulfill({ contentType: 'application/json', body: '[]' });
   return r.fulfill({ contentType: 'application/json', body: '[]' }); });
-await d.goto('file:///' + DIR + '운영대시보드.html'); await d.waitForSelector('#pw'); await d.fill('#pw', 'abcdefgh'); await d.keyboard.press('Enter'); await d.waitForSelector('#allBody tr[data-bv]', { timeout: 10000 });
+await d.goto(F('운영대시보드.html')); await d.waitForSelector('#pw'); await d.fill('#pw', 'abcdefgh'); await d.keyboard.press('Enter'); await d.waitForSelector('#allBody tr[data-bv]', { timeout: 10000 });
 check('대시보드 부스 표 줄 data-bv', await d.evaluate(() => $$('#allBody tr[data-bv]').length) === 2);
 await d.click('#allBody tr[data-bv="b1"]'); await d.waitForFunction(() => $$('#bvBody tr').length === 2, null, { timeout: 5000 });
 check('명단 카드 열림·2명', await d.evaluate(() => !$('#bvCard').hidden && $('#bvSub').textContent.startsWith('2명') && $('#bvTitle').textContent.includes('테스트부스')));

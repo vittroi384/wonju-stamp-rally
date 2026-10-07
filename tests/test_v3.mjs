@@ -1,8 +1,10 @@
 // v3 회귀 테스트: 설문 자기신고 강화(A안 타이머 · B안 ?survey 복귀 · 탭 동기화) + 관리자 행사 설정 + 운영 대시보드
 // 실서버(Supabase) 사용. 시작·끝에 admin_reset 으로 테스트 데이터 정리, settings 는 원래 값으로 복원.
 import { chromium } from 'playwright';
-const DIR = 'C:/dev/stamp-rally-v3/', OUT = DIR + 'tests/out/';
-const APP = 'file:///' + DIR + '원주축전_스탬프앱_3.html', DASH = 'file:///' + DIR + '운영대시보드.html';
+import { fileURLToPath, pathToFileURL } from 'url'; import path from 'path';
+const DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..').replace(/\\/g, '/') + '/', F = p => pathToFileURL(DIR + p).href;   // 저장소 루트 (스크립트 위치 기준) · file:// URL
+const OUT = DIR + 'tests/out/';
+const APP = F('원주축전_스탬프앱_3.html'), DASH = F('운영대시보드.html');
 const U = 'https://YOUR-PROJECT.supabase.co', K = 'YOUR_SUPABASE_ANON_KEY';
 const PW = process.env.ADMIN_PW; if(!PW){ console.error('ADMIN_PW 환경변수에 관리자 비번 넣고 실행:  $env:ADMIN_PW="비번"; node tests/파일.mjs'); process.exit(1); }
 const H = { apikey: K, Authorization: `Bearer ${K}`, 'Content-Type': 'application/json' };

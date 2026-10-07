@@ -3,6 +3,8 @@
 // 사용: node soak.mjs [분=10] [초당 도착=4] [이름 접두어=지속]    결과: ../지속테스트_YYYY-MM-DD.json
 // ★ 끝나도 테스트 데이터는 지우지 않음(실서버 전체 삭제 금지). 관리자 › 데이터 › 전부 삭제로 정리
 import { writeFileSync } from 'node:fs';
+import { fileURLToPath } from 'url'; import path from 'path';
+const DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..').replace(/\\/g, '/') + '/';   // 저장소 루트 (스크립트 위치 기준)
 const U = 'https://YOUR-PROJECT.supabase.co', K = 'YOUR_SUPABASE_ANON_KEY';
 const PW = process.env.ADMIN_PW; if(!PW){ console.error('ADMIN_PW 환경변수에 관리자 비번 넣고 실행:  $env:ADMIN_PW="비번"; node tests/파일.mjs'); process.exit(1); }
 const H = { apikey: K, Authorization: `Bearer ${K}`, 'Content-Type': 'application/json' };
@@ -84,7 +86,7 @@ const okLat = all.filter(s => s.ok).map(s => s.ms);
 const summary = { date: new Date().toISOString(), minutes: MIN, arrivalsPerSec: RATE, visitors: spawned, finishedVisitors: finished, requests: all.length, errors: errs.length, errRate: +(100 * errs.length / all.length).toFixed(2), errCodes,
   p50: +pct(okLat, .5).toFixed(0), p95: +pct(okLat, .95).toFixed(0), p99: +pct(okLat, .99).toFixed(0), max: +Math.max(...okLat).toFixed(0), avgRps: +(all.length / (MIN * 60)).toFixed(1), peakRps: Math.max(...buckets.map(b => b.rps)),
   dashP50: +pct(dashTimes.map(x => x.ms), .5).toFixed(0), dashMax: +Math.max(0, ...dashTimes.map(x => x.ms)).toFixed(0), buckets };
-const out = `C:/dev/stamp-rally-v3/지속테스트_${new Date().toISOString().slice(0, 10)}_${MIN}분_${RATE}ps.json`;
+const out = DIR + `지속테스트_${new Date().toISOString().slice(0, 10)}_${MIN}분_${RATE}ps.json`;
 writeFileSync(out, JSON.stringify(summary, null, 1));
 console.log(JSON.stringify({ ...summary, buckets: undefined }));
 console.log('saved', out);

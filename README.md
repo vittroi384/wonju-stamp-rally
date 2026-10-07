@@ -37,7 +37,7 @@
   </tr>
   <tr>
     <td align="center"><img src="assets/my-stamps-done.png" width="150"><br><sub><b>완주</b><br>7개 모으면 설문 안내</sub></td>
-    <td align="center"><img src="assets/survey.png" width="150"><br><sub><b>앱 내 설문</b><br>별점·내 부스 고르기·객관식</sub></td>
+    <td align="center"><img src="assets/survey.png" width="150"><br><sub><b>앱 내 설문</b><br>표정·내 부스 고르기·객관식</sub></td>
     <td align="center"><img src="assets/voucher.png" width="150"><br><sub><b>교환권</b><br>제출 즉시 QR + 코드</sub></td>
     <td align="center" colspan="2"><img src="assets/map-pc.png" width="320"><br><sub><b>지도 (PC)</b><br>부스 95개 전체, 확대하면 이름표</sub></td>
   </tr>
@@ -57,7 +57,7 @@
     <td><img src="assets/admin-survey.png"><br><sub><b>설문</b> — 문항 편집(5가지 유형) + 결과 집계 + CSV</sub></td>
   </tr>
   <tr>
-    <td><img src="assets/admin-booths.png"><br><sub><b>부스</b> — 카드 편집·순서·엑셀·PDF/사진, 운영 시간·대상(초등/중고등), 시간대 전환(오후엔 다른 부스로: 번호·자료·도장 유무까지)</sub></td>
+    <td><img src="assets/admin-booths.png"><br><sub><b>부스</b> — 카드 편집·순서·엑셀·PDF/사진, 운영 시간·시간대 전환·대상(초등/중고등)</sub></td>
     <td><img src="assets/admin-qr.png"><br><sub><b>QR 시트</b> — 부스별 토큰 포함 QR, A4 인쇄</sub></td>
   </tr>
   <tr>
@@ -65,12 +65,8 @@
     <td><img src="assets/admin-status.png"><br><sub><b>운영 상태</b> — 쉬는 부스를 한 화면에서 골라 적용, 방문객 폰엔 흐리게</sub></td>
   </tr>
   <tr>
-    <td><img src="assets/admin-event.png"><br><sub><b>행사 설정</b> — 행사명·완주 개수·설문·긴급 공지·일정, 열린 폰에 2분 내 반영</sub></td>
+    <td><img src="assets/admin-event.png"><br><sub><b>행사 설정</b> — 행사명·완주 개수·설문·긴급 공지·일정, 열린 폰에 5분 내 반영</sub></td>
     <td><img src="assets/soak-test.png"><br><sub><b>지속 테스트</b> — 초당 4명 × 10분, 에러 0 · p95 64ms</sub></td>
-  </tr>
-  <tr>
-    <td><img src="assets/admin-time-sheet.png"><br><sub><b>시간대 전환</b> — 오전 운영본부 자리가 12:00 부터 체험 부스로: 바뀐 후 번호·이름·분류·운영 시간·QR 도장 유무·자료를 따로 지정. 시각은 24시간 입력 + 시·분 칩</sub></td>
-    <td><img src="assets/booth-variant.png"><br><sub><b>전환 후 방문객 화면</b> — 같은 QR·같은 자리지만 번호 1·오후 부스로 보이고 "12:00 전엔 본1" 안내. 열린 폰도 20초 안에 갱신</sub></td>
   </tr>
 </table>
 
@@ -104,7 +100,7 @@ flowchart LR
 ```
 
 - **한 파일 구조** — CONFIG → UTIL → STORAGE → DATA LAYER(LocalDB / SupabaseDB, 같은 인터페이스) → 상태 → 지도 기하 → 라우터 → 화면 → 스캐너 → 관리자 → BOOT. `CONFIG.supabaseUrl` 을 비우면 브라우저 저장소만으로 동작(데모).
-- **설정은 서버에** — 행사명·완주 개수·설문 문항·공지·일정을 관리자가 저장하면 열린 폰에도 2분 안에 반영. 저장은 서버에서 키 단위로 병합해 관리자 둘이 다른 항목을 동시에 저장해도 서로 지우지 않음.
+- **설정은 서버에** — 행사명·완주 개수·설문 문항·공지·일정을 관리자가 저장하면 열린 폰에도 5분 안에 반영.
 - **대시보드는 요청 하나** — `admin_dashboard` RPC 가 집계 전부를 jsonb 로 (이름 없음). 15초 갱신에 요청 1개. 부스 줄을 누르면 그 부스 참여자 명단(`admin_booth_visitors`)만 따로.
 - **무료 한도 안에서 4~5만 명** — jsQR·qrcode 는 CDN 우선(3초 타임아웃 → 같은 서버 파일 폴백, 1년 immutable), HTML 만 no-cache, favicon 인라인, 부스 목록은 배포 시 HTML 에 박은 시드의 버전이 서버 `settings.boothsVersion` 과 같으면 요청 생략. 첫 방문·재방문 모두 Vercel 1건(HTML) · Supabase 1~3건(각 1KB 안팎). 4만 명 기준 Vercel Edge Requests 약 40만/100만, Supabase egress 약 1.5GB/5GB.
 - **지도는 코드로** — 이미지 없이 스타디움 기하(직선+반원)를 계산해 SVG 로. 부스 번호·구역만 바꾸면 자리가 따라옴.
@@ -123,9 +119,8 @@ flowchart LR
 
 - anon(publishable) 키는 공개용. `service_role` 키·DB 비밀번호는 코드 어디에도 없음.
 - 방문객 데이터는 **uuid 를 아는 폰 = 본인**. 폰을 바꾸면 6자리 코드 + 이름으로 이어받기.
-- 관리자 비밀번호는 pgcrypto 해시로 서버 저장, 8자 이상 강제. 10분 안 10회 틀리면 1분 잠금 — 잠금은 **틀린 비밀번호에만** 걸리고 맞는 비밀번호는 잠금 중에도 통과(외부인이 관리자 주소에서 비밀번호를 반복해 틀려도 운영본부 기능이 멈추지 않음). 틀렸을 때 지연(`pg_sleep`)은 두지 않음 — 연결을 붙들어 DoS 통로가 됨.
-- 치팅: QR 주소에 부스별 서버 토큰(`booth_tokens`, 읽기 불가, 32자) + 같은 사람 도장 간격 90초. 링크를 공유받아도 7개에 10분 넘게 걸림.
-- 선물 수령은 서버가 '아직 안 받은 사람'만 처리하고 결과를 돌려줌 — 운영본부 여러 명이 같은 교환권을 동시에 처리해도 한 번만.
+- 관리자 비밀번호는 pgcrypto 해시로 서버 저장, 8자 이상 강제. 로그인 실패 10회(10분) → 1분 잠금. 틀렸을 때 지연(`pg_sleep`)은 두지 않음 — 연결을 붙들어 DoS 통로가 됨.
+- 치팅: QR 주소에 부스별 서버 토큰(`booth_tokens`, 읽기 불가) + 같은 사람 도장 간격 90초. 링크를 공유받아도 7개에 10분 넘게 걸림.
 - 행사 후 관리자 › 데이터에서 개인정보 파기.
 
 ## 부하·지속 테스트 (Supabase 무료 플랜)
@@ -140,8 +135,6 @@ flowchart LR
 ### 지속 테스트 2차 — 분 단위 실측 (`지속테스트_2026-09-15_15분_6ps.json`)
 
 도착률을 고정(초당 6명)하면 누적 방문객이 늘면서 초당 요청이 선형으로 올라간다. 어디서 꺾이는지 보려고 분 단위로 기록했다.
-
-<p align="center"><img src="assets/soak-by-minute.png" width="100%" alt="지속 테스트 2차 분 단위 실측 — 초당 요청 수와 쓰기/읽기 p95"></p>
 
 | 구간 | 초당 요청 | p50 | p95 | 최대 | 대시보드 폴링 p50 | 에러 |
 |---|---|---|---|---|---|---|
@@ -163,24 +156,6 @@ flowchart LR
 
 **요청 수·전송량 (재방문 1회, Chrome 실측)**: Vercel HTML 1건(js 는 디스크 캐시) · Supabase 설정 1건(등록자는 내 정보·내 도장 포함 3건) · 404 없음. 5만 명 × 리로드 10회 ≈ Vercel 65만 요청, Supabase 전송 수백 MB.
 
-## 행사 전 점검 (2026-10)
-
-행사 사흘 전 방문객 흐름 · 관리자 · 지도 · 대시보드 · SQL · 보안으로 영역을 나눠 코드를 다시 읽고, 의심 지점마다 Playwright 재현 스크립트를 만들어 확인했다. 43건을 찾아 1건(Storage 익명 업로드 정책, 행사 후 회수)을 빼고 모두 수정했다. 주요 항목:
-
-| 발견 | 수정 |
-|---|---|
-| QR 을 먼저 찍은 미등록 방문객이 등록 후 도장 화면으로 돌아오지 못함 — 라우터가 해시 전체를 디코딩해 복귀 주소(`%2Fstamp%2F7`)가 쪼개짐 | 조각별 디코딩. 회귀 테스트 `test_qr_first.mjs` 추가 |
-| 관리자 잠금이 전역이라 외부인이 틀린 비밀번호를 반복하면 운영본부 기능까지 1분씩 멈춤 | 잠금은 틀린 비밀번호에만. 실서버 `test_lockout.mjs` 로 확인 |
-| 설정 저장이 통째 교체라 관리자 둘이 다른 항목을 저장하면 먼저 저장한 변경이 사라짐 | 서버 키 병합 + 저장 직전 서버값 재읽기 |
-| 교환권을 관리자 여러 명이 동시에 처리하면 중복 수령 | 서버가 미수령일 때만 처리하고 결과 반환, 처리 직전 재조회 |
-| 부스 번호가 `onclick` 문자열에 그대로 들어가 따옴표 하나로 버튼이 깨짐 | `data-*` 속성 + 이벤트 위임, 번호는 한글·영문·숫자 6자 규칙 |
-| 서버가 느리면 부팅 중 최대 20초 빈 화면 | 로딩 표시, 설정·내 정보 병렬 로드 |
-| 대시보드 히트맵이 도장 없는 부스를 뺀 뒤 자리를 계산해 앱 지도와 어긋남 | 전체 목록 기준으로 자리 계산 |
-| 시간대 전환 부스가 지도 색·대시보드에 반영되지 않음 | 지도·대시보드도 전환 규칙 공유 |
-| 이어받기 화면의 \[새로 등록\] 버튼이 속성 따옴표 충돌로 동작하지 않음 | 핸들러로 교체, 복귀 주소 검증 |
-
-그 밖에 오프라인 재전송 안내 문구, 전환 시각 직후 화면 갱신, 엑셀 불러오기 검증, 번호 `2`/`02` 중복, 지도 이름표가 정문을 가리는 문제 등 표시·편의 항목 27건.
-
 ## 파생 버전: booth-lite (소규모 부스 · 태블릿 수기 도장)
 
 같은 코드베이스에서 파생한 **부스 7개짜리 소규모 행사용** 버전. 지도가 없고, 폰이 없는 저학년 어린이가 많아 **부스마다 둔 태블릿으로 직원이 도장을 찍는 운영**이 핵심이다. 서버·호스팅은 축전과 완전히 분리. 자세한 변경점·운영 흐름·동기화 절차는 [`booth-lite/README.md`](booth-lite/README.md).
@@ -201,7 +176,7 @@ flowchart LR
 
 1. **Supabase** 프로젝트 생성 → SQL Editor 에 `supabase_setup.sql` 통째로 붙여넣고 Run (다시 실행해도 됨).
 2. `원주축전_스탬프앱_3.html` 의 `CONFIG.supabaseUrl` · `supabaseAnonKey` 채우기 (`운영대시보드.html` 도 같은 값).
-3. 관리자 `#/admin` (초기 비번 `1234`) → 데이터 탭에서 비번 변경 → 부스 탭에서 저장(서버로 올라가며 QR 토큰 발급) → QR 시트 인쇄. 저장 안 한 부스 변경이 있으면 QR 시트가 먼저 저장하라고 안내.
+3. 관리자 `#/admin` (초기 비번 `1234`) → 데이터 탭에서 비번 변경 → 부스 탭에서 저장(서버로 올라가며 QR 토큰 발급) → QR 시트 인쇄.
 4. 배포: `배포.ps1` (deploy/ 갱신 → `?v=DEV` 를 배포 시각으로 치환 → 서버 부스 목록·버전을 `SEED_BOOTHS`/`seedVersion` 에 박음 → `vercel deploy --prod`). 부스를 고친 뒤 재배포하면 방문객 폰이 부스 목록을 서버에서 받지 않음. 배포 주소가 바뀌면 QR 재인쇄.
 
 로컬에서 그냥 열어보려면 `CONFIG.supabaseUrl` 을 비우면 됨 — 브라우저 저장소로 동작하고 관리자 › 데이터에 데모 데이터 버튼이 생김. `CONFIG.testStampInput: true` 면 카메라 대신 부스 번호 입력창(https 없는 로컬용, 배포 스크립트가 false 로 바꿈).
@@ -212,11 +187,11 @@ flowchart LR
 ```
 원주축전_스탬프앱_3.html   앱 전체 (방문객 + 관리자). 스크립트 맨 위에 설계 개요·데이터 흐름 주석
 운영대시보드.html          운영본부 대시보드 (admin_dashboard RPC)
-supabase_setup.sql         테이블·뷰·RLS·RPC·Storage. 1~17절, 재실행 가능
+supabase_setup.sql         테이블·뷰·RLS·RPC·Storage. 1~10절, 재실행 가능
 jsQR.js · qrcode.min.js    로컬 라이브러리 (배포 시 같이)
 배포.ps1 · deploy/         Vercel 배포 (vercel.json: cleanUrls, html no-cache · js immutable / 배포.ps1 이 ?v= 버전 치환)
 기능정리.md                요구사항·결정 사항·변경 이력의 단일 출처
-tests/                     playwright e2e (test_v3 · test_survey · test_qr_first · test_media_sheet 등 12벌), soak.mjs 지속 테스트, soakchart.mjs 결과 차트, shots_public.mjs README 스크린샷
+tests/                     playwright e2e (test_v3 · test_survey · test_live_survey), soak.mjs 지속 테스트, soakchart.mjs 결과 차트, shots_public.mjs README 스크린샷
 assets/                    README 스크린샷 (전부 더미 데이터)
 ```
 
@@ -229,8 +204,7 @@ assets/                    README 스크린샷 (전부 더미 데이터)
 | `node tests/test_survey.mjs` | 로컬 모드 e2e: 앱 내 설문 제출·관리자 문항 편집·결과·CSV |
 | `node tests/test_gift_scan.mjs` · `test_booth_visitors.mjs` | 로컬 모드 e2e: 교환권 QR 연속 스캔 · 부스별 참여자 명단(현황 시트·대시보드 카드) |
 | `node tests/test_seed.mjs` | 부스 시드 버전 매칭 · CDN 우선 로드 · CDN 차단/무응답 폴백 |
-| `node tests/test_qr_first.mjs` | 로컬 모드 e2e: QR 먼저 찍은 미등록 방문객이 등록 후 도장 화면으로 돌아와 찍히는지(숫자·한글 부스 번호) |
-| `node tests/test_lockout.mjs <비번>` (또는 ADMIN_PW) | 실서버: 틀린 비번 10회 → 1분 잠금, 잠금 중 맞는 비번 통과 → 해제 (지연 없음 확인) |
+| `node tests/test_lockout.mjs <비번>` (또는 ADMIN_PW) | 실서버: 로그인 10회 실패 → 1분 잠금 → 해제 (지연 없음 확인) |
 | `node tests/soak.mjs [분] [초당 도착] [접두어]` | 지속 테스트 → `지속테스트_날짜.json`, 이어서 `node tests/soakchart.mjs` 로 PNG. 테스트 데이터는 남김 |
 
 ### 설계 메모
