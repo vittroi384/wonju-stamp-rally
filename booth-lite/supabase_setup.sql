@@ -273,6 +273,7 @@ create or replace function admin_stamps(pw text, off int, lim int) returns setof
 language plpgsql security definer set search_path = public, extensions as $$
 begin perform admin_ok(pw); return query select * from stamps order by id offset off limit lim; end $$;
 -- 방문객 찾기(이름·학교·코드) — 폰 바뀐 사람 코드 알려주기, 수동 도장용
+drop function if exists admin_find_visitor(text, text);   -- 18절이 반환 열(no)을 늘리므로 전체 재실행 때 반환형 충돌 방지
 create or replace function admin_find_visitor(pw text, q text)
 returns table(id uuid, name text, school text, grade text, gender text, created_at timestamptz, survey_done_at timestamptz, gift_received_at timestamptz, n int)
 language plpgsql security definer set search_path = public, extensions as $$
