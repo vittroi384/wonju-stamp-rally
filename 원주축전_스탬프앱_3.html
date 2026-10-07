@@ -884,13 +884,13 @@ const S = {
   settingsRaw: null,   // 서버 settings.data 원본 (관리자 저장 시 병합용)
 };
 /* 시간대 전환 부스: variant {at,name,org,cat,desc,hours,media} 가 있고 지금 시각이 at 이후면 바뀐 내용으로 보여줌(번호·id·QR·도장은 그대로). 원래 이름은 baseName 에.
-   media {video,pdf,img} 가 있으면 바뀐 후엔 그 자료만 보임(카드 자료와 안 섞임), 없으면 카드 자료 그대로. hours 비우면 카드 운영 시간 그대로 */
+   media {video,pdf,img} 가 있으면 바뀐 후엔 그 자료만 보임(카드 자료와 안 섞임), 없으면 카드 자료 그대로. hours 비우면 종일(바뀐 후엔 카드 운영 시간을 안 따라감 — 오전 09~12 본부가 오후에 '운영 끝남'으로 보이던 문제) */
 function nowMin(){ const d = new Date(); return d.getHours() * 60 + d.getMinutes(); }
 function toMin(t){ const m = String(t || '').match(/(\d{1,2}):(\d{2})/); return m ? +m[1] * 60 + +m[2] : null; }
 /* 일정 시간: '09:00' 또는 '09:00~10:00'(~ - – 모두 됨). 범위면 {start, end} 둘 다, 아니면 end 없음 */
 function schedRange(t){ const m = String(t || '').match(/(\d{1,2}:\d{2})\s*[~\-–]\s*(\d{1,2}:\d{2})/); return m ? { start: m[1], end: m[2] } : { start: String(t || '').trim(), end: '' }; }
 function schedTimeHTML(t){ const r = schedRange(t); return r.end ? `${esc(r.start)}<small>~${esc(r.end)}</small>` : esc(r.start); }
-function bv(b){ const v = b && b.variant; if(!v || toMin(v.at) === null || nowMin() < toMin(v.at)) return b; const m = v.media; return { ...b, name: v.name || b.name, org: v.org || b.org, cat: v.cat || b.cat, desc: v.desc || b.desc, hours: v.hours || b.hours, ...(m ? { video: m.video || '', pdf: m.pdf || '', img: m.img || '' } : {}), switched: true, baseName: b.name }; }
+function bv(b){ const v = b && b.variant; if(!v || toMin(v.at) === null || nowMin() < toMin(v.at)) return b; const m = v.media; return { ...b, name: v.name || b.name, org: v.org || b.org, cat: v.cat || b.cat, desc: v.desc || b.desc, hours: v.hours || '', ...(m ? { video: m.video || '', pdf: m.pdf || '', img: m.img || '' } : {}), switched: true, baseName: b.name }; }
 /* 부스 대상: '' 전체 · elem 초등 이하 · secondary 중고등. 등록 구분(초/중/고/성인)으로 판정 — 성인·미등록은 전부 보임 */
 const TARGETS = [{ id: '', name: '전체' }, { id: 'elem', name: '초등 이하' }, { id: 'secondary', name: '중고등' }];
 function targetName(t){ return (TARGETS.find(x => x.id === (t || '')) || TARGETS[0]).name; }
@@ -2214,19 +2214,20 @@ function admBooths(){
       <p class="small muted" style="margin:0 0 12px;line-height:1.5">시각은 24시간으로 적어요(오후 1시 → 13:00). 확인을 누른 뒤 표 아래 [변경사항 저장]을 눌러야 저장돼요.</p>
       <div class="card tight tsheet" style="margin-bottom:10px"><div class="kv">
         <div class="k">🕒 운영 시간 <span class="small muted" style="font-weight:600">비우면 종일</span></div>
-        ${field('시간', `<div class="row tmr">${tm('tStart', hm[1], '10:00')}<span>~</span>${tm('tEnd', hm[2], '16:00')}<button class="btn xs soft" id="tClear">종일</button></div>`)}
+        ${field('시간', `<div class="row tmr">${tm('tStart', hm[1], '--:--')}<span>~</span>${tm('tEnd', hm[2], '--:--')}<button class="btn xs soft" id="tClear">종일</button></div>`)}
       </div></div>
       <div class="card tight tsheet" style="margin-bottom:14px"><div class="kv">
         <label class="row" style="gap:8px;align-items:center;cursor:pointer"><input type="checkbox" id="tSw" ${v ? 'checked' : ''}><span class="k" style="margin:0">🔁 시간이 되면 다른 부스로 바뀌어요</span></label>
         <p class="small muted" style="margin:4px 0 0 26px;line-height:1.5">예: 오전엔 운영본부, 오후엔 체험 부스. 번호·QR·도장은 하나로 같아요.</p>
         <div id="tSwBox" ${v ? '' : 'hidden'} style="margin-top:6px">
-          ${field('바뀌는 시각', tm('tAt', (v && v.at) || '13:00', '13:00'))}
+          ${field('바뀌는 시각', tm('tAt', (v && v.at) || '12:00', '12:00'))}
           <div class="tsub">바뀐 후 내용 <span class="small muted" style="font-weight:600">비우면 카드 내용 그대로</span></div>
           ${field('부스명 *', `<input class="inp sm" id="tName" value="${esc((v && v.name) || '')}" placeholder="바뀐 후 부스명">`)}
           ${field('운영기관', `<input class="inp sm" id="tOrg" value="${esc((v && v.org) || '')}" placeholder="그대로">`)}
           ${field('분류', `<input class="inp sm" id="tCat" value="${esc(v && v.cat ? catOf(v.cat).name : '')}" placeholder="그대로">`)}
           ${field('소개', `<input class="inp sm" id="tDesc" value="${esc((v && v.desc) || '')}" placeholder="그대로">`)}
-          ${field('운영 시간', `<div class="row tmr">${tm('tVStart', vh[1], '13:00')}<span>~</span>${tm('tVEnd', vh[2], '16:00')}</div>`)}
+          ${field('운영 시간', `<div class="row tmr">${tm('tVStart', vh[1], '--:--')}<span>~</span>${tm('tVEnd', vh[2], '--:--')}<button class="btn xs soft" id="tVClear">종일</button></div>`)}
+          <p class="small muted" style="margin:4px 0 0 82px;line-height:1.5">비우면 종일 — 바뀐 후엔 위 운영 시간을 따라가지 않아요.</p>
           <div class="tsub"><label style="cursor:pointer;display:inline-flex;gap:8px;align-items:center"><input type="checkbox" id="tMed" ${vm ? 'checked' : ''}>바뀐 후 자료 따로</label> <span class="small muted" style="font-weight:600">체크 안 하면 카드 [자료] 그대로</span></div>
           <div id="tMedBox" ${vm ? '' : 'hidden'}>
             ${field('유튜브', `<input class="inp sm" id="tVideo" value="${esc((vm && vm.video) || '')}" placeholder="주소 (없으면 비움)">`)}
@@ -2256,6 +2257,7 @@ function admBooths(){
     $('#tSw').onchange = () => { $('#tSwBox').hidden = !$('#tSw').checked; };
     $('#tMed').onchange = () => { $('#tMedBox').hidden = !$('#tMed').checked; };
     $('#tClear').onclick = () => { $('#tStart').value = ''; $('#tEnd').value = ''; };
+    $('#tVClear').onclick = () => { $('#tVStart').value = ''; $('#tVEnd').value = ''; };
     const tpv = () => {
       const p = $('#tPdf').value.trim(); $('#tPdfClear').hidden = !p; $('#tPdfName').textContent = p ? fname(p) : '아직 없어요';
       const im = $('#tImg').value.trim(); $('#tImgClear').hidden = !im;
