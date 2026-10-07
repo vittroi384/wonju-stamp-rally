@@ -171,9 +171,9 @@ select.inp.sm{padding-right:30px;background-position:right 10px center}
 .bimg{width:100%;display:block;border-radius:var(--r);box-shadow:var(--sh-1);aspect-ratio:16/10;object-fit:cover;background:var(--card-2);cursor:zoom-in}
 /* 관리자 시간 시트: 라벨 74px + 입력 한 줄, 시각 칸은 가운데 정렬 숫자 */
 .tsheet .tf{display:flex;align-items:flex-start;gap:8px;margin-top:8px}.tsheet .tf .tlb{flex:0 0 74px;font-size:13px;font-weight:700;color:var(--ink-2);padding-top:9px;line-height:1.3}
-.tsheet .tf>.inp,.tsheet .tf>.grow,.tsheet .tf>.row{flex:1;min-width:0}.tsheet .tmr{gap:6px;align-items:center}.tsheet .tmi{width:0;flex:1;text-align:center;font-variant-numeric:tabular-nums;letter-spacing:.04em}
+.tsheet .tf>.inp,.tsheet .tf>.grow,.tsheet .tf>.row,.tsheet .tf>.tseg{flex:1;min-width:0}.tsheet .tmr{gap:6px;align-items:center}.tsheet .tmi{width:0;flex:1;text-align:center;font-variant-numeric:tabular-nums;letter-spacing:.04em}
 .tsheet .tsub{font-size:13px;font-weight:800;margin-top:14px;padding-top:10px;border-top:1px solid var(--line-2)}
-.tseg{display:flex;gap:4px;padding:3px;border:1px solid var(--line);border-radius:10px;background:#F6F7FB}.tseg button{flex:1;border:0;background:none;border-radius:8px;padding:7px 0;font-size:12.5px;font-weight:700;color:var(--ink-2)}.tseg button.on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.1)}.inp.bad{border-color:var(--coral)}.tmi.act{border-color:var(--blue);box-shadow:0 0 0 3px rgba(43,96,255,.12)}
+.tseg{display:flex;gap:4px;padding:3px;border:1px solid var(--line);border-radius:10px;background:#F6F7FB}.tseg button{flex:1;border:0;background:none;border-radius:8px;padding:7px 0;font-size:12.5px;font-weight:700;color:var(--ink-2);white-space:nowrap}.tseg button.on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.1)}.inp.bad{border-color:var(--coral)}.tmi.act{border-color:var(--blue);box-shadow:0 0 0 3px rgba(43,96,255,.12)}
 /* 시각 칸을 누르면 그 줄 아래 뜨는 시·분 칩. 한 줄에 다 들어가게 flex:1 */
 .tmpick{margin:6px 0 2px;padding:8px;border:1px solid var(--line);border-radius:12px;background:#F6F7FB}.tmpick .tmrow{display:flex;gap:4px;align-items:center}.tmpick .tmrow+.tmrow{margin-top:6px}
 .tmpick .tmlab{font-size:11px;font-weight:800;color:var(--ink-3);flex:0 0 14px}.tmpick .tmc{flex:1;min-width:0;border:1px solid var(--line);background:#fff;border-radius:8px;padding:7px 0;font-size:12px;font-weight:700;color:var(--ink-2);font-variant-numeric:tabular-nums}.tmpick .tmc.on{background:var(--blue);border-color:var(--blue);color:#fff}
@@ -2230,7 +2230,7 @@ function admBooths(){
           ${field('소개', `<input class="inp sm" id="tDesc" value="${esc((v && v.desc) || '')}" placeholder="그대로">`)}
           ${field('운영 시간', `<div class="row tmr">${tm('tVStart', vh[1], '--:--')}<span>~</span>${tm('tVEnd', vh[2], '--:--')}<button class="btn xs soft" id="tVClear">종일</button></div>`)}
           <p class="small muted" style="margin:4px 0 0 82px;line-height:1.5">비우면 종일 — 바뀐 후엔 위 운영 시간을 따라가지 않아요.</p>
-          ${field('QR 도장', `<div class="tseg" id="tStamp">${[['', '카드 그대로'], ['yes', '도장 있음'], ['no', '도장 없음']].map(([k, t]) => `<button type="button" class="${((v && v.stamp) || '') === k ? 'on' : ''}" data-k="${k}">${t}</button>`).join('')}</div>`)}
+          ${field('QR 도장', `<div class="tseg" id="tStamp">${[['', '그대로'], ['yes', '도장 있음'], ['no', '도장 없음']].map(([k, t]) => `<button type="button" class="${((v && v.stamp) || '') === k ? 'on' : ''}" data-k="${k}">${t}</button>`).join('')}</div>`)}
           <p class="small muted" style="margin:4px 0 0 82px;line-height:1.5">예: 오전 본부(QR 제외)가 오후 체험 부스가 되면 '도장 있음'. QR 시트엔 하루 중 한 번이라도 도장 주는 부스가 다 나와요.</p>
           <div class="tsub"><label style="cursor:pointer;display:inline-flex;gap:8px;align-items:center"><input type="checkbox" id="tMed" ${vm ? 'checked' : ''}>바뀐 후 자료 따로</label> <span class="small muted" style="font-weight:600">체크 안 하면 카드 [자료] 그대로</span></div>
           <div id="tMedBox" ${vm ? '' : 'hidden'}>
