@@ -605,7 +605,7 @@ async function start(){
   $('#login').hidden = true; $('#dash').hidden = false; $('#logout').hidden = false;
   await Promise.all([loadBooths().catch(() => {}), loadSettings()]);
   await refresh(); schedule();
-  setInterval(loadSettings, 5 * 60e3); setInterval(() => loadBooths().catch(() => {}), 5 * 60e3);
+  setInterval(loadSettings, 2 * 60e3); setInterval(() => loadBooths().catch(() => {}), 2 * 60e3);   // 앱과 같이 2분(2026-10-07)
 }
 $('#pwGo').onclick = () => login($('#pw').value); $('#pw').onkeydown = e => { if(e.key === 'Enter') login($('#pw').value); };
 $('#logout').onclick = () => { pwStore.set(''); showLogin(); };

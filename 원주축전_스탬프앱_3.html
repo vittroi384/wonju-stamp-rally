@@ -961,7 +961,7 @@ document.addEventListener('visibilitychange', async () => {
   if(document.visibilityState !== 'visible' || !S.me || S.me.surveyAt || !goalReached()) return;
   try{ const v = await DB.getVisitor(S.me.id); if(v && v.surveyAt){ S.me = v; await store.set('wj:me_cache', v); if(/^#\/my/.test(location.hash)) renderMy(); } }catch(e){}
 });
-setInterval(async () => { const before = S.settingsRaw?.boothsVersion; await loadSettings(); if(S.settingsRaw?.boothsVersion !== before) await loadBoothsCached(); }, 5 * 60e3);   // 운영 중 바꾼 설정·부스가 열린 폰에도 5분 안에 반영
+setInterval(async () => { const before = S.settingsRaw?.boothsVersion; await loadSettings(); if(S.settingsRaw?.boothsVersion !== before) await loadBoothsCached(); }, 2 * 60e3);   // 운영 중 바꾼 설정·부스가 열린 폰에도 2분 안에 반영(2026-10-07 5분→2분, 사용자 결정. settings 1건/2분/폰)
 /* 시간대 전환 시각이 지나면 열려 있는 방문객 화면을 다시 그림(홈·부스·지도·내 스탬프만. 시트가 열려 있거나 관리자·등록·설문·도장 화면이면 건드리지 않음) */
 S.swSig = null;
 setInterval(() => { if(!S.booths.length) return; const sig = S.booths.map(b => bv(b).switched ? 1 : 0).join(''); if(S.swSig === null || sig === S.swSig){ S.swSig = sig; return; } S.swSig = sig;
