@@ -1420,7 +1420,7 @@ function renderStamp(n){
         <p class="stamp-p" style="margin-top:8px">${res.dup ? '다른 부스에서 도장을 모아보세요.' : justDone ? '설문에 참여하면 선물 교환권이 열려요. 교환권을 운영본부에서 보여주고 선물을 받아가세요.' : `${esc(b.org)} · <span style="color:${c.color};font-weight:800">${esc(c.name)}</span><br>${n0 >= goal ? `벌써 ${n0}곳째 방문이에요` : `${goal - n0}개 더 모으면 선물이에요`}`}</p>
       </div>
       ${res.queued ? `<div class="notice" style="max-width:340px;width:100%">${I.bell}<span>통신이 불안정해서 폰에 저장해 뒀어요. 연결되면 자동으로 보내져요.</span></div>` : ''}
-      <div class="slots" style="width:100%;max-width:340px">${Array.from({ length: goal }, (_, i) => { const s = local[i]; return s ? `<div class="slot ink ${s.pending ? 'pend' : ''}" style="animation-delay:${.2 + i * .06}s"><span class="num">${esc(boothById(s.boothId)?.n || '')}</span></div>` : `<div class="slot ${i === goal - 1 ? 'gift' : ''}">${i === goal - 1 ? '🎁' : i + 1}</div>`; }).join('')}</div>
+      <div class="slots" style="width:100%;max-width:340px;--cols:${slotCols(goal)}">${Array.from({ length: goal }, (_, i) => { const s = local[i]; return s ? `<div class="slot ink ${s.pending ? 'pend' : ''}" style="animation-delay:${.2 + i * .06}s"><span class="num">${esc(boothById(s.boothId)?.n || '')}</span></div>` : `<div class="slot ${i === goal - 1 ? 'gift' : ''}">${i === goal - 1 ? '🎁' : i + 1}</div>`; }).join('')}</div>
       ${justDone ? `<button class="btn sun full" style="max-width:340px" onclick="go('/my')">📝 설문 참여하고 교환권 받기</button>` : `<button class="btn full" style="max-width:340px" onclick="go('/map/${b.n}')">${I.map} 다음 부스 찾기</button>`}
       <button class="btn soft sm" onclick="go('/')">홈으로</button>`;
   })();
