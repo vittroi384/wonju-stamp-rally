@@ -122,12 +122,14 @@ select.inp.sm{padding-right:30px;background-position:right 10px center}
 .sc-count .n small{font-size:16px;color:rgba(255,255,255,.55);font-weight:700;letter-spacing:0}
 .sc-count .l{font-size:11px;color:rgba(255,255,255,.55);font-weight:700;margin-top:2px}
 .slots{display:grid;grid-template-columns:repeat(var(--cols,7),1fr);gap:8px;margin-top:18px;justify-items:center}
-.slot{width:100%;aspect-ratio:1;max-width:66px;border-radius:50%;border:2px dashed rgba(255,255,255,.28);display:grid;place-items:center;position:relative;font-size:11px;font-weight:800;color:rgba(255,255,255,.35)}
-.slot.ink{border:0;background:var(--sun);color:var(--ink);box-shadow:0 6px 14px rgba(255,200,61,.35);transform:rotate(-8deg);animation:stampIn .5s cubic-bezier(.2,1.6,.4,1) both}
+/* 도장 칸 = 뚱뚱한 별(clip-path). 빈 칸: 흐린 별 테두리(::before 가 안쪽을 카드색으로 덮음) · 찍힘: 노란 별 · 마지막 칸: 노란 테두리 별 + 🎁 */
+.slot{--star:polygon(50% 0%,66.5% 27.4%,97.6% 34.5%,76.6% 58.7%,79.4% 90.5%,50% 78%,20.6% 90.5%,23.4% 58.7%,2.4% 34.5%,33.5% 27.4%);width:100%;aspect-ratio:1;max-width:70px;clip-path:var(--star);background:rgba(255,255,255,.32);display:grid;place-items:center;position:relative;isolation:isolate;box-sizing:border-box;padding-bottom:9%;font-size:12px;font-weight:800;color:rgba(255,255,255,.4)}
+.slot::before{content:"";position:absolute;inset:0;background:var(--ink);clip-path:var(--star);transform:scale(.8);transform-origin:50% 46%;z-index:-1}
+.slot.ink{background:var(--sun);color:var(--ink);transform:rotate(-8deg);animation:stampIn .5s cubic-bezier(.2,1.6,.4,1) both}
+.slot.ink::before{display:none}
 .slot.ink .num{font-size:15px;font-weight:900;letter-spacing:-.02em}
-.slot.ink::after{content:"";position:absolute;inset:4px;border:1.5px dashed rgba(21,26,45,.35);border-radius:50%}
-.slot.gift{border:2px solid var(--sun);color:var(--sun);font-size:18px}
-.slot.ink.pend{background:var(--sun-soft);box-shadow:none;border:2px dashed var(--sun)}
+.slot.gift{background:var(--sun);color:var(--sun);font-size:17px}
+.slot.ink.pend{background:var(--sun-soft)}
 .sg .n.pend{background:var(--sun-soft);border:2px dashed var(--sun)}
 @keyframes stampIn{0%{transform:scale(1.9) rotate(10deg);opacity:0}60%{opacity:1}100%{transform:scale(1) rotate(-8deg);opacity:1}}
 .sc-foot{margin-top:14px;font-size:12.5px;color:rgba(255,255,255,.7);display:flex;align-items:center;gap:8px}
@@ -166,6 +168,10 @@ select.inp.sm{padding-right:30px;background-position:right 10px center}
 .hero .pill{background:rgba(255,255,255,.2);color:#fff;margin-top:14px}
 .desc{font-size:15px;line-height:1.7;color:var(--ink-2)}
 .bimg{width:100%;display:block;border-radius:var(--r);box-shadow:var(--sh-1);aspect-ratio:16/10;object-fit:cover;background:var(--card-2);cursor:zoom-in}
+/* 관리자 시간 시트: 라벨 74px + 입력 한 줄, 시각 칸은 가운데 정렬 숫자 */
+.tsheet .tf{display:flex;align-items:flex-start;gap:8px;margin-top:8px}.tsheet .tf .tlb{flex:0 0 74px;font-size:13px;font-weight:700;color:var(--ink-2);padding-top:9px;line-height:1.3}
+.tsheet .tf>.inp,.tsheet .tf>.grow,.tsheet .tf>.row{flex:1;min-width:0}.tsheet .tmr{gap:6px;align-items:center}.tsheet .tmi{width:0;flex:1;text-align:center;font-variant-numeric:tabular-nums;letter-spacing:.04em}
+.tsheet .tsub{font-size:13px;font-weight:800;margin-top:14px;padding-top:10px;border-top:1px solid var(--line-2)}.inp.bad{border-color:var(--coral)}
 .bimgwrap{position:relative}.bimgwrap .hint{position:absolute;right:10px;bottom:10px;background:rgba(0,0,0,.55);color:#fff;font-size:11px;font-weight:700;padding:4px 9px;border-radius:999px;pointer-events:none}
 .lightbox{position:fixed;inset:0;z-index:60;background:rgba(0,0,0,.93);display:none;align-items:center;justify-content:center;padding:16px;cursor:zoom-out}.lightbox.show{display:flex}.lightbox img{max-width:100%;max-height:100%;object-fit:contain;border-radius:10px;box-shadow:0 8px 40px rgba(0,0,0,.5)}.lightbox .x{position:absolute;top:calc(12px + var(--sat,0px));right:14px;width:40px;height:40px;border-radius:50%;border:0;background:rgba(255,255,255,.15);color:#fff;font-size:22px;line-height:40px;text-align:center}
 .yt{position:relative;aspect-ratio:16/9;border-radius:14px;overflow:hidden;background:#000}
@@ -874,13 +880,14 @@ const S = {
   svTimer: null,       // 설문 카운트다운 인터벌
   settingsRaw: null,   // 서버 settings.data 원본 (관리자 저장 시 병합용)
 };
-/* 시간대 전환 부스: variant {at,name,org,cat,desc} 가 있고 지금 시각이 at 이후면 바뀐 내용으로 보여줌(번호·id·QR·도장은 그대로). 원래 이름은 baseName 에 */
+/* 시간대 전환 부스: variant {at,name,org,cat,desc,hours,media} 가 있고 지금 시각이 at 이후면 바뀐 내용으로 보여줌(번호·id·QR·도장은 그대로). 원래 이름은 baseName 에.
+   media {video,pdf,img} 가 있으면 바뀐 후엔 그 자료만 보임(카드 자료와 안 섞임), 없으면 카드 자료 그대로. hours 비우면 카드 운영 시간 그대로 */
 function nowMin(){ const d = new Date(); return d.getHours() * 60 + d.getMinutes(); }
 function toMin(t){ const m = String(t || '').match(/(\d{1,2}):(\d{2})/); return m ? +m[1] * 60 + +m[2] : null; }
 /* 일정 시간: '09:00' 또는 '09:00~10:00'(~ - – 모두 됨). 범위면 {start, end} 둘 다, 아니면 end 없음 */
 function schedRange(t){ const m = String(t || '').match(/(\d{1,2}:\d{2})\s*[~\-–]\s*(\d{1,2}:\d{2})/); return m ? { start: m[1], end: m[2] } : { start: String(t || '').trim(), end: '' }; }
 function schedTimeHTML(t){ const r = schedRange(t); return r.end ? `${esc(r.start)}<small>~${esc(r.end)}</small>` : esc(r.start); }
-function bv(b){ const v = b && b.variant; if(!v || toMin(v.at) === null || nowMin() < toMin(v.at)) return b; return { ...b, name: v.name || b.name, org: v.org || b.org, cat: v.cat || b.cat, desc: v.desc || b.desc, switched: true, baseName: b.name }; }
+function bv(b){ const v = b && b.variant; if(!v || toMin(v.at) === null || nowMin() < toMin(v.at)) return b; const m = v.media; return { ...b, name: v.name || b.name, org: v.org || b.org, cat: v.cat || b.cat, desc: v.desc || b.desc, hours: v.hours || b.hours, ...(m ? { video: m.video || '', pdf: m.pdf || '', img: m.img || '' } : {}), switched: true, baseName: b.name }; }
 /* 부스 대상: '' 전체 · elem 초등 이하 · secondary 중고등. 등록 구분(초/중/고/성인)으로 판정 — 성인·미등록은 전부 보임 */
 const TARGETS = [{ id: '', name: '전체' }, { id: 'elem', name: '초등 이하' }, { id: 'secondary', name: '중고등' }];
 function targetName(t){ return (TARGETS.find(x => x.id === (t || '')) || TARGETS[0]).name; }
@@ -2104,7 +2111,7 @@ function admBooths(){
           <select class="inp sm f-zone" data-f="zone" title="구역">${ZONES.map(z => `<option value="${z.id}" ${z.id === (b.zone || '') ? 'selected' : ''}>${z.name}</option>`).join('')}</select>
           <input type="hidden" data-f="target" value="${esc(b.target || '')}"><div class="tsel" data-tsel="${i}" title="대상: 초등 이하로 두면 중고등학생 폰에는 안 보이고 도장도 안 찍혀요">${TARGETS.map(t => `<button type="button" class="${(b.target || '') === t.id ? 'on' : ''}" data-t="${t.id}">${t.name}</button>`).join('')}</div>
           <input type="hidden" data-f="hours" value="${esc(b.hours || '')}"><input type="hidden" data-f="variant" value="${esc(b.variant ? JSON.stringify(b.variant) : '')}">
-          <span class="mchip ${b.hours ? 'on' : ''}" data-m="hours">🕒 ${esc(b.hours || '종일')}</span><span class="mchip ${b.variant ? 'on' : ''}" data-m="variant">🔁 ${b.variant ? esc(b.variant.at) + ' 전환' : '전환 없음'}</span><button class="btn xs soft" data-time="${i}" style="white-space:nowrap" title="운영 시간 · 시간대 전환">시간</button>
+          <span class="mchip ${b.hours ? 'on' : ''}" data-m="hours">🕒 ${esc(b.hours || '종일')}</span><span class="mchip ${b.variant ? 'on' : ''}" data-m="variant">🔁 ${b.variant ? esc(b.variant.at) + ' 전환' + (b.variant.media ? ' · 자료 별도' : '') : '전환 없음'}</span><button class="btn xs soft" data-time="${i}" style="white-space:nowrap" title="운영 시간 · 시간대 전환">시간</button>
           <input class="inp sm f-desc" value="${esc(b.desc || '')}" data-f="desc" placeholder="소개 (방문객 부스 소개 화면에 나와요)"></div></div>`).join('')}
     </div>
     <div class="row no-print"><button class="btn blue" id="bSave">변경사항 저장</button><span class="small muted">저장 전엔 지도에 반영되지 않아요</span></div>`);
@@ -2139,12 +2146,19 @@ function admBooths(){
   const nKey = n => { const m = String(n || '').trim().match(/^(\D*)(\d+)(.*)$/); return m ? [m[1] ? 1 : 0, m[1], +m[2], m[3]] : [2, String(n || ''), 0, '']; };
   $('#bSort').onclick = () => { const list = collect(); list.sort((a, b) => { const x = nKey(a.n), y = nKey(b.n); for(let k = 0; k < 4; k++){ if(x[k] < y[k]) return -1; if(x[k] > y[k]) return 1; } return 0; }); S.booths = list; renderAdmin('booths'); toast('번호순으로 정렬했어요 · 저장을 눌러야 반영돼요'); };
   /* 자료(영상·PDF·사진) 편집 시트. 행의 hidden input(data-f=video/pdf/img)을 읽고 [확인] 때 다시 써넣음 → 저장은 표 아래 [변경사항 저장] 한 번 */
+  const fname = u => { u = String(u || ''); if(u.startsWith('local:')) return '올린 파일'; try{ return decodeURIComponent(u.split('?')[0].split('/').pop()) || u; }catch(e){ return u; } };
+  const pvImg = (box, url) => { box.innerHTML = ''; if(!url) return box.innerHTML = '<span class="small muted">아직 없어요</span>'; const im = document.createElement('img'); im.src = url; im.style.cssText = 'width:100%;max-width:320px;border-radius:12px;display:block;cursor:zoom-in'; im.onclick = () => openLightbox(url); im.onerror = () => { box.innerHTML = '<span class="small" style="color:var(--coral)">사진을 불러올 수 없어요</span>'; }; box.appendChild(im); };
+  /* 파일 올리기 공용(자료 시트·시간 시트): 20MB 제한, 올린 주소를 input 에 넣고 after() */
+  const bindUpload = (fileSel, inputSel, boothId, kind, after) => $(fileSel).onchange = async e => {
+    const f = e.target.files[0]; if(!f) return; e.target.value = '';
+    if(f.size > 20e6) return toast('20MB 이하 파일만 올릴 수 있어요');
+    try{ toast('올리는 중…'); $(inputSel).value = await uploadFile(f, boothId, kind); after(); toast('올렸어요'); }
+    catch(err){ toast(err.message || '업로드 실패'); }
+  };
   const openMediaSheet = i => {
     const tr = $(`.brow[data-i="${i}"]`), b = S.booths[i];
     const get = k => $(`[data-f=${k}]`, tr).value.trim();
     const IDS = { video: '#mVideo', pdf: '#mPdf', img: '#mImg' };
-    const fname = u => { u = String(u || ''); if(u.startsWith('local:')) return '올린 파일'; try{ return decodeURIComponent(u.split('?')[0].split('/').pop()) || u; }catch(e){ return u; } };
-    const pvImg = (box, url) => { box.innerHTML = ''; if(!url) return box.innerHTML = '<span class="small muted">아직 없어요</span>'; const im = document.createElement('img'); im.src = url; im.style.cssText = 'width:100%;max-width:320px;border-radius:12px;display:block;cursor:zoom-in'; im.onclick = () => openLightbox(url); im.onerror = () => { box.innerHTML = '<span class="small" style="color:var(--coral)">사진을 불러올 수 없어요</span>'; }; box.appendChild(im); };
     openSheet(`
       <div class="h-sec" style="margin:0 0 4px">${esc(get('n'))} · ${esc(get('name') || b.name || '')}</div>
       <p class="small muted" style="margin:0 0 14px;line-height:1.5">방문객의 부스 소개 화면에 나오는 자료예요. 확인을 누르면 표에 들어가고, 표 아래 [변경사항 저장]을 눌러야 저장돼요.</p>
@@ -2173,56 +2187,86 @@ function admBooths(){
       const im = $('#mImg').value.trim(); $('#mImgClear').hidden = !im;
       if(im) resolveFileUrl(im).then(u => { const box = $('#mImgPv'); if(box) pvImg(box, u); }); else pvImg($('#mImgPv'), '');
     };
-    const up = (fileSel, kind) => $(fileSel).onchange = async e => {
-      const f = e.target.files[0]; if(!f) return; e.target.value = '';
-      if(f.size > 20e6) return toast('20MB 이하 파일만 올릴 수 있어요');
-      try{ toast('올리는 중…'); $(IDS[kind]).value = await uploadFile(f, b.id, kind); pv(); toast('올렸어요'); }
-      catch(err){ toast(err.message || '업로드 실패'); }
-    };
-    up('#mPdfFile', 'pdf'); up('#mImgFile', 'img');
+    bindUpload('#mPdfFile', '#mPdf', b.id, 'pdf', pv); bindUpload('#mImgFile', '#mImg', b.id, 'img', pv);
     $('#mPdfClear').onclick = () => { $('#mPdf').value = ''; pv(); }; $('#mImgClear').onclick = () => { $('#mImg').value = ''; pv(); };
     Object.values(IDS).forEach(s => $(s).oninput = pv); pv();
     $('#mOk').onclick = () => { Object.entries(IDS).forEach(([k, s]) => { const val = $(s).value.trim(); $(`[data-f=${k}]`, tr).value = val; $(`[data-m=${k}]`, tr).classList.toggle('on', !!val); }); closeSheet(); toast('표에 넣었어요 · 아래 저장을 눌러야 반영돼요'); };
   };
   $$('[data-media]').forEach(el => el.onclick = () => openMediaSheet(+el.dataset.media));
-  /* 시간 시트: 운영 시간(시작~끝, 시간 선택기) + 시간대 전환(그 시각부터 다른 부스명·기관·분류·소개로 보임). hidden input(data-f=hours/variant)에 넣고 [변경사항 저장] 때 함께 저장 */
+  /* 시간 시트: 운영 시간(시작~끝) + 시간대 전환(그 시각부터 다른 부스명·기관·분류·소개·운영 시간·자료로 보임).
+     시각은 24시간 'HH:MM' 글자 입력(숫자만 치면 1300 → 13:00 자동, 브라우저 time 선택기의 오전/오후 표기 때문에 안 씀).
+     hidden input(data-f=hours/variant)에 넣고 [변경사항 저장] 때 함께 저장 */
   const openTimeSheet = i => {
     const tr = $(`.brow[data-i="${i}"]`), b = S.booths[i];
     const get = k => $(`[data-f=${k}]`, tr).value.trim();
-    const hm = get('hours').match(/(\d{1,2}:\d{2})\s*[~\-–]\s*(\d{1,2}:\d{2})/) || [];
+    const range = t => String(t || '').match(/(\d{1,2}:\d{2})\s*[~\-–]\s*(\d{1,2}:\d{2})/) || [];
     let v = null; try{ v = get('variant') ? JSON.parse(get('variant')) : null; }catch(e){}
+    const hm = range(get('hours')), vh = range(v && v.hours), vm = (v && v.media) || null;
     const pad = t => t ? t.split(':').map(x => x.padStart(2, '0')).join(':') : '';
+    const tm = (id, val, ph) => `<input class="inp sm tmi" id="${id}" value="${esc(pad(val))}" placeholder="${ph}" inputmode="numeric" maxlength="5" autocomplete="off">`;
+    const field = (label, html) => `<div class="tf"><span class="tlb">${label}</span>${html}</div>`;
+    const fileRow = (kind, accept) => `<div class="grow"><div class="row" style="gap:6px;flex-wrap:wrap;align-items:center"><label class="btn sm line" style="cursor:pointer">파일 올리기<input type="file" accept="${accept}" id="t${kind}File" hidden></label><button class="btn sm soft" id="t${kind}Clear" style="color:var(--coral)" hidden>지우기</button>${kind === 'Pdf' ? '<span class="small muted" id="tPdfName" style="word-break:break-all"></span>' : ''}</div>${kind === 'Img' ? '<div id="tImgPv" style="margin-top:6px"></div>' : ''}<input class="inp sm" id="t${kind}" value="${esc((vm && vm[kind.toLowerCase()]) || '')}" placeholder="또는 주소 직접 입력" style="margin-top:6px"></div>`;
     openSheet(`
       <div class="h-sec" style="margin:0 0 4px">${esc(get('n'))} · ${esc(get('name') || b.name || '')}</div>
-      <p class="small muted" style="margin:0 0 14px;line-height:1.5">확인을 누르면 표에 들어가고, 표 아래 [변경사항 저장]을 눌러야 저장돼요.</p>
-      <div class="card tight" style="margin-bottom:10px"><div class="kv"><div class="k">🕒 운영 시간 <span class="small muted" style="font-weight:600">비우면 종일</span></div>
-        <div class="row" style="gap:8px;align-items:center;margin-top:6px"><input class="inp sm" type="time" id="tStart" value="${pad(hm[1])}" style="flex:1"><span>~</span><input class="inp sm" type="time" id="tEnd" value="${pad(hm[2])}" style="flex:1"><button class="btn xs soft" id="tClear">종일</button></div></div></div>
-      <div class="card tight" style="margin-bottom:14px"><div class="kv"><div class="k">🔁 시간이 되면 다른 부스로 바뀌어요</div>
-        <label class="row" style="gap:8px;align-items:center;margin:6px 0;cursor:pointer"><input type="checkbox" id="tSw" ${v ? 'checked' : ''}><span class="small">예: 오전엔 운영본부, 오후엔 체험 부스</span></label>
-        <div id="tSwBox" ${v ? '' : 'hidden'}>
-          <div class="row" style="gap:8px;align-items:center;margin-bottom:6px"><span class="small" style="flex:0 0 70px">바뀌는 시각</span><input class="inp sm" type="time" id="tAt" value="${esc((v && v.at) || '13:00')}" style="flex:1"></div>
-          <input class="inp sm" id="tName" value="${esc((v && v.name) || '')}" placeholder="바뀐 후 부스명 *" style="margin-bottom:6px">
-          <input class="inp sm" id="tOrg" value="${esc((v && v.org) || '')}" placeholder="바뀐 후 운영기관 (비우면 그대로)" style="margin-bottom:6px">
-          <input class="inp sm" id="tCat" value="${esc(v && v.cat ? catOf(v.cat).name : '')}" placeholder="바뀐 후 분류 (비우면 그대로)" style="margin-bottom:6px">
-          <input class="inp sm" id="tDesc" value="${esc((v && v.desc) || '')}" placeholder="바뀐 후 소개 (비우면 그대로)">
-          <p class="small muted" style="margin:8px 0 0;line-height:1.5">그 시각 전엔 카드에 적은 내용이, 지나면 여기 적은 내용이 방문객에게 보여요. 번호·QR·도장은 하나로 같아요.</p>
-        </div></div></div>
+      <p class="small muted" style="margin:0 0 12px;line-height:1.5">시각은 24시간으로 적어요(오후 1시 → 13:00). 확인을 누른 뒤 표 아래 [변경사항 저장]을 눌러야 저장돼요.</p>
+      <div class="card tight tsheet" style="margin-bottom:10px"><div class="kv">
+        <div class="k">🕒 운영 시간 <span class="small muted" style="font-weight:600">비우면 종일</span></div>
+        ${field('시간', `<div class="row tmr">${tm('tStart', hm[1], '10:00')}<span>~</span>${tm('tEnd', hm[2], '16:00')}<button class="btn xs soft" id="tClear">종일</button></div>`)}
+      </div></div>
+      <div class="card tight tsheet" style="margin-bottom:14px"><div class="kv">
+        <label class="row" style="gap:8px;align-items:center;cursor:pointer"><input type="checkbox" id="tSw" ${v ? 'checked' : ''}><span class="k" style="margin:0">🔁 시간이 되면 다른 부스로 바뀌어요</span></label>
+        <p class="small muted" style="margin:4px 0 0 26px;line-height:1.5">예: 오전엔 운영본부, 오후엔 체험 부스. 번호·QR·도장은 하나로 같아요.</p>
+        <div id="tSwBox" ${v ? '' : 'hidden'} style="margin-top:6px">
+          ${field('바뀌는 시각', tm('tAt', (v && v.at) || '13:00', '13:00'))}
+          <div class="tsub">바뀐 후 내용 <span class="small muted" style="font-weight:600">비우면 카드 내용 그대로</span></div>
+          ${field('부스명 *', `<input class="inp sm" id="tName" value="${esc((v && v.name) || '')}" placeholder="바뀐 후 부스명">`)}
+          ${field('운영기관', `<input class="inp sm" id="tOrg" value="${esc((v && v.org) || '')}" placeholder="그대로">`)}
+          ${field('분류', `<input class="inp sm" id="tCat" value="${esc(v && v.cat ? catOf(v.cat).name : '')}" placeholder="그대로">`)}
+          ${field('소개', `<input class="inp sm" id="tDesc" value="${esc((v && v.desc) || '')}" placeholder="그대로">`)}
+          ${field('운영 시간', `<div class="row tmr">${tm('tVStart', vh[1], '13:00')}<span>~</span>${tm('tVEnd', vh[2], '16:00')}</div>`)}
+          <div class="tsub"><label style="cursor:pointer;display:inline-flex;gap:8px;align-items:center"><input type="checkbox" id="tMed" ${vm ? 'checked' : ''}>바뀐 후 자료 따로</label> <span class="small muted" style="font-weight:600">체크 안 하면 카드 [자료] 그대로</span></div>
+          <div id="tMedBox" ${vm ? '' : 'hidden'}>
+            ${field('유튜브', `<input class="inp sm" id="tVideo" value="${esc((vm && vm.video) || '')}" placeholder="주소 (없으면 비움)">`)}
+            ${field('PDF', fileRow('Pdf', 'application/pdf'))}
+            ${field('사진', fileRow('Img', 'image/*'))}
+          </div>
+        </div>
+      </div></div>
       <div class="row" style="gap:8px"><button class="btn blue" id="tOk" style="flex:1">확인</button><button class="btn line" onclick="closeSheet()">취소</button></div>`);
+    /* 24시간 글자 입력: 숫자만 치면 '1300' → '13:00', 잘못된 값은 빨간 테두리 */
+    const tmOk = t => { const m = t.match(/^(\d{1,2}):(\d{2})$/); return !!m && +m[1] < 24 && +m[2] < 60; };
+    const fmtTm = el => { let d = el.value.replace(/\D/g, '').slice(0, 4); if(d.length >= 3) d = d.slice(0, d.length - 2) + ':' + d.slice(-2); el.value = d; el.classList.toggle('bad', !!el.value && !tmOk(el.value)); };
+    const tmVal = id => { const t = $(id).value.trim(); if(!t) return ''; if(!tmOk(t)) throw new Error(`시각은 24시간 HH:MM 으로 적어주세요 (${t})`); return pad(t); };
+    $$('.tmi').forEach(el => { el.oninput = () => fmtTm(el); el.onblur = () => { if(/^\d{1,2}$/.test(el.value)) el.value = el.value.padStart(2, '0') + ':00'; fmtTm(el); }; });
     $('#tSw').onchange = () => { $('#tSwBox').hidden = !$('#tSw').checked; };
+    $('#tMed').onchange = () => { $('#tMedBox').hidden = !$('#tMed').checked; };
     $('#tClear').onclick = () => { $('#tStart').value = ''; $('#tEnd').value = ''; };
+    const tpv = () => {
+      const p = $('#tPdf').value.trim(); $('#tPdfClear').hidden = !p; $('#tPdfName').textContent = p ? fname(p) : '아직 없어요';
+      const im = $('#tImg').value.trim(); $('#tImgClear').hidden = !im;
+      if(im) resolveFileUrl(im).then(u => { const box = $('#tImgPv'); if(box) pvImg(box, u); }); else pvImg($('#tImgPv'), '');
+    };
+    bindUpload('#tPdfFile', '#tPdf', b.id, 'vpdf', tpv); bindUpload('#tImgFile', '#tImg', b.id, 'vimg', tpv);
+    $('#tPdfClear').onclick = () => { $('#tPdf').value = ''; tpv(); }; $('#tImgClear').onclick = () => { $('#tImg').value = ''; tpv(); };
+    $('#tPdf').oninput = tpv; $('#tImg').oninput = tpv; tpv();
     $('#tOk').onclick = () => {
-      const st = $('#tStart').value, en = $('#tEnd').value;
+      let st, en, at, vs, ve;
+      try{ st = tmVal('#tStart'); en = tmVal('#tEnd'); at = tmVal('#tAt'); vs = tmVal('#tVStart'); ve = tmVal('#tVEnd'); }catch(err){ return toast(err.message); }
       if((st && !en) || (!st && en)) return toast('시작과 끝 시각을 둘 다 넣거나 둘 다 비워주세요');
       if(st && en && st >= en) return toast('끝 시각이 시작보다 늦어야 해요');
       let nv = null;
       if($('#tSw').checked){
-        const at = $('#tAt').value, name = $('#tName').value.trim(); if(!at) return toast('바뀌는 시각을 넣어주세요'); if(!name) return toast('바뀐 후 부스명을 넣어주세요');
+        const name = $('#tName').value.trim(); if(!at) return toast('바뀌는 시각을 넣어주세요'); if(!name) return toast('바뀐 후 부스명을 넣어주세요');
+        if((vs && !ve) || (!vs && ve)) return toast('바뀐 후 운영 시간은 시작과 끝을 둘 다 넣거나 둘 다 비워주세요');
+        if(vs && ve && vs >= ve) return toast('바뀐 후 운영 시간의 끝이 시작보다 늦어야 해요');
         const catTxt = $('#tCat').value.trim(); nv = { at, name, org: $('#tOrg').value.trim(), cat: catTxt ? matchCategory(catTxt, '', true) : '', desc: $('#tDesc').value.trim() };
+        if(vs) nv.hours = `${vs}~${ve}`;
+        if($('#tMed').checked) nv.media = { video: $('#tVideo').value.trim(), pdf: $('#tPdf').value.trim(), img: $('#tImg').value.trim() };
       }
       const hours = st ? `${st}~${en}` : '';
       $('[data-f=hours]', tr).value = hours; $('[data-f=variant]', tr).value = nv ? JSON.stringify(nv) : '';
       $('[data-m=hours]', tr).textContent = '🕒 ' + (hours || '종일'); $('[data-m=hours]', tr).classList.toggle('on', !!hours);
-      $('[data-m=variant]', tr).textContent = '🔁 ' + (nv ? nv.at + ' 전환' : '전환 없음'); $('[data-m=variant]', tr).classList.toggle('on', !!nv);
+      $('[data-m=variant]', tr).textContent = '🔁 ' + (nv ? nv.at + ' 전환' + (nv.media ? ' · 자료 별도' : '') : '전환 없음'); $('[data-m=variant]', tr).classList.toggle('on', !!nv);
       closeSheet(); toast('표에 넣었어요 · 아래 저장을 눌러야 반영돼요');
     };
   };
