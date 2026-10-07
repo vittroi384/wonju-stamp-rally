@@ -10,8 +10,8 @@ rep("  eventTitle: '2026 원주 수학과학축전',","  eventTitle: 'booth-lite
 rep("  eventDate: '2026. 10. 10. (토) 10:00–16:00',","  eventDate: '날짜 미정',                 // 관리자 › 행사 설정에서 바꿈")
 rep("  venue: '원주종합운동장',","  venue: '',")
 rep("  stampGoal: 7,                          // 완주 기준. 2026-09-09 주최측 요청으로 5→7","  stampGoal: 7,                          // 완주 기준(부스 7개). 관리자 › 행사 설정에서 바꿈")
-rep("  supabaseUrl: 'https://ogcojhtmocauehigtyxt.supabase.co',","  supabaseUrl: '',                       // ★booth-lite 전용 Supabase 프로젝트 주소(축전 서버와 별개). 비우면 로컬 모드")
-rep("  supabaseAnonKey: 'sb_publishable_79UCxRrwKK4q33W27ehX0w_tyH-xLQ8',","  supabaseAnonKey: '',")
+rep("  supabaseUrl: 'https://YOUR-PROJECT.supabase.co',","  supabaseUrl: '',                       // ★booth-lite 전용 Supabase 프로젝트 주소(축전 서버와 별개). 비우면 로컬 모드")
+rep("  supabaseAnonKey: 'YOUR_SUPABASE_ANON_KEY',","  supabaseAnonKey: '',")
 # seed booths 1~7
 s=re.sub(r"const SEED_BOOTHS = \[.*?\];", "const SEED_BOOTHS = " + str([{"n":str(i),"name":f"booth-lite {i}","cat":"exp","org":""} for i in range(1,8)]).replace("'",'"') + ";", s, count=1, flags=re.S)
 # CATS
