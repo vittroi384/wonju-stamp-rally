@@ -890,15 +890,17 @@ const S = {
   svTimer: null,       // 설문 카운트다운 인터벌
   settingsRaw: null,   // 서버 settings.data 원본 (관리자 저장 시 병합용)
 };
-/* 시간대 전환 부스: variant {at,name,org,cat,desc,hours,media} 가 있고 지금 시각이 at 이후면 바뀐 내용으로 보여줌(번호·id·QR·도장은 그대로). 원래 이름은 baseName 에.
+/* 시간대 전환 부스: variant {at,n,name,org,cat,desc,hours,media,stamp} 가 있고 지금 시각이 at 이후면 바뀐 내용으로 보여줌(번호·id·QR·도장은 그대로). 원래 이름은 baseName 에.
+   n 은 바뀐 후 '보이는' 번호(label) — 라우팅·QR·도장은 원래 n. 화면에 번호를 쓸 땐 bn(b).
    media {video,pdf,img} 가 있으면 바뀐 후엔 그 자료만 보임(카드 자료와 안 섞임), 없으면 카드 자료 그대로. hours 비우면 종일(바뀐 후엔 카드 운영 시간을 안 따라감 — 오전 09~12 본부가 오후에 '운영 끝남'으로 보이던 문제). stamp ''(카드 그대로)·'yes'·'no' 는 hasStamp() 가 QR 제외 목록보다 먼저 봄 */
 function nowMin(){ const d = new Date(); return d.getHours() * 60 + d.getMinutes(); }
 function toMin(t){ const m = String(t || '').match(/(\d{1,2}):(\d{2})/); return m ? +m[1] * 60 + +m[2] : null; }
 /* 일정 시간: '09:00' 또는 '09:00~10:00'(~ - – 모두 됨). 범위면 {start, end} 둘 다, 아니면 end 없음 */
 function schedRange(t){ const m = String(t || '').match(/(\d{1,2}:\d{2})\s*[~\-–]\s*(\d{1,2}:\d{2})/); return m ? { start: m[1], end: m[2] } : { start: String(t || '').trim(), end: '' }; }
 function schedTimeHTML(t){ const r = schedRange(t); return r.end ? `${esc(r.start)}<small>~${esc(r.end)}</small>` : esc(r.start); }
-function bv(b){ const v = b && b.variant; if(!v || toMin(v.at) === null || nowMin() < toMin(v.at)) return b; const m = v.media; return { ...b, name: v.name || b.name, org: v.org || b.org, cat: v.cat || b.cat, desc: v.desc || b.desc, hours: v.hours || '', stamp: v.stamp || '', ...(m ? { video: m.video || '', pdf: m.pdf || '', img: m.img || '' } : {}), switched: true, baseName: b.name }; }
+function bv(b){ const v = b && b.variant; if(!v || b.switched || toMin(v.at) === null || nowMin() < toMin(v.at)) return b; const m = v.media; return { ...b, label: v.n || b.n, name: v.name || b.name, org: v.org || b.org, cat: v.cat || b.cat, desc: v.desc || b.desc, hours: v.hours || '', stamp: v.stamp || '', ...(m ? { video: m.video || '', pdf: m.pdf || '', img: m.img || '' } : {}), switched: true, baseName: b.name }; }
 /* 부스 대상: '' 전체 · elem 초등 이하 · secondary 중고등. 등록 구분(초/중/고/성인)으로 판정 — 성인·미등록은 전부 보임 */
+const bn = b => (b && (b.label || b.n)) || '';   // 방문객에게 보이는 부스 번호(전환 후면 바뀐 번호)
 const TARGETS = [{ id: '', name: '전체' }, { id: 'elem', name: '초등 이하' }, { id: 'secondary', name: '중고등' }];
 function targetName(t){ return (TARGETS.find(x => x.id === (t || '')) || TARGETS[0]).name; }
 function parseTarget(txt){ const t = String(txt || '').trim(); if(!t) return ''; if(t.startsWith('elem') || t.includes('초') || t.includes('유')) return 'elem'; if(t.startsWith('sec') || t.includes('중') || t.includes('고')) return 'secondary'; return ''; }
@@ -1191,7 +1193,7 @@ function stampCardHTML(){
   const local = allStampsLocal();
   const slots = Array.from({length: goal}, (_, i) => {
     const s = local[i];
-    if(s){ const b = boothById(s.boothId); return `<div class="slot ink ${s.pending ? 'pend' : ''}" style="animation-delay:${i * .05}s"><span class="num">${esc(b?.n || '?')}</span></div>`; }
+    if(s){ const b = boothById(s.boothId); return `<div class="slot ink ${s.pending ? 'pend' : ''}" style="animation-delay:${i * .05}s"><span class="num">${esc(bn(b) || '?')}</span></div>`; }
     if(i === goal - 1) return `<div class="slot gift">🎁</div>`;
     return `<div class="slot">${i + 1}</div>`;
   }).join('');
@@ -1218,19 +1220,19 @@ function hoursState(b){
 }
 function hoursChipHTML(b){
   const h = hoursState(b); let out = closedSet().has(b.id) ? '<div class="bhours before">⏸ 지금 쉬는 중</div>' : ''; out += h ? `<div class="bhours ${h.state}">🕒 ${esc(h.text)}${h.label ? ' · ' + h.label : ''}</div>` : '';
-  const v = b.variant; if(v && v.at) out += b.switched ? `<div class="bhours">🔁 ${esc(v.at)} 전엔 ${esc(b.baseName)}</div>` : `<div class="bhours before">🔁 ${esc(v.at)}부터 ${esc(v.name)}</div>`;
+  const v = b.variant; if(v && v.at) out += b.switched ? `<div class="bhours">🔁 ${esc(v.at)} 전엔 ${v.n ? esc(b.n) + ' ' : ''}${esc(b.baseName)}</div>` : `<div class="bhours before">🔁 ${esc(v.at)}부터 ${v.n ? esc(v.n) + ' ' : ''}${esc(v.name)}</div>`;
   return out;
 }
 function boothItemHTML(b){
   const c = catOf(b.cat), done = stampedIds().has(b.id);
   return `<button class="bitem ${boothOpen(b) ? '' : 'off'}" style="--c:${c.color}" onclick="go('/booth/${b.n}')">
-    <div class="bnum ${done ? 'done' : ''}">${esc(b.n)}</div>
+    <div class="bnum ${done ? 'done' : ''}">${esc(bn(b))}</div>
     <div class="grow"><div class="bname">${esc(b.name)}</div><div class="borg">${esc(b.org)}</div><div class="bcat">${esc(c.name)}</div>${hoursChipHTML(b)}${targetChipHTML(b)}${hasStamp(b) ? '' : '<div><span class="btarget nost">도장 없음 · 체험만</span></div>'}</div>
     <span class="bgo">${I.chev}</span></button>`;
 }
 function filteredBooths(){
   const q = S.q.trim().toLowerCase();
-  return S.booths.map(bv).filter(b => boothForMe(b) && !S.hiddenCats.has(b.cat) && (!q || b.name.toLowerCase().includes(q) || b.n.includes(q) || (b.org || '').toLowerCase().includes(q)));
+  return S.booths.map(bv).filter(b => boothForMe(b) && !S.hiddenCats.has(b.cat) && (!q || b.name.toLowerCase().includes(q) || b.n.includes(q) || bn(b).toLowerCase().includes(q) || (b.org || '').toLowerCase().includes(q)));
 }
 function catChipsHTML(){
   return CATS.map(c => { const n = S.booths.filter(b => b.cat === c.id && boothForMe(b)).length; if(!n) return ''; const on = !S.hiddenCats.has(c.id);
@@ -1344,14 +1346,14 @@ function renderBooth(n){
   const c = catOf(b.cat), st = allStampsLocal().find(s => s.boothId === b.id);
   shell('/', `부스 ${b.n}`, `
     <div class="hero" style="--c:${c.color}">
-      <div class="num">BOOTH ${esc(b.n)}</div>
+      <div class="num">BOOTH ${esc(bn(b))}</div>
       <h1 class="name">${esc(b.name)}</h1>
       <div class="org">${esc(b.org)}</div>
       <span class="pill"><span class="dot"></span>${esc(c.name)}</span>${b.target ? `<span class="pill" style="margin-left:6px">${esc(targetName(b.target))} 대상</span>` : ''}
     </div>
     ${b.img ? `<div class="bimgwrap" id="bImgWrap" hidden><img class="bimg" id="bImg" alt="${esc(b.name)} 부스 사진"><span class="hint">탭하면 크게 보기</span></div>` : ''}
     <div class="card"><div class="kv"><div><div class="k">체험 소개</div></div><p class="desc">${esc(b.desc || DESC_BY_CAT[b.cat])}</p>
-      <div class="k" style="margin-top:4px">위치</div><div class="v" style="font-size:14px">${esc(zoneOf(b.zone).name)} <button class="more" style="border:0;background:none;color:var(--blue);font-weight:800;font-size:13px;padding:0 4px" onclick="go('/map/${b.n}')">지도 ›</button></div>${b.hours ? `<div class="k" style="margin-top:4px">운영 시간</div><div class="v" style="font-size:14px">${esc(b.hours)}${(() => { const h = hoursState(b); return h && h.label ? ` <span class="bhours ${h.state}" style="display:inline;margin:0">· ${h.label}</span>` : ''; })()}</div>` : ''}${b.variant && b.variant.at ? `<div class="k" style="margin-top:4px">시간대</div><div class="v" style="font-size:14px">${b.switched ? `${esc(b.variant.at)} 전엔 ${esc(b.baseName)}` : `${esc(b.variant.at)}부터 <b>${esc(b.variant.name)}</b>(으)로 바뀌어요`}</div>` : ''}</div></div>
+      <div class="k" style="margin-top:4px">위치</div><div class="v" style="font-size:14px">${esc(zoneOf(b.zone).name)} <button class="more" style="border:0;background:none;color:var(--blue);font-weight:800;font-size:13px;padding:0 4px" onclick="go('/map/${b.n}')">지도 ›</button></div>${b.hours ? `<div class="k" style="margin-top:4px">운영 시간</div><div class="v" style="font-size:14px">${esc(b.hours)}${(() => { const h = hoursState(b); return h && h.label ? ` <span class="bhours ${h.state}" style="display:inline;margin:0">· ${h.label}</span>` : ''; })()}</div>` : ''}${b.variant && b.variant.at ? `<div class="k" style="margin-top:4px">시간대</div><div class="v" style="font-size:14px">${b.switched ? `${esc(b.variant.at)} 전엔 ${b.variant.n ? esc(b.n) + ' ' : ''}${esc(b.baseName)}` : `${esc(b.variant.at)}부터 <b>${b.variant.n ? esc(b.variant.n) + ' ' : ''}${esc(b.variant.name)}</b>(으)로 바뀌어요`}</div>` : ''}</div></div>
     ${ytId(b.video) ? `<div class="card tight"><div class="kv"><div class="k">체험 영상</div><div class="yt"><iframe src="https://www.youtube-nocookie.com/embed/${ytId(b.video)}?rel=0" title="${esc(b.name)} 영상" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div></div></div>` : ''}
     ${b.pdf ? `<a class="btn line full" id="bPdf" target="_blank" rel="noopener" hidden>${I.doc} 부스 자료 PDF 보기</a>` : ''}
     ${!st && !hasStamp(b) ? `<div class="stampstate">
@@ -1419,13 +1421,13 @@ function renderStamp(n){
     const local = allStampsLocal(), n0 = local.length, goal = CONFIG.stampGoal, justDone = res.ok && n0 === goal && !S.pending.length;
     if(justDone) confetti();
     $('#stampArea').innerHTML = `
-      <div class="bigstamp ${res.dup ? 'dup' : ''}"><div><div class="n">${esc(b.n)}</div><div class="t">${res.dup ? '이미 찍었어요' : '체험 완료'}</div></div></div>
+      <div class="bigstamp ${res.dup ? 'dup' : ''}"><div><div class="n">${esc(bn(b))}</div><div class="t">${res.dup ? '이미 찍었어요' : '체험 완료'}</div></div></div>
       <div>
         <div class="stamp-h">${res.dup ? '이 부스는 이미 찍었어요' : justDone ? `${goal}개 완주! 🎉` : n0 >= goal && S.pending.length ? '전송이 끝나면 완주예요' : `${esc(b.name)}`}</div>
         <p class="stamp-p" style="margin-top:8px">${res.dup ? '다른 부스에서 도장을 모아보세요.' : justDone ? '설문에 참여하면 선물 교환권이 열려요. 교환권을 운영본부에서 보여주고 선물을 받아가세요.' : `${esc(b.org)} · <span style="color:${c.color};font-weight:800">${esc(c.name)}</span><br>${n0 >= goal ? `벌써 ${n0}곳째 방문이에요` : `${goal - n0}개 더 모으면 선물이에요`}`}</p>
       </div>
       ${res.queued ? `<div class="notice" style="max-width:340px;width:100%">${I.bell}<span>통신이 불안정해서 폰에 저장해 뒀어요. 연결되면 자동으로 보내져요.</span></div>` : ''}
-      <div class="slots" style="width:100%;max-width:340px;--cols:${slotCols(goal)}">${Array.from({ length: goal }, (_, i) => { const s = local[i]; return s ? `<div class="slot ink ${s.pending ? 'pend' : ''}" style="animation-delay:${.2 + i * .06}s"><span class="num">${esc(boothById(s.boothId)?.n || '')}</span></div>` : `<div class="slot ${i === goal - 1 ? 'gift' : ''}">${i === goal - 1 ? '🎁' : i + 1}</div>`; }).join('')}</div>
+      <div class="slots" style="width:100%;max-width:340px;--cols:${slotCols(goal)}">${Array.from({ length: goal }, (_, i) => { const s = local[i]; return s ? `<div class="slot ink ${s.pending ? 'pend' : ''}" style="animation-delay:${.2 + i * .06}s"><span class="num">${esc(bn(boothById(s.boothId)))}</span></div>` : `<div class="slot ${i === goal - 1 ? 'gift' : ''}">${i === goal - 1 ? '🎁' : i + 1}</div>`; }).join('')}</div>
       ${justDone ? `<button class="btn sun full" style="max-width:340px" onclick="go('/my')">📝 설문 참여하고 교환권 받기</button>` : `<button class="btn full" style="max-width:340px" onclick="go('/map/${b.n}')">${I.map} 다음 부스 찾기</button>`}
       <button class="btn soft sm" onclick="go('/')">홈으로</button>`;
   })();
@@ -1469,7 +1471,7 @@ function renderMy(){
     </div>`) : ''}
     <div class="h-sec">방문한 부스 <span class="muted small">${allStampsLocal().length}곳</span></div>
     ${S.pending.length ? `<div class="notice">${I.bell}<span>도장 ${S.pending.length}개가 아직 서버에 안 갔어요. 통신되면 자동 전송돼요. <b style="cursor:pointer" onclick="flushPending()">지금 보내기</b></span></div>` : ''}
-    ${allStampsLocal().length ? `<div class="stamp-grid">${allStampsLocal().reverse().map(s => { const b = boothById(s.boothId); return `<div class="sg" onclick="go('/booth/${b?.n}')"><div class="n ${s.pending ? 'pend' : ''}">${esc(b?.n || '?')}</div><div class="t">${esc(b?.name || '')}</div><div class="tm">${s.pending ? '전송 대기' : fmtTime(s.at)}</div></div>`; }).join('')}</div>`
+    ${allStampsLocal().length ? `<div class="stamp-grid">${allStampsLocal().reverse().map(s => { const b = boothById(s.boothId); return `<div class="sg" onclick="go('/booth/${b?.n}')"><div class="n ${s.pending ? 'pend' : ''}">${esc(bn(b) || '?')}</div><div class="t">${esc(b?.name || '')}</div><div class="tm">${s.pending ? '전송 대기' : fmtTime(s.at)}</div></div>`; }).join('')}</div>`
         : `<div class="empty"><b>아직 도장이 없어요</b>가까운 부스의 QR부터 찍어보세요</div><button class="btn full" onclick="go('/map')">${I.map} 지도 열기</button>`}`);
   if($('#myQr')) loadQRCode().then(() => { const el = $('#myQr'); if(el && !el.firstChild) new QRCode(el, { text: 'WJ:' + S.me.id, width: 164, height: 164, correctLevel: QRCode.CorrectLevel.M }); }).catch(() => { const el = $('#myQr'); if(el) el.innerHTML = '<div class="small muted" style="padding:20px">QR 그리기 실패 — 아래 코드로 확인받으세요</div>'; });
   /* 자기신고 보강(A안): '설문 참여하기'를 누른 시각을 폰에 저장하고, surveyMinSec 초가 지나야 '다 했어요'가 켜진다.
@@ -1512,7 +1514,7 @@ function renderSurvey(){
   const body = q => {
     if(q.type === 'scale') return `<div class="sv-scale">${SV_FACES.map((f, i) => `<button type="button" data-v="${i + 1}" aria-label="${i + 1}점">${f}</button>`).join('')}</div><div class="sv-scale-l"><span>별로예요</span><span>최고예요</span></div>`;
     if(q.type === 'single' || q.type === 'multi') return `<div class="sv-opts">${(q.opts || []).map(o => `<button type="button" class="sv-opt ${q.type === 'multi' ? 'chk' : ''}" data-v="${esc(o)}"><span class="dot"></span>${esc(o)}</button>`).join('')}</div>`;
-    if(q.type === 'booth') return `<div class="sv-chips">${mine.map(b => `<button type="button" class="sv-chip" data-v="${esc(b.n)}"><b>${esc(b.n)}</b>${esc(clipName(b.name, 12))}</button>`).join('')}</div>${mine.length ? '' : `<input class="inp" inputmode="numeric" placeholder="부스 번호 (예: 12)" maxlength="4" data-text>`}`;
+    if(q.type === 'booth') return `<div class="sv-chips">${mine.map(b => `<button type="button" class="sv-chip" data-v="${esc(b.n)}"><b>${esc(bn(bv(b)))}</b>${esc(clipName(b.name, 12))}</button>`).join('')}</div>${mine.length ? '' : `<input class="inp" inputmode="numeric" placeholder="부스 번호 (예: 12)" maxlength="4" data-text>`}`;
     if(q.type === 'text') return `<textarea class="inp" placeholder="자유롭게 적어주세요" maxlength="300" data-text></textarea>`;
     return '';
   };
@@ -1610,18 +1612,18 @@ function mapSVG(){
       s += `<g class="${cls}" data-id="${b.id}" data-x="${p.x.toFixed(0)}" data-y="${p.y.toFixed(0)}" transform="rotate(${(p.rot || 0).toFixed(1)} ${p.x.toFixed(1)} ${p.y.toFixed(1)})"><rect class="bg" x="${bx}" y="${by}" width="${p.w}" height="${p.h}" rx="12" fill="${c.color}" stroke="#fff" stroke-width="2"/>
         ${[0, 1, 2].map(k => `<rect x="${bx + 10 + k * 28}" y="${by + 7}" width="20" height="12" rx="3" fill="rgba(255,255,255,.88)"/>`).join('')}
         <circle cx="${bx + 22}" cy="${by + p.h}" r="6" fill="var(--ink)" stroke="#fff" stroke-width="2"/><circle cx="${bx + p.w - 22}" cy="${by + p.h}" r="6" fill="var(--ink)" stroke="#fff" stroke-width="2"/>
-        <text class="num" x="${p.x}" y="${by + 31}" font-size="15">${esc(b.n)}</text></g>`;
+        <text class="num" x="${p.x}" y="${by + 31}" font-size="15">${esc(bn(bv(b)))}</text></g>`;
       return;
     }
     if(p.rect){                                                                                                            // 골대 뒤 열: 둥근 네모
       s += `<g class="${cls}" data-id="${b.id}" data-x="${p.x.toFixed(0)}" data-y="${p.y.toFixed(0)}"><rect class="bg" x="${p.x - p.w / 2}" y="${p.y - p.h / 2}" width="${p.w}" height="${p.h}" rx="9" fill="${c.color}" stroke="#fff" stroke-width="2"/>
-        <text class="num" x="${p.x}" y="${p.y}" font-size="15">${esc(b.n)}</text></g>`;
+        <text class="num" x="${p.x}" y="${p.y}" font-size="15">${esc(bn(bv(b)))}</text></g>`;
       return;
     }
     const fs = Math.max(10, Math.min(18, p.segW * .42));
     s += `<g class="${cls}" data-id="${b.id}" data-x="${p.x.toFixed(0)}" data-y="${p.y.toFixed(0)}">
       <path class="bg" d="${segPath(p.band, p.ta, p.tb)}" fill="${c.color}" stroke="#fff" stroke-width="2"/>
-      <text class="num" x="${p.x.toFixed(1)}" y="${p.y.toFixed(1)}" font-size="${fs.toFixed(1)}">${esc(b.n)}</text></g>`;
+      <text class="num" x="${p.x.toFixed(1)}" y="${p.y.toFixed(1)}" font-size="${fs.toFixed(1)}">${esc(bn(bv(b)))}</text></g>`;
   });
   s += `<g id="lblLayer"></g>`;
   s += `</g></svg>`;
@@ -1652,7 +1654,7 @@ function markNear(zoomed){
   if(S.focus && !near.some(o => o.id === S.focus) && visible.has(S.focus)){ solo = S.focus; near.unshift({ id: S.focus, d: 0 }); }
   const key = near.map(o => o.id).join(',') + '|' + S.focus; if(key === nearKey) return; nearKey = key;
   const done = stampedIds();
-  strip.innerHTML = near.map(o => { const b = boothById(o.id), col = catOf(b.cat).color; return `<button class="nchip ${done.has(b.id) ? 'done' : ''} ${S.focus === b.id ? 'on' : ''}" style="--c:${col}" onclick="pickBooth('${b.id}')"><span class="bn">${esc(b.n)}</span>${esc(b.name)}</button>`; }).join('');
+  strip.innerHTML = near.map(o => { const b = boothById(o.id), col = catOf(b.cat).color; return `<button class="nchip ${done.has(b.id) ? 'done' : ''} ${S.focus === b.id ? 'on' : ''}" style="--c:${col}" onclick="pickBooth('${b.id}')"><span class="bn">${esc(bn(b))}</span>${esc(b.name)}</button>`; }).join('');
   let shelf = near.map(o => o.id).filter(id => id !== solo);
   if(solo){ const sp = (mapPos || (mapPos = boothPos()))[solo]; if(sp) shelf = shelf.filter(id => { const q = mapPos[id]; return !q || Math.hypot(q.x - sp.x, q.y - sp.y) > 150; }); }   // 선택 이름표 자리와 겹칠 이웃은 뺀다
   layer.innerHTML = layoutLabels(shelf) + (solo ? layoutLabels([solo]) : '');
@@ -1798,7 +1800,7 @@ function openBoothSheet(id){
   S.focus = id; nearKey = ''; markFocus(id); applyView();
   openSheet(`
     <div class="row" style="gap:14px;align-items:flex-start">
-      <div class="bnum ${st ? 'done' : ''}" style="--c:${c.color};width:54px;height:54px;font-size:20px">${esc(b.n)}</div>
+      <div class="bnum ${st ? 'done' : ''}" style="--c:${c.color};width:54px;height:54px;font-size:20px">${esc(bn(bv(b)))}</div>
       <div class="grow"><div class="bname" style="font-size:18px">${esc(b.name)}</div><div class="borg">${esc(b.org)} · <span style="color:${c.color};font-weight:800">${esc(c.name)}</span></div>
         <div class="small muted" style="margin-top:4px">${esc(zoneOf(b.zone).name)} · ${st ? `${fmtTime(st.at)} 도장 찍음` : hasStamp(b) ? '부스 앞 QR을 찍으면 도장' : '도장 없는 부스 · 체험만'}</div></div>
     </div>
@@ -1818,8 +1820,8 @@ function showRouteHint(id){
   const b = boothById(id); const h = $('#mapHint'); if(!h) return;
   const g0 = geom(), exit = S.routeMode === 'exit', gt = exit ? nearestGate(g0, boothPos(g0)[id]) : null;   // 측문 좌표는 boothPos 가 채우므로 같은 g 를 써야 한다
   h.style.display = 'flex';
-  h.innerHTML = exit ? `${I.exit} <b>${esc(b.n)}</b>&nbsp;→ 가장 가까운 <b>&nbsp;${esc(gt.label)}</b> <button onclick="clearRoute()">✕</button>`
-                     : `${I.pin} 정문 → <b>&nbsp;${esc(b.n)} ${esc(b.name)}</b> <button onclick="clearRoute()">✕</button>`;
+  h.innerHTML = exit ? `${I.exit} <b>${esc(bn(bv(b)))}</b>&nbsp;→ 가장 가까운 <b>&nbsp;${esc(gt.label)}</b> <button onclick="clearRoute()">✕</button>`
+                     : `${I.pin} 정문 → <b>&nbsp;${esc(bn(bv(b)))} ${esc(bv(b).name)}</b> <button onclick="clearRoute()">✕</button>`;
 }
 function clearRoute(){ S.route = null; const l = $('#routeLayer'); if(l) l.innerHTML = ''; const h = $('#mapHint'); if(h) h.style.display = 'none'; $$('.gate').forEach(e => e.classList.remove('hi')); }
 /* 지도 화면. SVG 를 그리고 핀치줌·드래그를 붙인다. focusN 이 있으면 그 부스로 확대 + 정문 경로 */
@@ -2121,7 +2123,7 @@ function admBooths(){
           <select class="inp sm f-zone" data-f="zone" title="구역">${ZONES.map(z => `<option value="${z.id}" ${z.id === (b.zone || '') ? 'selected' : ''}>${z.name}</option>`).join('')}</select>
           <input type="hidden" data-f="target" value="${esc(b.target || '')}"><div class="tsel" data-tsel="${i}" title="대상: 초등 이하로 두면 중고등학생 폰에는 안 보이고 도장도 안 찍혀요">${TARGETS.map(t => `<button type="button" class="${(b.target || '') === t.id ? 'on' : ''}" data-t="${t.id}">${t.name}</button>`).join('')}</div>
           <input type="hidden" data-f="hours" value="${esc(b.hours || '')}"><input type="hidden" data-f="variant" value="${esc(b.variant ? JSON.stringify(b.variant) : '')}">
-          <span class="mchip ${b.hours ? 'on' : ''}" data-m="hours">🕒 ${esc(b.hours || '종일')}</span><span class="mchip ${b.variant ? 'on' : ''}" data-m="variant">🔁 ${b.variant ? esc(b.variant.at) + ' 전환' + (b.variant.media ? ' · 자료 별도' : '') + (b.variant.stamp === 'yes' ? ' · 도장 있음' : b.variant.stamp === 'no' ? ' · 도장 없음' : '') : '전환 없음'}</span><button class="btn xs soft" data-time="${i}" style="white-space:nowrap" title="운영 시간 · 시간대 전환">시간</button>
+          <span class="mchip ${b.hours ? 'on' : ''}" data-m="hours">🕒 ${esc(b.hours || '종일')}</span><span class="mchip ${b.variant ? 'on' : ''}" data-m="variant">🔁 ${b.variant ? esc(b.variant.at) + ' 전환' + (b.variant.n ? ' · 번호 ' + esc(b.variant.n) : '') + (b.variant.media ? ' · 자료 별도' : '') + (b.variant.stamp === 'yes' ? ' · 도장 있음' : b.variant.stamp === 'no' ? ' · 도장 없음' : '') : '전환 없음'}</span><button class="btn xs soft" data-time="${i}" style="white-space:nowrap" title="운영 시간 · 시간대 전환">시간</button>
           <input class="inp sm f-desc" value="${esc(b.desc || '')}" data-f="desc" placeholder="소개 (방문객 부스 소개 화면에 나와요)"></div></div>`).join('')}
     </div>
     <div class="row no-print"><button class="btn blue" id="bSave">변경사항 저장</button><span class="small muted">저장 전엔 지도에 반영되지 않아요</span></div>`);
@@ -2225,10 +2227,11 @@ function admBooths(){
       </div></div>
       <div class="card tight tsheet" style="margin-bottom:14px"><div class="kv">
         <label class="row" style="gap:8px;align-items:center;cursor:pointer"><input type="checkbox" id="tSw" ${v ? 'checked' : ''}><span class="k" style="margin:0">🔁 시간이 되면 다른 부스로 바뀌어요</span></label>
-        <p class="small muted" style="margin:4px 0 0 26px;line-height:1.5">예: 오전엔 운영본부, 오후엔 체험 부스. 번호·QR·도장은 하나로 같아요.</p>
+        <p class="small muted" style="margin:4px 0 0 26px;line-height:1.5">예: 오전엔 운영본부, 오후엔 체험 부스. QR·도장은 하나로 같고, 번호는 보이는 것만 바뀌어요.</p>
         <div id="tSwBox" ${v ? '' : 'hidden'} style="margin-top:6px">
           ${field('바뀌는 시각', tm('tAt', (v && v.at) || '12:00', '12:00'))}
           <div class="tsub">바뀐 후 내용 <span class="small muted" style="font-weight:600">비우면 카드 내용 그대로</span></div>
+          ${field('번호', `<input class="inp sm" id="tN" value="${esc((v && v.n) || '')}" placeholder="그대로 (예: 본4 → 1)" maxlength="6">`)}
           ${field('부스명 *', `<input class="inp sm" id="tName" value="${esc((v && v.name) || '')}" placeholder="바뀐 후 부스명">`)}
           ${field('운영기관', `<input class="inp sm" id="tOrg" value="${esc((v && v.org) || '')}" placeholder="그대로">`)}
           ${field('분류', `<input class="inp sm" id="tCat" value="${esc(v && v.cat ? catOf(v.cat).name : '')}" placeholder="그대로">`)}
@@ -2284,9 +2287,12 @@ function admBooths(){
       let nv = null;
       if($('#tSw').checked){
         const name = $('#tName').value.trim(); if(!at) return toast('바뀌는 시각을 넣어주세요'); if(!name) return toast('바뀐 후 부스명을 넣어주세요');
+        const nn = $('#tN').value.trim(); const dupN = nn && S.booths.find((x, j) => j !== i && (x.n === nn || (x.variant && x.variant.n === nn)));
+        if(dupN && !confirm(`${dupN.n} ${dupN.name} 부스와 번호 '${nn}'이(가) 겹쳐요. 방문객 목록에 같은 번호가 두 개 보여요. 그래도 쓸까요?`)) return;
         if((vs && !ve) || (!vs && ve)) return toast('바뀐 후 운영 시간은 시작과 끝을 둘 다 넣거나 둘 다 비워주세요');
         if(vs && ve && vs >= ve) return toast('바뀐 후 운영 시간의 끝이 시작보다 늦어야 해요');
         const catTxt = $('#tCat').value.trim(); nv = { at, name, org: $('#tOrg').value.trim(), cat: catTxt ? matchCategory(catTxt, '', true) : '', desc: $('#tDesc').value.trim() };
+        if(nn) nv.n = nn;
         if(vs) nv.hours = `${vs}~${ve}`;
         const stk = ($('#tStamp .on') || {}).dataset?.k || ''; if(stk) nv.stamp = stk;
         if($('#tMed').checked) nv.media = { video: $('#tVideo').value.trim(), pdf: $('#tPdf').value.trim(), img: $('#tImg').value.trim() };
@@ -2294,7 +2300,7 @@ function admBooths(){
       const hours = st ? `${st}~${en}` : '';
       $('[data-f=hours]', tr).value = hours; $('[data-f=variant]', tr).value = nv ? JSON.stringify(nv) : '';
       $('[data-m=hours]', tr).textContent = '🕒 ' + (hours || '종일'); $('[data-m=hours]', tr).classList.toggle('on', !!hours);
-      $('[data-m=variant]', tr).textContent = '🔁 ' + (nv ? nv.at + ' 전환' + (nv.media ? ' · 자료 별도' : '') + (nv.stamp === 'yes' ? ' · 도장 있음' : nv.stamp === 'no' ? ' · 도장 없음' : '') : '전환 없음'); $('[data-m=variant]', tr).classList.toggle('on', !!nv);
+      $('[data-m=variant]', tr).textContent = '🔁 ' + (nv ? nv.at + ' 전환' + (nv.n ? ' · 번호 ' + nv.n : '') + (nv.media ? ' · 자료 별도' : '') + (nv.stamp === 'yes' ? ' · 도장 있음' : nv.stamp === 'no' ? ' · 도장 없음' : '') : '전환 없음'); $('[data-m=variant]', tr).classList.toggle('on', !!nv);
       closeSheet(); toast('표에 넣었어요 · 아래 저장을 눌러야 반영돼요');
     };
   };
