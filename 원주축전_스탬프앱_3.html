@@ -451,8 +451,9 @@ select.inp.sm{padding-right:30px;background-position:right 10px center}
 .sv-opt.chk .dot{border-radius:6px}
 .sv-opt.chk.on .dot::after{width:6px;height:10px;border-radius:0;border:solid #fff;border-width:0 2.5px 2.5px 0;transform:translateY(-1px) rotate(45deg);background:none}
 .sv-scale{display:flex;gap:6px;margin-top:14px}
-.sv-scale button{flex:1;aspect-ratio:1;border:1.5px solid var(--line);background:#fff;border-radius:14px;font-size:24px;display:grid;place-items:center;transition:.15s;padding:0}
-.sv-scale button.on{border-color:var(--sun);background:var(--sun-soft);transform:scale(1.06)}
+/* 별점 5단계: 누른 별까지 전부 노란색(.lit), 고른 별(.on)만 살짝 크게 */
+.sv-scale button{flex:1;aspect-ratio:1;border:0;background:none;font-size:40px;line-height:1;display:grid;place-items:center;transition:.15s;padding:0;color:var(--line);text-shadow:0 1px 0 rgba(0,0,0,.04)}
+.sv-scale button.lit{color:var(--sun)}.sv-scale button.on{transform:scale(1.15)}
 .sv-scale-l{display:flex;justify-content:space-between;font-size:12px;color:var(--ink-3);margin-top:6px;padding:0 4px}
 .sv-chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
 .sv-chip{border:1.5px solid var(--line);background:#fff;border-radius:99px;padding:8px 13px;font-size:14px;font-weight:700;transition:.15s;max-width:100%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
@@ -598,7 +599,7 @@ let RESOURCES = [
 ];
 /* 앱 내 설문 기본 문항. 관리자 › 설문 탭에서 바꾸면 서버(settings.survey)가 우선. type: scale(1~5 표정) | single(하나) | multi(여러 개) | booth(도장 찍은 부스 고르기) | text(자유) */
 const DEFAULT_SURVEY = [
-  { id: 'overall', type: 'scale',  title: '오늘 축전은 전체적으로 어땠나요?', sub: '가장 가까운 표정을 골라주세요', required: true },
+  { id: 'overall', type: 'scale',  title: '오늘 축전은 전체적으로 어땠나요?', sub: '별을 눌러 점수를 골라주세요', required: true },
   { id: 'best',    type: 'booth',  title: '가장 재미있었던 부스는?', sub: '도장 찍은 부스 중에서 골라주세요', required: true },
   { id: 'why',     type: 'multi',  title: '그 부스가 좋았던 이유는?', sub: '여러 개 골라도 돼요', required: true, opts: ['직접 만들어서', '설명이 쉬웠어서', '결과물을 가져가서', '신기한 걸 봐서', '친구랑 같이 해서', '기타'] },
   { id: 'count',   type: 'single', title: '도장 모으기는 어땠나요?', required: true, opts: ['쉬웠어요', '딱 적당했어요', '조금 힘들었어요', '너무 많았어요'] },
@@ -607,8 +608,8 @@ const DEFAULT_SURVEY = [
   { id: 'free',    type: 'text',   title: '하고 싶은 말이 있다면 적어주세요', sub: '불편했던 점, 바라는 점 뭐든 좋아요', required: false },
 ];
 let SURVEY = DEFAULT_SURVEY.map(q => ({ ...q }));
-const SV_FACES = ['😞', '😕', '😐', '🙂', '😄'];
-const SV_TYPES = { scale: '표정 5단계', single: '하나 고르기', multi: '여러 개 고르기', booth: '부스 고르기', text: '자유 답변' };
+const SV_FACES = ['😞', '😕', '😐', '🙂', '😄'];   // 결과 표에서 점수 옆에 표시(설문 화면은 별점)
+const SV_TYPES = { scale: '별점 5단계', single: '하나 고르기', multi: '여러 개 고르기', booth: '부스 고르기', text: '자유 답변' };
 const DESC_BY_CAT = {
   sci:'자연 현상과 수학·과학의 기본 원리를 직접 실험하고 관찰하며 배우는 부스입니다.',
   craft:'과학 아이디어를 담은 작품을 직접 만들고 가져갈 수 있는 체험 부스입니다.',
@@ -1516,7 +1517,7 @@ function renderSurvey(){
   const answered = q => { const v = A[q.id]; return Array.isArray(v) ? v.length > 0 : v !== undefined && String(v).trim() !== ''; };
   const mine = allStampsLocal().map(s => boothById(s.boothId)).filter(Boolean);
   const body = q => {
-    if(q.type === 'scale') return `<div class="sv-scale">${SV_FACES.map((f, i) => `<button type="button" data-v="${i + 1}" aria-label="${i + 1}점">${f}</button>`).join('')}</div><div class="sv-scale-l"><span>별로예요</span><span>최고예요</span></div>`;
+    if(q.type === 'scale') return `<div class="sv-scale" role="radiogroup" aria-label="별점">${[1, 2, 3, 4, 5].map(i => `<button type="button" data-v="${i}" aria-label="${i}점" class="${A[q.id] >= i ? 'lit' : ''} ${A[q.id] === i ? 'on' : ''}">★</button>`).join('')}</div><div class="sv-scale-l"><span>별로예요</span><span>최고예요</span></div>`;
     if(q.type === 'single' || q.type === 'multi') return `<div class="sv-opts">${(q.opts || []).map(o => `<button type="button" class="sv-opt ${q.type === 'multi' ? 'chk' : ''}" data-v="${esc(o)}"><span class="dot"></span>${esc(o)}</button>`).join('')}</div>`;
     if(q.type === 'booth') return `<div class="sv-chips">${mine.map(b => `<button type="button" class="sv-chip" data-v="${esc(b.n)}"><b>${esc(bn(bv(b)))}</b>${esc(clipName(b.name, 12))}</button>`).join('')}</div>${mine.length ? '' : `<input class="inp" inputmode="numeric" placeholder="부스 번호 (예: 12)" maxlength="4" data-text>`}`;
     if(q.type === 'text') return `<textarea class="inp" placeholder="자유롭게 적어주세요" maxlength="300" data-text></textarea>`;
@@ -1539,7 +1540,7 @@ function renderSurvey(){
     const q = SURVEY.find(x => x.id === el.dataset.id);
     $$('.sv-scale button, .sv-opt, .sv-chip', el).forEach(b => b.onclick = () => {
       if(q.type === 'multi'){ const set = new Set(A[q.id] || []); set.has(b.dataset.v) ? set.delete(b.dataset.v) : set.add(b.dataset.v); A[q.id] = [...set]; b.classList.toggle('on'); }
-      else { A[q.id] = q.type === 'scale' ? +b.dataset.v : b.dataset.v; $$('.sv-scale button, .sv-opt, .sv-chip', el).forEach(x => x.classList.toggle('on', x === b)); }
+      else { A[q.id] = q.type === 'scale' ? +b.dataset.v : b.dataset.v; $$('.sv-scale button, .sv-opt, .sv-chip', el).forEach(x => { x.classList.toggle('on', x === b); if(q.type === 'scale') x.classList.toggle('lit', +x.dataset.v <= +b.dataset.v); }); }
       el.classList.remove('bad'); update();
     });
     const t = $('[data-text]', el); if(t) t.oninput = () => { A[q.id] = t.value; el.classList.remove('bad'); update(); };
