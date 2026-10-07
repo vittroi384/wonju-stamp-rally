@@ -262,11 +262,16 @@ select.inp.sm{padding-right:30px;background-position:right 10px center}
 /* ---------- stamp screen ---------- */
 .stampscreen{display:flex;flex-direction:column;align-items:center;text-align:center;gap:16px;padding-top:18px}
 .bigstamp{width:230px;height:230px;display:grid;place-items:center;position:relative;isolation:isolate;filter:drop-shadow(0 18px 30px rgba(255,200,61,.45));transform:rotate(-8deg);animation:stampIn .7s cubic-bezier(.2,1.5,.4,1) both}
-.bigstamp::before{content:"";position:absolute;inset:0;background:var(--sun);clip-path:var(--star);z-index:-1}
+/* 별 3겹: 노란 별(::before) → 점선 띠(::after, 방사형 반복 그라데이션을 별로 잘라 점선처럼) → 안쪽 노란 별(> div::before). 예전 원형 도장의 점선 테두리 느낌 */
+.bigstamp::before{content:"";position:absolute;inset:0;background:var(--sun);clip-path:var(--star);z-index:-2}
+.bigstamp::after{content:"";position:absolute;inset:0;clip-path:var(--star);background:repeating-conic-gradient(rgba(21,26,45,.5) 0 4deg,transparent 4deg 9deg);transform:scale(.9);z-index:-1}
+.bigstamp>div{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;isolation:isolate}
+.bigstamp>div::before{content:"";position:absolute;inset:0;background:var(--sun);clip-path:var(--star);transform:scale(.83);z-index:-1}
 .bigstamp .n{font-size:64px;font-weight:900;letter-spacing:-.05em;color:var(--ink);line-height:1}
 .bigstamp .t{font-size:12px;font-weight:800;color:rgba(21,26,45,.7);margin-top:-2px;letter-spacing:.02em}
 .bigstamp.dup{filter:none;transform:none;animation:none}
-.bigstamp.dup::before{background:var(--card-2)}
+.bigstamp.dup::before,.bigstamp.dup>div::before{background:var(--card-2)}
+.bigstamp.dup::after{background:repeating-conic-gradient(rgba(21,26,45,.18) 0 4deg,transparent 4deg 9deg)}
 .bigstamp.dup .n,.bigstamp.dup .t{color:var(--ink-3)}
 .stamp-h{font-size:24px;font-weight:800;letter-spacing:-.02em;line-height:1.25}
 .stamp-p{font-size:14.5px;color:var(--ink-2);line-height:1.6}
