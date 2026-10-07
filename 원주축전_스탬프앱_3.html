@@ -648,7 +648,7 @@ function addCategory(name, id, color){
 /* 글자 → 분류. 정확히 같거나 일부만 써도 인식('갤러리'). 없으면 새 분류로 추가(create=true). 빈 값이면 prev */
 function matchCategory(t, prev, create){
   t = String(t || '').trim(); if(!t) return prev;
-  const c = CATS.find(c => c.name === t || c.id === t) || CATS.find(c => c.name.includes(t) || (t.length >= 2 && t.includes(c.name.slice(0, 3))));
+  const c = CATS.find(c => c.name === t || c.id === t) || CATS.find(c => c.name.includes(t) || (!c.custom && t.length >= 2 && t.includes(c.name.slice(0, 3))));   // 앞 3글자 규칙은 기본 분류만 ('로봇공학'이 사용자 분류 '로봇'에 흡수되던 문제)
   if(c) return c.id;
   return create ? addCategory(t).id : prev;
 }
@@ -917,6 +917,8 @@ function myLevel(){ const g = (S.me && S.me.grade) || ''; return g.startsWith('�
 function boothForMe(b){ const t = (b && b.target) || ''; if(!t || !S.me) return true; const L = myLevel(); return !L || L === t; }
 function targetChipHTML(b){ return b.target ? `<div><span class="btarget">${esc(targetName(b.target))} 대상</span></div>` : ''; }
 function boothByN(n){ return bv(S.booths.find(b => b.n === n)); }
+const normN = n => { n = String(n || '').trim(); return /^\d+$/.test(n) ? String(+n) : n; };   // 중복 검사용 번호 키: '02' 와 '2' 는 같은 번호
+function boothByNLoose(n){ n = String(n ?? '').trim(); return boothByN(n) || (/^\d+$/.test(n) ? boothByN(String(+n)) : undefined); }   // '07'·'007' 처럼 앞 0 붙은 번호도 찾음 (구형 QR·손으로 친 주소)
 function admPath(sub){ return '/' + CONFIG.adminPath + (sub || ''); }
 /* 행사 설정: 관리자 › 행사 설정에서 저장한 값(서버 settings / 로컬 wj:settings)을 CONFIG·SCHEDULE·RESOURCES 위에 덮는다 */
 const SETTING_KEYS = ['eventTitle', 'eventDate', 'venue', 'stampGoal', 'surveyUrl', 'surveyMinSec', 'surveyCodeField', 'giftDeadline', 'contact', 'notice'];
@@ -925,12 +927,13 @@ function applySettings(s){
   SETTING_KEYS.forEach(k => { const v = s[k]; if(v === undefined || v === null) return;
     if(k === 'stampGoal'){ const n = parseInt(v); if(n >= 1) CONFIG.stampGoal = n; }
     else if(k === 'surveyMinSec'){ const n = parseInt(v); if(n >= 0) CONFIG.surveyMinSec = n; }
-    else if(v !== '' || k === 'surveyUrl' || k === 'surveyCodeField' || k === 'contact' || k === 'notice') CONFIG[k] = String(v); });
+    else if(v !== '' || k !== 'eventTitle') CONFIG[k] = String(v); });   // 빈 값도 그대로 (장소·마감 등을 비워 저장했는데 옛 값이 남던 문제). 행사명만 예외
   if(Array.isArray(s.schedule)) SCHEDULE = s.schedule;
   if(Array.isArray(s.resources)) RESOURCES = s.resources;
   if(Array.isArray(s.survey)) SURVEY = s.survey.filter(q => q && q.id && q.title && SV_TYPES[q.type]);
   if(Array.isArray(s.categories)) s.categories.forEach(c => c && c.id && c.name && addCategory(c.name, c.id, c.color));
   /* 분류 색 덮어쓰기 {id: '#rrggbb'}. 기본 분류·사용자 정의 분류 모두. 없는 id 는 무시 */
+  CATS.forEach(c => c.color = c.def);   // '기본색'으로 되돌린 것도 반영되게 먼저 초기화
   if(s.categoryColors && typeof s.categoryColors === 'object') Object.entries(s.categoryColors).forEach(([id, col]) => { const c = CATS.find(x => x.id === id); if(c && isHex(col)) c.color = col; });
   S.settingsRaw = s;   // 관리자 저장 때 다른 키(survey 등)를 잃지 않게 통째로 보관
 }
@@ -942,9 +945,11 @@ async function loadSettings(){ try{ applySettings(await DB.settings()); }catch(e
 async function loadBoothsCached(){
   const v = S.settingsRaw?.boothsVersion;
   if(v && CONFIG.seedVersion === v && SEED_BOOTHS.length){ S.booths = SEED_BOOTHS.map(seedToBooth); return; }   // 배포 시 박아둔 시드가 서버와 같은 버전 → 요청 없음
-  if(v){ const c = await store.get('wj:booths_cache'); if(c && c.v === v && Array.isArray(c.list) && c.list.length){ S.booths = c.list; return; } }
-  await loadBooths();
-  if(v && S.booths.length) await store.set('wj:booths_cache', { v, list: S.booths });
+  const c = await store.get('wj:booths_cache'); const cached = c && Array.isArray(c.list) && c.list.length ? c.list : null;
+  if(v && cached && c.v === v){ S.booths = cached; return; }
+  const ok = await loadBooths();
+  if(!ok && cached){ S.booths = cached; return; }   // 오프라인 리로드(설정·부스 요청 실패): 버전 무관하게 마지막 캐시 — 내장 시드보다 관리자 편집본이 맞음
+  if(ok && S.booths.length) await store.set('wj:booths_cache', { v: v || 0, list: S.booths });
 }
 /* 설문 링크. surveyCodeField(구글폼 entry.xxx)가 있으면 방문객 6자리 코드를 미리 채워 응답과 대조할 수 있게 한다 */
 function surveyLink(){
@@ -972,7 +977,7 @@ setInterval(async () => { const before = S.settingsRaw?.boothsVersion; await loa
 /* 시간대 전환 시각이 지나면 열려 있는 방문객 화면을 다시 그림(홈·부스·지도·내 스탬프만. 시트가 열려 있거나 관리자·등록·설문·도장 화면이면 건드리지 않음) */
 S.swSig = null;
 setInterval(() => { if(!S.booths.length) return; const sig = S.booths.map(b => bv(b).switched ? 1 : 0).join(''); if(S.swSig === null || sig === S.swSig){ S.swSig = sig; return; } S.swSig = sig;
-  const a = location.hash.replace(/^#/, '').split('/')[1] || ''; if(['', 'booth', 'map', 'my'].includes(a) && !$('#sheet').classList.contains('show')) route(); }, 20000);
+  const a = location.hash.replace(/^#/, '').split('/')[1] || ''; if(['', 'booth', 'map', 'my'].includes(a) && !$('#sheet').classList.contains('show')){ const y = scrollY; route(); scrollTo(0, y); } }, 20000);   // shell() 이 맨 위로 올리므로 보던 위치 복원
 /* QR 토큰 (부스 번호 → 토큰). QR 주소 ?b=7&t=xxxx 의 t. 서버가 검사하므로 없으면 도장이 안 찍힘 = 주소창에 번호만 쳐서 찍는 치팅 차단.
    등록 화면 갔다 와도 남게 sessionStorage. 관리자가 QR 시트를 열면 전체 토큰이 여기 들어와 테스트 번호 입력도 통과 */
 const qrTok = {
@@ -990,13 +995,14 @@ function goalReached(){ return S.myStamps.length >= CONFIG.stampGoal; }
 /* 부팅: 부스 목록. 서버(또는 로컬 저장)에 저장된 게 있으면 그것, 없으면 파일에 내장된 SEED_BOOTHS. demoBoothCount 가 크면 데모 부스로 채움 */
 const seedToBooth = b => ({ id: b.id || 'b' + b.n, n: b.n, name: b.name, cat: b.cat, org: b.org, zone: b.zone || '', desc: b.desc || DESC_BY_CAT[b.cat], video: b.video || '', pdf: b.pdf || '', img: b.img || '', hours: b.hours || '', variant: b.variant || null, target: b.target || '' });
 async function loadBooths(){
-  let saved = null;
-  try{ saved = await DB.booths(); }catch(e){ console.warn('부스 목록을 서버에서 못 읽음 → 내장 목록 사용', e.message); }   // 서버 장애·컬럼 불일치 때도 앱은 뜨게
-  if(saved){ S.booths = saved; return; }
+  let saved = null, ok = true;
+  try{ saved = await DB.booths(); }catch(e){ ok = false; console.warn('부스 목록을 서버에서 못 읽음 → 내장 목록 사용', e.message); }   // 서버 장애·컬럼 불일치 때도 앱은 뜨게
+  if(saved){ S.booths = saved; return true; }
   const seed = SEED_BOOTHS.slice();
   const cats = ['play', 'craft', 'app', 'sci', 'play', 'craft', 'app'];
   for(let n = 91; seed.length < CONFIG.demoBoothCount; n++) seed.push({ n: String(n), name: `체험 부스 ${n}`, cat: cats[n % cats.length], org: '참여기관 미정' });   // 데모용 자리 채우기 (트랙 둘레)
   S.booths = seed.map(seedToBooth);
+  return ok;   // false = 서버 요청 실패(오프라인)
 }
 /* 부팅: 내 정보. store 'wj:me'(uuid) 가 있으면 서버에서 나+내 도장을 다시 받고 캐시. 통신 실패면 마지막 캐시로 (오프라인 표시) */
 async function loadMe(){
@@ -1107,10 +1113,10 @@ function boothPos(g = geom()){
   const gap = g.sideGap / per, unit = (span - side.length * gap) / Math.max(n, 1), left = [...side];
   let cur = t0;
   const putGate = x => { const f = band.mid.frame(cur + gap / 2); const out = band.h / 2 + 16 + x.h / 2; Object.assign(x, { t: normT(cur + gap / 2), x: f.x + f.nx * out, y: f.y + f.ny * out, rot: Math.atan2(f.ny, f.nx) * 180 / Math.PI + 90 }); cur += gap; left.splice(left.indexOf(x), 1); };   // 띠 바깥 16px 띄워 문 띠, 화살표(+y)가 빈칸을 향한다
-  band.sideGates = side;                                                                                      // 이름표 배치(layoutLabels)가 측문 띠를 피하도록 띠에 붙여 둔다
+  band.sideGates = side; band.mainGate = g.gates[0];                                                          // 이름표 배치(layoutLabels)가 측문·정문 띠를 피하도록 띠에 붙여 둔다
   const due = (x, i) => x.ai >= 0 ? x.ai <= i : x.t <= cur + unit / 2;
   ring.forEach((b, i) => { left.filter(x => due(x, i)).forEach(putGate); seg(b, i, cur, cur + unit); cur += unit; });
-  left.slice().forEach(putGate);
+  left.slice().forEach(x => { if(!n) cur = x.t - gap / 2; putGate(x); });   // 링이 비면 희망 자리(t)에 (안 그러면 정문 옆에 겹쳐 쌓임)
   ['goalL', 'goalR'].forEach(z => { const c = g.cols[z], list = boothsIn(z), y0 = g.colY0(list.length); list.forEach((b, i) => { const x = c.x, y = y0 + i * c.dy; pos[b.id] = { x, y, i, rect: true, w: 40, h: 34, side: c.side, wt: nearestT(band.walk, x, y), segW: 40 }; }); });
   /* 측1문 밖 버스 자리: 측1문 띠 바깥(법선 방향)으로 버스 모양 칸을 한 대씩 이어 놓는다. 측1문은 위에서 자리가 정해져 있다 */
   const g1 = g.gates.find(x => x.id === 'gate-1'), bus = boothsIn('bus');
@@ -1214,7 +1220,7 @@ function stampCardHTML(){
   }).join('');
   const ln = local.length;
   const title = done ? (S.me.surveyAt || S.me.giftAt ? `<b>완주!</b> 운영본부에서<br>선물 받아가세요` : `<b>완주!</b> 설문 참여하면<br>선물 교환권이 열려요`) : ln >= goal ? `전송이 끝나면<br><b>완주</b>예요` : ln === 0 ? `부스 QR을 찍으면<br>도장이 <b>쾅</b>` : `<b>${goal - ln}개</b> 더 모으면<br>선물이에요`;
-  const foot = S.me.giftAt ? `${I.check} <b>선물 수령 완료</b>` : S.pending.length ? `도장 ${S.pending.length}개 전송 대기 중 <button class="btn sun sm" onclick="flushPending()">다시 보내기</button>` : done ? (S.me.surveyAt ? `운영본부로 오세요 <button class="btn sun sm" onclick="go('/my')">교환권 보기</button>` : `설문은 1분이면 끝나요 <button class="btn sun sm" onclick="go('/my')">📝 설문 참여</button>`) : `부스 앞 QR을 찍으면 도장 <button class="btn sun sm" onclick="openScanner()">${I.qr} QR 찍기</button>`;
+  const foot = S.me.giftAt ? `${I.check} <b>선물 수령 완료</b>` : S.pending.length ? `전송 대기 ${S.pending.length}개 <button class="btn soft sm" style="margin-left:auto" onclick="flushPending()">다시 보내기</button><button class="btn sun sm" style="margin-left:0" onclick="openScanner()">${I.qr} QR 찍기</button>` : done ? (S.me.surveyAt ? `운영본부로 오세요 <button class="btn sun sm" onclick="go('/my')">교환권 보기</button>` : `설문은 1분이면 끝나요 <button class="btn sun sm" onclick="go('/my')">📝 설문 참여</button>`) : `부스 앞 QR을 찍으면 도장 <button class="btn sun sm" onclick="openScanner()">${I.qr} QR 찍기</button>`;
   return `
     <div class="stampcard">
       <div class="sc-top">
@@ -1313,6 +1319,7 @@ function renderRegister(returnTo){
       <div class="step"><div class="ic">🟡</div><div class="t">도장 ${CONFIG.stampGoal}개 모으기</div><div class="s">부스 어디든</div></div>
       <div class="step"><div class="ic">🎁</div><div class="t">설문 후 선물</div><div class="s">운영본부에서</div></div>
     </div>
+    <div class="notice" id="rExist" style="display:none">${I.bell}<span>이 폰에 <b id="rExistName"></b>님의 기록이 이미 있어요. <b style="cursor:pointer;text-decoration:underline" id="rExistUse">그대로 쓰기</b> · 아래에서 새로 등록하면 기록이 나뉘어요</span></div>
     <div class="card" style="display:flex;flex-direction:column;gap:14px">
       <div class="field"><label id="rSchoolL">학교</label><input class="inp" id="rSchool" placeholder="학교명" maxlength="30" autocomplete="off"></div>
       <div class="field"><label>구분</label><div class="gsel four" id="rLevel"><button type="button" data-l="초">초등</button><button type="button" data-l="중">중등</button><button type="button" data-l="고">고등</button><button type="button" data-l="성인">성인</button></div></div>
@@ -1325,6 +1332,16 @@ function renderRegister(returnTo){
     <p class="small muted" style="text-align:center;padding:0 10px;line-height:1.6">이 폰(브라우저)에 기억돼요. 다른 폰이나 다른 브라우저에 이미 기록이 있다면<br><b style="color:var(--blue);cursor:pointer" id="rRecover">기록 이어받기 ›</b></p>`,
     { noTabs: true, back: true });
   $('#rRecover').onclick = () => renderRecover(returnTo);
+  /* 이미 등록된 폰(이 탭의 S.me, 또는 다른 탭이 저장한 wj:me): 새로 등록하면 기록이 둘로 나뉘므로 안내하고 '그대로 쓰기' 제공 */
+  (async () => {
+    let v = S.me; if(!v){ const id = await store.get('wj:me'); if(id){ const c = await store.get('wj:me_cache'); if(c && c.id === id) v = c; else { try{ v = await DB.getVisitor(id); }catch(e){ v = null; } } } }
+    const box = $('#rExist'); if(!v || !box) return;
+    $('#rExistName').textContent = v.name; box.style.display = '';
+    $('#rExistUse').onclick = async () => {
+      if(!S.me || S.me.id !== v.id){ S.me = v; try{ S.myStamps = await DB.stampsOf(v.id); }catch(e){ S.myStamps = (await store.get('wj:stamps_cache')) || []; } S.pending = (await store.get('wj:pending')) || []; S.surveyOpenAt = (await store.get('wj:survey_open')) || 0; await store.set('wj:me', v.id); await store.set('wj:me_cache', v); await store.set('wj:stamps_cache', S.myStamps); }
+      toast(`${v.name}님, 기록을 그대로 이어가요`); go(returnTo || '/', true);
+    };
+  })();
   let gender = '';
   $$('#rGender button').forEach(b => b.onclick = () => { gender = b.dataset.g; $$('#rGender button').forEach(x => x.classList.toggle('on', x === b)); });
   let level = '', gradeNo = '';   // 구분(초·중·고·성인) 따로, 학년 숫자 따로 → 저장은 '초3' 형태
@@ -1347,7 +1364,7 @@ function renderRegister(returnTo){
     if(!$('#rConsent').checked) return toast('개인정보 동의가 필요해요');
     $('#rGo').disabled = true;
     try{
-      S.me = await DB.createVisitor({ name, school, grade, gender }); S.myStamps = []; S.surveyOpenAt = 0; await store.set('wj:survey_open', 0);
+      S.me = await DB.createVisitor({ name, school, grade, gender }); S.myStamps = []; S.pending = []; await store.set('wj:pending', []); S.surveyOpenAt = 0; await store.set('wj:survey_open', 0);   // 이전 기록의 대기 도장이 새 사람에게 붙지 않게
       await store.set('wj:me', S.me.id);
       toast(`${name}님, 환영해요!`);
       go(returnTo || '/', true);
@@ -1357,9 +1374,9 @@ function renderRegister(returnTo){
 
 /* 부스 소개: 사진·소개·위치·유튜브·PDF·도장 상태. QR 찍기 버튼은 스캐너로 */
 function renderBooth(n){
-  const b = boothByN(n); if(!b) return go('/', true);
+  const b = boothByNLoose(n); if(!b){ toast('그 번호의 부스가 없어요'); return go('/', true); }
   const c = catOf(b.cat), st = allStampsLocal().find(s => s.boothId === b.id);
-  shell('/', `부스 ${b.n}`, `
+  shell('/', `부스 ${bn(b)}`, `
     <div class="hero" style="--c:${c.color}">
       <div class="num">BOOTH ${esc(bn(b))}</div>
       <h1 class="name">${esc(b.name)}</h1>
@@ -1391,7 +1408,7 @@ function renderBooth(n){
    미등록이면 등록 화면으로 보냈다가 돌아옴. 토큰은 qrTok 에서 꺼내 addStamp 에 동봉.
    결과별 화면: 성공(완주면 confetti) / 이미 찍음 / 통신 실패→pending 안내 / 서버 거절(토큰·너무 빠름)→✋ 화면 */
 function renderStamp(n){
-  const b = boothByN(n); if(!b) return go('/', true);
+  const b = boothByNLoose(n); if(!b){ toast('부스 번호를 확인해 주세요 (' + String(n ?? '') + ')'); return go('/', true); }
   if(!S.me){ go('/register/' + encodeURIComponent('/stamp/' + n), true); return; }
   const c = catOf(b.cat);
   shell('/my', '', `<div class="stampscreen" id="stampArea"><div class="muted small">도장 찍는 중…</div></div>`, { noTop: true });
@@ -1419,7 +1436,7 @@ function renderStamp(n){
     let res; const token = qrTok.get(b.n);
     if(stampedIds().has(b.id)) res = { ok: false, dup: true };                       // 이미 찍었거나 전송 대기 중
     else {
-      try{ res = await DB.addStamp(S.me.id, b.id, token); if(res.ok){ S.myStamps.push(res.stamp); await store.set('wj:stamps_cache', S.myStamps); } }
+      try{ res = await DB.addStamp(S.me.id, b.id, token); if(res.ok){ S.myStamps.push(res.stamp); await store.set('wj:stamps_cache', S.myStamps); } else if(res.dup){ try{ S.myStamps = await DB.stampsOf(S.me.id); await store.set('wj:stamps_cache', S.myStamps); }catch(e){} } }   // dup = 다른 탭·폰에서 이미 찍음 → 서버 목록으로 맞춤
       catch(e){ S.pending.push({ boothId: b.id, token, at: Date.now() }); await store.set('wj:pending', S.pending); res = { ok: true, queued: true }; }   // 통신 실패 → 폰에 저장, 나중에 자동 전송
     }
     if(res.badToken || res.tooFast){   // 서버가 거절: 토큰 없음(주소창에 번호만 침·링크 위조) / 너무 빠름(링크 공유로 연달아 찍기)
@@ -1523,6 +1540,7 @@ function renderSurvey(){
   if(!S.me) return renderRegister('/survey');
   if(!goalReached()) return go('/my', true);
   if(S.me.surveyAt) return go('/my', true);
+  if(surveyMode() !== 'app') return go('/my', true);   // 외부 설문 링크가 설정돼 있으면 앱 내 설문으로 우회 못 하게
   const A = {}, req = SURVEY.filter(q => q.required);
   const answered = q => { const v = A[q.id]; return Array.isArray(v) ? v.length > 0 : v !== undefined && String(v).trim() !== ''; };
   const mine = allStampsLocal().map(s => boothById(s.boothId)).filter(Boolean);
@@ -1620,8 +1638,8 @@ function mapSVG(){
   s += `<g id="routeLayer"></g>`;
   const visible = new Set(filteredBooths().map(b => b.id));
   S.booths.forEach(b => {
-    const p = pos[b.id]; if(!p) return; const c = catOf(bv(b).cat);   // 전환 후 분류 색
-    const cls = `tile ${visible.has(b.id) ? '' : 'dim'} ${boothOpen(b) ? '' : 'off'} ${done.has(b.id) ? 'done' : ''} ${S.focus === b.id ? 'hi' : ''}`;
+    const p = pos[b.id]; if(!p) return; const vb = bv(b), c = catOf(vb.cat);   // 전환 후 분류 색·운영 상태(variant hours 비우면 종일)
+    const cls = `tile ${visible.has(b.id) ? '' : 'dim'} ${boothOpen(vb) ? '' : 'off'} ${done.has(b.id) ? 'done' : ''} ${S.focus === b.id ? 'hi' : ''}`;
     if(p.bus){                                                                                                             // 측1문 밖 버스: 창문 3개 + 바퀴 2개
       const bx = p.x - p.w / 2, by = p.y - p.h / 2;
       s += `<g class="${cls}" data-id="${b.id}" data-x="${p.x.toFixed(0)}" data-y="${p.y.toFixed(0)}" transform="rotate(${(p.rot || 0).toFixed(1)} ${p.x.toFixed(1)} ${p.y.toFixed(1)})"><rect class="bg" x="${bx}" y="${by}" width="${p.w}" height="${p.h}" rx="12" fill="${c.color}" stroke="#fff" stroke-width="2"/>
@@ -1687,7 +1705,10 @@ function layoutLabels(ids){
   const ring = items.filter(o => !o.p.rect).sort((a, b) => a.p.t - b.p.t);
   if(ring.length){
     if(ring.length > 1 && ring[ring.length - 1].p.t - ring[0].p.t > .5){ const k = ring.findIndex((o, i) => i && o.p.t - ring[i - 1].p.t > .5); if(k > 0) ring.push(...ring.splice(0, k)); }   // t=0 경계를 걸치면 순서 이어 붙이기
-    const m = ring[Math.floor(ring.length / 2)].p, nx = m.nx, ny = m.ny;
+    const m = ring[Math.floor(ring.length / 2)].p; let nx = m.nx, ny = m.ny;
+    /* 위쪽 직선 구간에서 정문 띠(폭 240) 위에 걸리는 칸이 하나라도 있으면 무리 전체를 안쪽(통로, 30px)에 단다 — 바깥은 정문·본부석 띠가 연달아 있어 자리가 없다 */
+    const mg = m.band.mainGate, flip = !!mg && ring.some(o => o.p.ny < -.92 && Math.abs(o.p.x - mg.x) < mg.w / 2 + o.w / 2 + 8);
+    if(flip){ nx = -nx; ny = -ny; }
     let tx = -ny, ty = nx; const a = ring[0].p, z = ring[ring.length - 1].p;
     if(ring.length > 1 && (z.x - a.x) * tx + (z.y - a.y) * ty < 0){ tx = -tx; ty = -ty; }                          // 접선은 링 진행 방향으로
     /* 위·아래 직선 구간(법선이 세로)만 두 줄. 좌우·곡선 구간은 접선 방향으로 쌓으면 세로로 벌어져 한 줄이면 안 겹친다 */
@@ -1696,8 +1717,8 @@ function layoutLabels(ids){
     const gap = 8;
     /* 축에 정렬된 알약끼리 안 겹치려면 접선 방향 간격 d가 가로로 (w1+w2)/2+gap 이상이거나 세로로 (h1+h2)/2+gap 이상이면 된다 */
     const need = (a, b) => Math.min(Math.abs(tx) > .01 ? ((a.w + b.w) / 2 + gap) / Math.abs(tx) : 1e9, Math.abs(ty) > .01 ? ((a.h + b.h) / 2 + gap) / Math.abs(ty) : 1e9);
-    const sg = m.band.sideGates || [];
-    let base = 14;
+    const sg = [...(m.band.sideGates || []), ...(mg ? [mg] : [])];                                                // 비킬 문 띠: 측문 + 정문
+    let base = flip ? 4 : 14;                                                                                  // 안쪽은 통로가 좁아 띠에 바짝
     rows.forEach((row, r) => {
       const e = Math.max(...row.map(ext));
       /* 각 알약은 자기 칸 바로 바깥(칸을 접선에 투영한 자리)에 두고 싶다. 순서대로 훑으며 겹치는 만큼만 밀고, 민 양의 평균을 되돌려 전체가 칸 위에 머물게 한다 */
@@ -1708,8 +1729,8 @@ function layoutLabels(ids){
       const bx = m.x + nx * (m.band.h / 2 + dist), by = m.y + ny * (m.band.h / 2 + dist);
       const fin = offs.map(v => v - mid);
       /* 측문 띠(띠 바깥 16~50px)와 같은 높이의 줄이면 띠를 장애물로 보고 알약을 접선 방향으로 비킨다: 문 앞쪽 알약은 뒤로, 뒤쪽은 앞으로. 이웃 간격(need)도 유지 */
-      sg.forEach(gt => {
-        if(dist - e > 50 || dist + e < 16) return;
+      if(!flip) sg.forEach(gt => {                                                                                // 안쪽엔 문이 없다
+        const lo = gt.id === 'gate-main' ? 29 : 16, hi = lo + 34; if(dist - e > hi || dist + e < lo) return;   // 측문 띠는 띠 바깥 16~50px, 정문 띠는 29~63px
         const gw = (gt.x - m.x) * tx + (gt.y - m.y) * ty; if(Math.abs(gw) > 420) return;
         const needG = o => gt.w / 2 + o.w / 2 + gap;
         let cap = Infinity;
@@ -1717,8 +1738,13 @@ function layoutLabels(ids){
         let floor = -Infinity;
         for(let k = 0; k < row.length; k++){ const o = row[k]; if(fin[k] < gw){ floor = -Infinity; continue; } const bot = Math.max(floor, gw + needG(o)); if(fin[k] < bot) fin[k] = bot; floor = fin[k] + (k < row.length - 1 ? need(o, row[k + 1]) : 0); }
       });
+      if(flip && Math.abs(tx) > .5){   // 안쪽 이름표는 직선 구간(정문 중심 ±L/2) 안에만 — 모서리로 나가면 휘어진 칸들과 겹친다. 이웃 간격(need) 유지
+        const ax = mg.x - m.x, bnd = o => { const l = m.band.mid.L / 2 - 4 - o.w / 2, a = (ax - l) / tx, b = (ax + l) / tx; return [Math.min(a, b), Math.max(a, b)]; };
+        let cap = Infinity; for(let k = row.length - 1; k >= 0; k--){ const o = row[k], top = Math.min(cap, bnd(o)[1]); if(fin[k] > top) fin[k] = top; cap = fin[k] - (k ? need(row[k - 1], o) : 0); }
+        let floor = -Infinity; for(let k = 0; k < row.length; k++){ const o = row[k], bot = Math.max(floor, bnd(o)[0]); if(fin[k] < bot) fin[k] = bot; floor = fin[k] + (k < row.length - 1 ? need(o, row[k + 1]) : 0); }
+      }
       row.forEach((o, k) => { const p = o.p, off = fin[k];
-        const ex = p.x + p.nx * p.band.h / 2, ey = p.y + p.ny * p.band.h / 2;
+        const sd = flip ? -1 : 1, ex = p.x + p.nx * sd * p.band.h / 2, ey = p.y + p.ny * sd * p.band.h / 2;   // 연결선은 칸의 이름표 쪽 가장자리에서
         out += pill(o, bx + tx * off, by + ty * off, ex, ey); });
     });
   }
@@ -1857,7 +1883,7 @@ function renderMap(focusN){
       <div class="map-legend" id="mapLegend">${catChipsHTML()}</div>
     </div>`, { noTop: true, flush: true, wide: true });
   const wrap = $('#mapwrap'); let drawnPortrait = null;
-  const redraw = () => { drawnPortrait = geom().portrait; mapPos = null; nearKey = ''; wrap.innerHTML = mapSVG(); wireMap(); if(S.focus) markFocus(S.focus); applyView(); if(S.route) drawRoute(S.route); };
+  const redraw = () => { drawnPortrait = geom().portrait; mapPos = null; nearKey = ''; wrap.innerHTML = mapSVG(); wireMap(); if(S.focus) markFocus(S.focus); applyView(); if(S.route){ drawRoute(S.route); showRouteHint(S.route); } };   // 다른 화면 갔다 와도 경로선과 힌트(✕)를 같이 복원
   redraw();                                       // 마운트 후에 그려야 실제 컨테이너 크기로 가로/세로를 정한다
   $('#mq').oninput = e => { S.q = e.target.value; redraw(); const hit = filteredBooths(); if(S.q.trim() && hit.length === 1){ S.focus = hit[0].id; markFocus(hit[0].id); centerOnVisible(hit[0].id, Math.max(view.k, 2.2)); } };
   wireChips($('#mapLegend'), function again(){ $('#mapLegend').innerHTML = catChipsHTML(); wireChips($('#mapLegend'), again); redraw(); });
@@ -1895,8 +1921,8 @@ const loadJsQR = () => loadLib(() => !!window.jsQR, ['https://cdn.jsdelivr.net/n
 const loadQRCode = () => loadLib(() => !!window.QRCode, ['https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js', './qrcode.min.js?v=DEV']);
 /* QR 내용 → 부스 번호. 우리 QR 주소(?b=번호&t=토큰)면 토큰을 qrTok 에 저장하고 번호 반환. '7'·'부스 7' 같은 문자열도 허용(구형 QR) */
 function parseBoothQR(text){
-  try{ const u = new URL(text); const b = u.searchParams.get('b') || (u.hash.match(/#\/stamp\/(\w+)/) || [])[1]; if(b){ qrTok.set(b, u.searchParams.get('t')); return b; } }catch(e){}
-  const m = String(text).match(/^(?:b|booth|부스)?[:\s]*(\d{1,3})$/i); return m ? m[1].padStart(2, '0') : null;
+  try{ const u = new URL(text); let b = u.searchParams.get('b') || (u.hash.match(/#\/stamp\/([^/?#]+)/) || [])[1]; if(b){ try{ b = decodeURIComponent(b); }catch(e){} qrTok.set(b, u.searchParams.get('t')); return b; } }catch(e){}   // 해시 주소의 한글 번호(본1)도 인식
+  const m = String(text).match(/^(?:b|booth|부스)?[:\s]*(\d{1,3})$/i); return m ? m[1] : null;   // 시드 번호엔 앞 0 이 없으므로 그대로 (앞 0 은 boothByNLoose 가 처리)
 }
 /* 카메라 스캐너. testStampInput 이면 번호 입력창(https 아닌 로컬용). 아니면 getUserMedia → 120ms 마다 jsQR → 부스 번호 나오면 #/stamp/번호 */
 /* 스캐너. 기본은 부스 QR(→ 도장). opts.onCode(text) 를 주면 그 콜백이 처리 (관리자 › 선물 수령의 교환권 스캔).
@@ -1939,7 +1965,7 @@ async function openScanner(opts = {}){
         const img = ctx.getImageData(0, 0, 480, 480); const code = jsQR(img.data, 480, 480, { inversionAttempts: 'dontInvert' });
         if(code && code.data && opts.onCode){ handle(code.data); }
         else if(code && code.data){ const n = parseBoothQR(code.data);
-          if(n && boothByN(n)){ $('#scanHit').classList.add('on'); if(navigator.vibrate) navigator.vibrate(60); setTimeout(() => { closeScanner(); go('/stamp/' + n); }, 250); return; }
+          const hit = n && boothByNLoose(n); if(hit){ $('#scanHit').classList.add('on'); if(navigator.vibrate) navigator.vibrate(60); setTimeout(() => { closeScanner(); go('/stamp/' + hit.n); }, 250); return; }
           if(!n) msg.innerHTML = '<b>행사 QR이 아니에요</b>부스 앞 안내판의 QR을 찍어주세요';
           else msg.innerHTML = `<b>${esc(n)}번 부스를 찾을 수 없어요</b>안내데스크에 문의해 주세요`;
         }
@@ -1979,8 +2005,8 @@ async function renderAdmin(tab){
       <button class="btn blue full" id="pwGo">들어가기</button>
       <button class="btn soft full" onclick="go('/')">방문객 화면으로</button></div>`, { noTabs: true, back: true });
     const tryLogin = async () => {
-      if(DB === SupabaseDB){ $('#pwGo').disabled = true; try{ await adminAuth.login($('#pw').value); S.admin = true; toast('로그인했어요'); go(admPath('/dash'), true); }catch(e){ $('#pwGo').disabled = false; toast(e.message); } return; }
-      const stored = mem['wj:pw'] || CONFIG.adminPassword; if($('#pw').value === stored){ S.admin = true; toast('로그인했어요'); go(admPath('/dash'), true); } else toast('비밀번호가 달라요');
+      if(DB === SupabaseDB){ $('#pwGo').disabled = true; try{ await adminAuth.login($('#pw').value); S.admin = true; toast('로그인했어요'); go(admPath('/' + (tab || 'dash')), true); }catch(e){ $('#pwGo').disabled = false; toast(e.message); } return; }
+      const stored = mem['wj:pw'] || CONFIG.adminPassword; if($('#pw').value === stored){ S.admin = true; toast('로그인했어요'); go(admPath('/' + (tab || 'dash')), true); } else toast('비밀번호가 달라요');
     };
     $('#pwGo').onclick = tryLogin; $('#pw').onkeydown = e => { if(e.key === 'Enter') tryLogin(); }; $('#pw').focus();
     return;
@@ -2060,7 +2086,7 @@ function admGift(st){
       <p class="small muted" style="line-height:1.6;margin-bottom:10px">완주 전인 사람도 이름·학교·코드로 찾아요. <b>폰이 바뀐 사람</b>에겐 코드를 알려주면 새 폰에서 '기록 이어받기'로 복구돼요. <b>QR이 안 찍히는 경우</b>엔 부스 번호로 도장을 직접 넣어요.</p>
       <div class="row" style="gap:8px"><input class="inp sm" id="fq" placeholder="이름, 학교, 코드" autocomplete="off" style="max-width:280px"><button class="btn sm" id="fGo">찾기</button></div>
       <div class="tscroll" id="fRes" style="margin-top:10px"></div></div>
-    <div class="row"><div class="h-sec" style="margin:0">달성자 ${list.length}명 <span class="muted small">· 설문 완료 ${list.filter(v => v.surveyAt).length} · 미수령 ${list.filter(v => !v.giftAt).length}</span></div></div>
+    <div class="row"><div class="h-sec" style="margin:0">달성자 ${list.length}명 <span class="muted small" id="gCnt"></span></div></div>
     <div class="tscroll"><table class="table"><thead><tr><th>코드</th><th>이름</th><th>학교</th><th>학년</th><th>성별</th><th>스탬프</th><th>설문</th><th>상태</th><th></th></tr></thead><tbody id="gBody"></tbody></table></div>`);
   const draw = () => {
     const q = ($('#gq').value || '').trim().toLowerCase();
@@ -2069,8 +2095,11 @@ function admGift(st){
       <td>${v.surveyAt ? `<span class="pill" style="background:var(--mint-soft);color:#12704F">완료</span>` : `<span class="pill muted" style="background:var(--card-2)">전</span>`}</td>
       <td>${v.giftAt ? `<span class="pill" style="background:var(--mint-soft);color:#12704F">${fmtTime(v.giftAt)} 수령</span>` : `<span class="pill" style="background:var(--sun-soft);color:var(--sun-ink)">미수령</span>`}</td>
       <td style="text-align:right">${v.giftAt ? `<button class="btn xs line" data-undo="${v.id}">취소</button>` : `<button class="btn xs sun" data-give="${v.id}">수령 처리</button>`}</td></tr>`).join('') : '<tr><td colspan="9" class="empty">해당하는 달성자가 없어요</td></tr>';
-    $$('[data-give]').forEach(b => b.onclick = async () => { await DB.setGift(b.dataset.give, true); toast('수령 처리했어요'); renderAdmin('gift'); });
-    $$('[data-undo]').forEach(b => b.onclick = async () => { if(confirm('수령 처리를 취소할까요?')){ await DB.setGift(b.dataset.undo, false); renderAdmin('gift'); } });
+    $('#gCnt').textContent = `· 설문 완료 ${list.filter(v => v.surveyAt).length} · 미수령 ${list.filter(v => !v.giftAt).length}`;
+    /* 수령/취소는 그 사람 행만 바꾸고 목록만 다시 그림 (전체 재렌더로 검색어·스크롤이 날아가던 문제). 실패하면 토스트 */
+    const setGift = async (id, on) => { const v = list.find(x => x.id === id); try{ await DB.setGift(id, on); }catch(e){ return toast(e.message || '처리 실패'); } if(v) v.giftAt = on ? Date.now() : null; toast(on ? '수령 처리했어요' : '수령 처리를 취소했어요'); draw(); };
+    $$('[data-give]').forEach(b => b.onclick = () => { b.disabled = true; setGift(b.dataset.give, true); });
+    $$('[data-undo]').forEach(b => b.onclick = () => { if(confirm('수령 처리를 취소할까요?')) setGift(b.dataset.undo, false); });
   };
   $('#gq').oninput = draw; draw(); $('#gq').focus();
   /* 교환권 QR 연속 스캔: 'WJ:uuid' → 달성자 목록에서 찾고(없으면 서버 검색) → 카드 → 수령 처리 → 다음 학생 */
@@ -2102,6 +2131,7 @@ function admGift(st){
     $$('[data-addstamp]').forEach(b => b.onclick = async () => {
       const n = (prompt(`${b.dataset.name}님에게 넣을 부스 번호`) || '').trim(); if(!n) return;
       const booth = boothByN(n) || boothByN(String(parseInt(n))); if(!booth) return toast('그 번호의 부스가 없어요');
+      if(!hasStamp(booth)) return toast(`${booth.n}번은 도장 없는 부스예요 (QR 제외)`);
       try{ const r = await DB.adminAddStamp(b.dataset.addstamp, booth.id); toast(r.dup ? '이미 찍혀 있는 부스예요' : `${booth.n}번 도장을 넣었어요`); find(); }catch(e){ toast(e.message); }
     });
   };
@@ -2134,7 +2164,7 @@ function admBooths(){
             <button class="btn xs soft" data-media="${i}" style="white-space:nowrap">편집</button>
             <button class="btn xs line" data-del="${i}" style="color:var(--coral);white-space:nowrap">삭제</button></div></div>
         <div class="l2">
-          <input class="inp sm f-cat" value="${esc(catOf(b.cat).name)}" data-f="cat" placeholder="분류" title="없는 이름을 적으면 새 분류가 생겨요">
+          <input class="inp sm f-cat" value="${esc(b.catTxt || catOf(b.cat).name)}" data-f="cat" placeholder="분류" title="없는 이름을 적으면 새 분류가 생겨요">
           <select class="inp sm f-zone" data-f="zone" title="구역">${ZONES.map(z => `<option value="${z.id}" ${z.id === (b.zone || '') ? 'selected' : ''}>${z.name}</option>`).join('')}</select>
           <input type="hidden" data-f="target" value="${esc(b.target || '')}"><div class="tsel" data-tsel="${i}" title="대상: 초등 이하로 두면 중고등학생 폰에는 안 보이고 도장도 안 찍혀요">${TARGETS.map(t => `<button type="button" class="${(b.target || '') === t.id ? 'on' : ''}" data-t="${t.id}">${t.name}</button>`).join('')}</div>
           <input type="hidden" data-f="hours" value="${esc(b.hours || '')}"><input type="hidden" data-f="variant" value="${esc(b.variant ? JSON.stringify(b.variant) : '')}">
@@ -2143,16 +2173,19 @@ function admBooths(){
     </div>
     <div class="row no-print"><button class="btn blue" id="bSave">변경사항 저장</button><span class="small muted">저장 전엔 지도에 반영되지 않아요</span></div>`);
   /* 분류는 글자 입력. 있는 이름(일부만 써도 됨)이면 그걸로, 없는 이름이면 새 분류가 생김. 구역은 드롭다운 */
-  const collect = () => S.booths.map((b, i) => { const tr = $(`.brow[data-i="${i}"]`); const o = { ...b }; $$('[data-f]', tr).forEach(el => { const v = el.value.trim(); o[el.dataset.f] = el.dataset.f === 'cat' ? matchCategory(v, b.cat, true) : el.dataset.f === 'variant' ? (() => { try{ return v ? JSON.parse(v) : null; }catch(e){ return null; } })() : v; }); return o; });
+  const collect = (create = false) => S.booths.map((b, i) => { const tr = $(`.brow[data-i="${i}"]`); const o = { ...b }; $$('[data-f]', tr).forEach(el => { const v = el.value.trim(); o[el.dataset.f] = el.dataset.f === 'cat' ? matchCategory(v, b.cat, create) : el.dataset.f === 'variant' ? (() => { try{ return v ? JSON.parse(v) : null; }catch(e){ return null; } })() : v;
+    if(el.dataset.f === 'cat'){ delete o.catTxt; if(!create && v && !matchCategory(v, null, false)) o.catTxt = v; } }); return o; });   // 새 분류는 저장(create=true) 때만 생김. 그 전엔 적은 글자를 catTxt 로 들고 있다가 다시 보여줌
   /* 부스 저장 뒤 사용자 정의 분류를 settings 에 같이 저장. 아무 부스도 안 쓰는 사용자 정의 분류는 정리 */
   const saveCategories = async list => {
     const used = new Set(list.flatMap(b => [b.cat, b.variant && b.variant.cat].filter(Boolean)));
     for(let i = CATS.length - 1; i >= 0; i--) if(CATS[i].custom && !used.has(CATS[i].id)) CATS.splice(i, 1);
     const cats = CATS.filter(c => c.custom).map(c => ({ id: c.id, name: c.name, color: c.color }));
-    const prev = JSON.stringify((S.settingsRaw || {}).categories || []);
-    if(prev !== JSON.stringify(cats)){ const data = { ...(S.settingsRaw || {}), categories: cats }; await DB.saveSettings(data); S.settingsRaw = data; }
+    const raw = S.settingsRaw || {}, data = { ...raw, categories: cats }; let changed = JSON.stringify(raw.categories || []) !== JSON.stringify(cats);
+    const ids = new Set(list.map(b => b.id));   // 삭제된 부스 id 가 쉬는 중·QR 제외 목록에 남아 개수가 안 맞던 문제
+    for(const k of ['closedBooths', 'noStampBooths']){ const a = raw[k]; if(Array.isArray(a)){ const f = a.filter(id => ids.has(id)); if(f.length !== a.length){ data[k] = f; changed = true; } } }
+    if(changed){ await DB.saveSettings(data); S.settingsRaw = data; }
   };
-  $('#bSave').onclick = async () => { const list = collect(); const seen = new Set(); for(const b of list){ if(!b.n || !b.name) return toast('번호와 이름은 비울 수 없어요'); if(seen.has(b.n)) return toast(`부스 번호 ${b.n}이(가) 중복돼요`); seen.add(b.n); } S.booths = list; await DB.saveBooths(list); await saveCategories(list); toast('저장했어요'); renderAdmin('booths'); };
+  $('#bSave').onclick = async () => { const seen = new Set(); for(const b of collect()){ if(!b.n || !b.name) return toast('번호와 이름은 비울 수 없어요'); if(seen.has(normN(b.n))) return toast(`부스 번호 ${b.n}이(가) 중복돼요`); seen.add(normN(b.n)); } const list = collect(true); /* 검증 통과 뒤에만 새 분류 생성 */ S.booths = list; await DB.saveBooths(list); await saveCategories(list); toast('저장했어요'); renderAdmin('booths'); };
   $('#bAdd').onclick = () => { const list = collect(); if(list.length >= CONFIG.boothMax) return toast(`부스는 최대 ${CONFIG.boothMax}개까지예요`); const n = String(Math.max(0, ...list.map(b => parseInt(b.n) || 0)) + 1).padStart(2, '0'); list.push({ id: 'b' + n + '-' + Date.now().toString(36), n, name: '', cat: 'etc', org: '', zone: '', desc: '', video: '', pdf: '', img: '', hours: '', variant: null, target: '' }); S.booths = list; renderAdmin('booths'); setTimeout(() => $$('#bList .brow').pop()?.querySelector('[data-f=name]').focus(), 50); };
   $$('[data-del]').forEach(b => b.onclick = () => { const list = collect(); if(!confirm(`${list[b.dataset.del].n} 부스를 삭제할까요? 저장을 눌러야 반영돼요.`)) return; list.splice(b.dataset.del, 1); S.booths = list; renderAdmin('booths'); });
   /* 순서: 왼쪽 ≡ 를 끌어서(pointer 이벤트, 마우스·터치 공통) 행을 옮기고, 놓으면 표의 행 순서대로 S.booths 를 다시 만듦. [번호순 정렬]은 번호(숫자 먼저, 본1·네1 같은 글자 번호는 뒤) 순 */
@@ -2229,6 +2262,7 @@ function admBooths(){
     const range = t => String(t || '').match(/(\d{1,2}:\d{2})\s*[~\-–]\s*(\d{1,2}:\d{2})/) || [];
     let v = null; try{ v = get('variant') ? JSON.parse(get('variant')) : null; }catch(e){}
     const hm = range(get('hours')), vh = range(v && v.hours), vm = (v && v.media) || null;
+    const rawHours = get('hours'); let keepRaw = !!rawHours && !hm.length;   // 시작~끝 형식이 아닌 값(엑셀에서 온 '13:00' 등)은 확인만 눌러도 지워지지 않게 보관
     const pad = t => t ? t.split(':').map(x => x.padStart(2, '0')).join(':') : '';
     const tm = (id, val, ph) => `<input class="inp sm tmi" id="${id}" value="${esc(pad(val))}" placeholder="${ph}" inputmode="numeric" maxlength="5" autocomplete="off">`;
     const field = (label, html) => `<div class="tf"><span class="tlb">${label}</span>${html}</div>`;
@@ -2239,6 +2273,7 @@ function admBooths(){
       <div class="card tight tsheet" style="margin-bottom:10px"><div class="kv">
         <div class="k">🕒 운영 시간 <span class="small muted" style="font-weight:600">비우면 종일</span></div>
         ${field('시간', `<div class="row tmr">${tm('tStart', hm[1], '--:--')}<span>~</span>${tm('tEnd', hm[2], '--:--')}<button class="btn xs soft" id="tClear">종일</button></div>`)}
+        ${keepRaw ? `<p class="small muted" style="margin:6px 0 0 82px;line-height:1.5">지금 값 <b>${esc(rawHours)}</b>은 시작~끝 형식이 아니라 그대로 둬요. 바꾸려면 위에 적고, 없애려면 [종일].</p>` : ''}
       </div></div>
       <div class="card tight tsheet" style="margin-bottom:14px"><div class="kv">
         <label class="row" style="gap:8px;align-items:center;cursor:pointer"><input type="checkbox" id="tSw" ${v ? 'checked' : ''}><span class="k" style="margin:0">🔁 시간이 되면 다른 부스로 바뀌어요</span></label>
@@ -2283,7 +2318,7 @@ function admBooths(){
     });
     $('#tSw').onchange = () => { $('#tSwBox').hidden = !$('#tSw').checked; };
     $('#tMed').onchange = () => { $('#tMedBox').hidden = !$('#tMed').checked; };
-    $('#tClear').onclick = () => { $('#tStart').value = ''; $('#tEnd').value = ''; };
+    $('#tClear').onclick = () => { $('#tStart').value = ''; $('#tEnd').value = ''; keepRaw = false; };
     $('#tVClear').onclick = () => { $('#tVStart').value = ''; $('#tVEnd').value = ''; };
     $('#tStamp').onclick = e => { const bt = e.target.closest('button'); if(!bt) return; $$('#tStamp button').forEach(x => x.classList.toggle('on', x === bt)); };
     const tpv = () => {
@@ -2312,7 +2347,7 @@ function admBooths(){
         const stk = ($('#tStamp .on') || {}).dataset?.k || ''; if(stk) nv.stamp = stk;
         if($('#tMed').checked) nv.media = { video: $('#tVideo').value.trim(), pdf: $('#tPdf').value.trim(), img: $('#tImg').value.trim() };
       }
-      const hours = st ? `${st}~${en}` : '';
+      const hours = st ? `${st}~${en}` : (keepRaw ? rawHours : '');
       $('[data-f=hours]', tr).value = hours; $('[data-f=variant]', tr).value = nv ? JSON.stringify(nv) : '';
       $('[data-m=hours]', tr).textContent = '🕒 ' + (hours || '종일'); $('[data-m=hours]', tr).classList.toggle('on', !!hours);
       $('[data-m=variant]', tr).textContent = '🔁 ' + (nv ? nv.at + ' 전환' + (nv.n ? ' · 번호 ' + nv.n : '') + (nv.media ? ' · 자료 별도' : '') + (nv.stamp === 'yes' ? ' · 도장 있음' : nv.stamp === 'no' ? ' · 도장 없음' : '') : '전환 없음'); $('[data-m=variant]', tr).classList.toggle('on', !!nv);
@@ -2395,11 +2430,12 @@ function admBooths(){
   $('#bImp').onchange = async e => { const f = e.target.files[0]; if(!f) return; e.target.value = '';
     let rows; try{ rows = (/\.xlsx$/i.test(f.name) ? await readXlsx(f) : parseCSV(await f.text()).slice(1)).filter(r => r[0]); }catch(err){ return toast(err.message || '파일을 읽지 못했어요'); }
     if(!rows.length) return toast('읽을 행이 없어요');
-    { const seen = new Set(); for(const r of rows){ if(seen.has(r[0])) return toast(`부스 번호 ${r[0]}이(가) 두 번 있어요`); seen.add(r[0]); } }
+    { const seen = new Set(); for(const r of rows){ if(seen.has(normN(r[0]))) return toast(`부스 번호 ${r[0]}이(가) 두 번 있어요`); seen.add(normN(r[0])); } }
+    { const e = rows.find(r => !r[1]); if(e) return toast(`부스명이 빈 줄이 있어요 (번호 ${e[0]})`); }
     if(rows.length > CONFIG.boothMax) return toast(`부스는 최대 ${CONFIG.boothMax}개까지예요 (${rows.length}개)`);
-    const prevVariant = Object.fromEntries(S.booths.map(b => [b.n, b.variant || null]));   // 시간대 전환은 엑셀에 없으니 같은 번호의 기존 값 유지
-    S.booths = rows.map(r => ({ id: 'b' + r[0], n: r[0], name: r[1] || '', org: r[2] || '', cat: matchCategory(r[3], 'etc', true),
-      zone: (ZONES.find(z => z.name === r[4] || z.id === r[4]) || ZONES[0]).id, desc: r[5] || '', video: r[6] || '', pdf: r[7] || '', img: r[8] || '', hours: r[9] || '', variant: prevVariant[r[0]] || null, target: parseTarget(r[10]) })); await DB.saveBooths(S.booths); await saveCategories(S.booths); toast(`${rows.length}개 부스를 불러왔어요`); renderAdmin('booths'); };
+    const prevByN = Object.fromEntries(S.booths.map(b => [normN(b.n), b]));   // 같은 번호의 기존 부스: id(쉬는 중·QR 제외·도장 기록이 id 로 묶임)와 시간대 전환(엑셀에 없음)은 유지
+    S.booths = rows.map(r => ({ id: (prevByN[normN(r[0])] || {}).id || 'b' + r[0], n: r[0], name: r[1] || '', org: r[2] || '', cat: matchCategory(r[3], 'etc', true),
+      zone: (ZONES.find(z => z.name === r[4] || z.id === r[4]) || ZONES[0]).id, desc: r[5] || '', video: r[6] || '', pdf: r[7] || '', img: r[8] || '', hours: r[9] || '', variant: (prevByN[normN(r[0])] || {}).variant || null, target: parseTarget(r[10]) })); await DB.saveBooths(S.booths); await saveCategories(S.booths); toast(`${rows.length}개 부스를 불러왔어요`); renderAdmin('booths'); };
 }
 /* 지도 편집(관리자 › 지도): 화장실·휴지통 표시를 지도 위에 놓는다. 도구 고르고 지도 탭 → 추가, 놓인 표시 탭 → 삭제. settings.facilities 에 바로 저장(방문객 폰은 부팅·5분마다 반영) */
 const FAC_TYPES = { wc: '화장실', bin: '휴지통' }, FAC_ICON = { wc: '🚻', bin: '🗑' };
@@ -2597,7 +2633,7 @@ function admData(st){
   $('#exSummary').onclick = () => { const cnt = {}; Object.entries(st.perBooth).forEach(([k, v]) => cnt[k] = v.n); download('booth_summary.csv', '\ufeff' + [['부스번호', '부스명', '운영기관', '분류', '스탬프수']].concat(S.booths.map(b => [b.n, b.name, b.org, catOf(b.cat).name, cnt[b.id] || 0])).map(r => r.map(csv).join(',')).join('\n')); };
   $('#boothReset').onclick = async () => { if(!confirm('저장된 부스 목록을 지우고 파일에 든 기본 배치도(90 + 운영·네컷 5)로 되돌릴까요? 도장 기록은 그대로예요.')) return;
     if(DB === LocalDB){ try{ localStorage.removeItem('wj:booths'); }catch(e){} delete mem['wj:booths']; } else { await DB.saveBooths([]); }
-    await loadBooths(); await DB.saveBooths(S.booths); toast('기본 배치도로 되돌렸어요'); renderAdmin('booths'); };
+    await loadBooths(); await DB.saveBooths(S.booths); toast('기본 배치도로 되돌렸어요'); go(admPath('/booths')); };
   $('#setPwGo').onclick = async () => { const v = $('#setPw').value.trim(); if(v.length < 8) return toast('8자 이상으로 해주세요');
     if(local){ mem['wj:pw'] = v; return toast('이 세션의 비밀번호를 바꿨어요'); }
     try{ await DB.setPassword(v); $('#setPw').value = ''; toast('비밀번호를 바꿨어요'); }catch(e){ toast(e.message); } };
@@ -2619,6 +2655,7 @@ function download(name, text){ const a = document.createElement('a'); a.href = U
 (async function boot(){
   if(DB === SupabaseDB && adminAuth.pw()) S.admin = true;   // 새로고침해도 관리자 유지 (탭 닫으면 사라짐). 비번이 바뀌었으면 첫 관리자 RPC 에서 로그아웃됨
   await loadSettings(); await loadBoothsCached();   // 설정 먼저(부스 버전 포함) → 버전 같으면 부스 요청 생략
+  S.swSig = S.booths.map(b => bv(b).switched ? 1 : 0).join('');   // 전환 시그니처를 지금 상태로 — 전환 시각 직전에 열면 첫 틱이 초기화로 먹혀 재그리기를 놓치던 문제
   await loadMe();
   flushPending();
   // QR 딥링크: ?b=07&t=토큰 → 스탬프 화면. 토큰은 세션에 두고 주소창에서 쿼리는 지워서 새로고침 시 재진입을 막는다.

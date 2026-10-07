@@ -159,7 +159,7 @@ create policy booth_files_write on storage.objects for insert to anon with check
 
 -- 6. 치팅 방지 (2026-09-14) ---------------------------------------------
 -- 문제: QR 이 ?b=7 뿐이면 주소창에 1~90 쳐서 1분 만에 완주 가능.
--- ① 부스 토큰: QR 주소가 ?b=7&t=xxxxxxxxxx. 토큰은 booth_tokens 에 있고 anon 은 못 읽음(정책 없음). add_stamp 가 검사.
+-- ① 부스 토큰: QR 주소가 ?b=7&t=토큰(16절부터 32자). 토큰은 booth_tokens 에 있고 anon 은 못 읽음(정책 없음). add_stamp 가 검사.
 --    토큰은 부스 저장 때 자동 발급, 한 번 발급된 건 안 바뀜(인쇄한 QR 유지). 관리자 › QR 시트가 admin_booth_tokens 로 받아 QR 에 넣음.
 -- ② 시간 간격: 같은 사람의 도장 사이 최소 stamp_gap_sec() 초. 링크를 받아도 7개 찍는 데 10분 넘게 걸려 치팅 이득이 없음.
 -- 도장은 이제 add_stamp RPC 로만 들어감. anon 의 stamps 직접 insert 는 막음.
@@ -518,3 +518,16 @@ begin
   perform ensure_booth_tokens();
 end $$;
 grant execute on function admin_save_booths(text, jsonb) to anon;
+
+-- 16. 부스 토큰 32자 (2026-10-08) ---------------------------------------------
+-- 토큰을 10자(40비트)에서 32자(128비트)로 늘리고 전부 재발급. ★ 전에 뽑은 QR 시트는 무효가 되니 인쇄 전에 실행.
+-- 실행 후 관리자 › QR 시트를 다시 열면 새 토큰으로 QR 이 그려짐. 앱 코드 변경 없음(길이 제한 없음).
+create or replace function ensure_booth_tokens() returns void
+language sql security definer set search_path = public, extensions as $$
+  insert into booth_tokens (booth_id, token)
+  select b.id, encode(gen_random_bytes(16), 'hex') from booths b
+  left join booth_tokens t on t.booth_id = b.id where t.booth_id is null;
+$$;
+revoke all on function ensure_booth_tokens() from public, anon;
+delete from booth_tokens;
+select ensure_booth_tokens();

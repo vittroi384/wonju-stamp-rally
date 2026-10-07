@@ -292,7 +292,8 @@ async function loadSettings(){
     if(s.eventTitle) CONFIG.eventTitle = s.eventTitle; if(parseInt(s.stampGoal) >= 1) CONFIG.stampGoal = parseInt(s.stampGoal);
     if(Array.isArray(s.survey)) D.survey = s.survey; D.surveyLink = !!s.surveyUrl;
     D.noStamp = new Set(Array.isArray(s.noStampBooths) ? s.noStampBooths : []); applyNoStamp();
-    if(Array.isArray(s.categories)) s.categories.forEach(c => { if(c && c.id && c.name && !CATS[c.id]) CATS[c.id] = { name: c.name, color: c.color || '#64748B' }; });   // 관리자가 추가한 분류
+    if(Array.isArray(s.categories)) s.categories.forEach(c => { if(c && c.id && c.name && !CATS[c.id]) CATS[c.id] = { name: String(c.name), color: /^#[0-9a-f]{6}$/i.test(c.color) ? c.color : '#64748B' }; });   // 관리자가 추가한 분류. 색은 hex 만(style 에 그대로 들어가므로)
+    D.facilities = Array.isArray(s.facilities) ? s.facilities.filter(f => f && isFinite(f.x) && isFinite(f.y)) : [];   // 관리자 › 지도에서 놓은 화장실·휴지통
     if(s.categoryColors && typeof s.categoryColors === 'object') Object.entries(s.categoryColors).forEach(([id, col]) => { if(CATS[id] && /^#[0-9a-f]{6}$/i.test(col)) CATS[id].color = col; });   // 관리자가 바꾼 분류 색
     $('#subtitle').textContent = `${CONFIG.eventTitle} · 운영본부${s.eventDate ? ' · ' + s.eventDate : ''}`;
   }catch(e){}
@@ -387,6 +388,12 @@ function renderMap(d){
   s += `<rect ${g.field.rect} fill="#16301F"/>`;
   const P = g.pitch; s += `<g fill="none" stroke="rgba(255,255,255,.18)" stroke-width="2"><rect x="${P.x}" y="${P.y}" width="${P.w}" height="${P.h}"/><line x1="${cx}" y1="${P.y}" x2="${cx}" y2="${P.y + P.h}"/><circle cx="${cx}" cy="${cy}" r="40"/></g>`;
   g.fac.forEach(f => s += `<rect x="${f.x - f.w / 2}" y="${f.y - f.h / 2}" width="${f.w}" height="${f.h}" rx="12" fill="${f.type === 'hq' ? '#2A3048' : '#1F2438'}"/><text class="fac" x="${f.x}" y="${f.y}">${esc(f.label)}</text>`);
+  (D.facilities || []).forEach(f => {   // 관리자가 놓은 화장실(네모)·휴지통(동그라미) — 앱 지도와 같은 좌표
+    const x = +f.x, y = +f.y, icon = { wc: '🚻', bin: '🗑' }[f.type] || '📍', label = String(f.label || '');
+    s += f.type === 'wc' ? `<rect x="${x - 15}" y="${y - 15}" width="30" height="30" rx="7" fill="#1F2438" stroke="#2A3048" stroke-width="2"/><text class="fac" x="${x}" y="${y + 1}" style="font-size:20px">${icon}</text>`
+                         : `<circle cx="${x}" cy="${y}" r="14" fill="#1F2438" stroke="#2A3048" stroke-width="2"/><text class="fac" x="${x}" y="${y + 1}" style="font-size:15px">${icon}</text>`;
+    if(label) s += `<text class="fac" x="${x}" y="${y + 27}" style="font-size:11px">${esc(label)}</text>`;
+  });
   g.gates.forEach(gt => s += `<g transform="translate(${gt.x.toFixed(1)} ${gt.y.toFixed(1)}) rotate(${(gt.rot || 0).toFixed(1)})"><rect x="${-gt.w / 2}" y="${-gt.h / 2}" width="${gt.w}" height="${gt.h}" rx="10" fill="#E0479E"/><path d="M -9 ${gt.h / 2 + 2} l 9 12 l 9 -12 z" fill="#E0479E"/><text class="fac" x="0" y="0" style="fill:#fff">${esc(gt.label)}</text></g>`);
   D.booths.forEach(b => {
     const p = pos[b.id]; if(!p) return; const v = val(b), fill = heat(v, max), r = per[b.id];
@@ -436,7 +443,8 @@ function boothRow(b, v, max, extra = '', hot = false){
 function renderHot(d){
   const key = D.basic ? 'n' : 'n15';
   $('#hot').previousElementSibling.querySelector('.s').textContent = D.basic ? '누적 도장 수 상위' : '최근 15분 도장 수 상위';
-  const rows = (d.per_booth || []).filter(r => D.byId[r.booth_id] && r[key] > 0).sort((a, b) => b[key] - a[key]).slice(0, 10);
+  const ok = new Set(D.booths.map(b => b.id));   // 도장 없는 부스(noStampBooths)는 순위에서도 뺌 (D.byId 는 전체)
+  const rows = (d.per_booth || []).filter(r => ok.has(r.booth_id) && r[key] > 0).sort((a, b) => b[key] - a[key]).slice(0, 10);
   const max = rows[0]?.[key] || 0;
   $('#hot').innerHTML = rows.length ? rows.map((r, i) => boothRow(D.byId[r.booth_id], r[key], max, '', i < 3)).join('') : '<div class="empty">최근 15분 동안 찍힌 도장이 없어요</div>';
 }
@@ -484,7 +492,7 @@ function renderAll(d){
   $('#allDir').textContent = D.allDir === 'asc' ? '↑ 오름차순' : '↓ 내림차순';
   $$('#allSort button').forEach(x => x.classList.toggle('on', x.dataset.k === k));
   $$('.tbl th.sortable').forEach(th => { th.classList.toggle('on', th.dataset.k === k); th.textContent = th.textContent.replace(/ [▲▼]$/, '') + (th.dataset.k === k ? (D.allDir === 'asc' ? ' ▲' : ' ▼') : ''); });
-  $('#allBody').innerHTML = rows.map((x, i) => { const c = CATS[x.b.cat] || CATS.etc; return `<tr class="${x.n ? '' : 'zero'} rowbtn${D.bv.id === x.b.id ? ' sel' : ''}" data-bv="${esc(x.b.id)}"><td>${i + 1}</td><td class="b" style="color:${c.color}">${esc(x.b.n)}</td><td>${esc(x.b.name)}</td><td style="color:var(--ink-2)">${esc(x.b.org || '')}</td><td><span class="dot" style="background:${c.color}"></span>${c.name}</td><td class="r b">${fmt(x.n)}</td><td><div class="bar"><i style="width:${x.n / max * 100}%"></i></div></td><td class="r">${x.n15 == null ? '—' : fmt(x.n15)}</td><td class="r" style="color:${x.last && now - x.last > CONFIG.quietMin * 60e3 ? 'var(--coral)' : 'var(--ink-2)'}">${x.last ? hhmm(x.last) : '—'}</td></tr>`; }).join('') || '<tr><td colspan="9" class="empty">검색 결과가 없어요</td></tr>';
+  $('#allBody').innerHTML = rows.map((x, i) => { const c = CATS[x.b.cat] || CATS.etc; return `<tr class="${x.n ? '' : 'zero'} rowbtn${D.bv.id === x.b.id ? ' sel' : ''}" data-bv="${esc(x.b.id)}"><td>${i + 1}</td><td class="b" style="color:${c.color}">${esc(x.b.n)}</td><td>${esc(x.b.name)}</td><td style="color:var(--ink-2)">${esc(x.b.org || '')}</td><td><span class="dot" style="background:${c.color}"></span>${esc(c.name)}</td><td class="r b">${fmt(x.n)}</td><td><div class="bar"><i style="width:${x.n / max * 100}%"></i></div></td><td class="r">${x.n15 == null ? '—' : fmt(x.n15)}</td><td class="r" style="color:${x.last && now - x.last > CONFIG.quietMin * 60e3 ? 'var(--coral)' : 'var(--ink-2)'}">${x.last ? hhmm(x.last) : '—'}</td></tr>`; }).join('') || '<tr><td colspan="9" class="empty">검색 결과가 없어요</td></tr>';
 }
 function renderSurvey(d){
   const el = $('#survey');
@@ -548,9 +556,7 @@ function geom(){
   g.gates.forEach(gt => { if(gt.t == null) gt.t = nearestT(g.band.walk, gt.x, gt.y); });
   g.fac = [
     { id: 'hq',   type: 'hq',   label: '종합운동장 본부석',     x: cx,       y: g.gates[0].y - 46,     w: 360, h: 32 },   // 정문 바로 위(문 띠와 같은 간격)
-    { id: 'info', type: 'info', label: '안내데스크', x: cx + 520, y: 28,     w: 110, h: 30 },
-    { id: 'wc1',  type: 'wc',   label: '화장실',               x: 60,       y: H - 34, w: 70,  h: 30 },
-    { id: 'wc2',  type: 'wc',   label: '화장실',               x: W - 60,   y: H - 34, w: 70,  h: 30 },
+    // 안내데스크·화장실 고정 표시는 앱과 같이 제거(2026-09-21) → 관리자 › 지도에서 놓은 settings.facilities 를 renderMap 이 그림
   ];
   return g;
 }
