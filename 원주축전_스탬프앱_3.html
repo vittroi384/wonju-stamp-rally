@@ -1140,11 +1140,11 @@ function segPath(band, ta, tb){
 function go(path, replace){ if(replace){ history.replaceState(null,'','#'+path); route(); } else if(('#'+path)===location.hash){ route(); } else location.hash = '#'+path; }
 /* 라우터. location.hash 를 '/화면/인자' 로 쪼개 화면 함수를 부른다. go(path) 로 이동, hashchange 로도 호출 */
 function route(){
-  let h = location.hash.replace(/^#/, '') || '/'; try{ h = decodeURIComponent(h); }catch(e){}   // 부스 번호가 한글(본1 등)이면 주소가 인코딩돼 있음
-  const [_, a, b, c] = h.split('/');
+  const h = location.hash.replace(/^#/, '') || '/', dec = x => { try{ return decodeURIComponent(x); }catch(e){ return x; } };
+  const [_, a, b, c] = h.split('/').map(dec);   // 조각마다 디코딩. 통째로 풀면 register 의 돌아갈 주소('%2Fstamp%2F7' 한 조각)가 '/'로 쪼개져 등록 후 홈으로 가 버림(2026-10-07 수정). 한글 번호(본1)는 조각 디코딩으로 충분
   closeSheet();
   if(a === CONFIG.adminPath) return renderAdmin(b || 'dash');
-  if(a === 'register') return renderRegister(b ? decodeURIComponent(b) : '');
+  if(a === 'register') return renderRegister(b || '');
   if(a === 'stamp') return renderStamp(b);
   if(a === 'booth') return renderBooth(b);
   if(a === 'map') return renderMap(b);
