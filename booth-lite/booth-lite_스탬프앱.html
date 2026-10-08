@@ -592,6 +592,8 @@ const CONFIG = {
   surveyCodeField: '',                   // 구글폼 항목 ID(entry.123456…). 채우면 설문 링크에 방문객 코드가 미리 입력돼 응답과 대조 가능. 관리자 › 행사 설정
   // 설문 완료 자동 처리: 구글폼 확인 메시지에 '주소?survey' 링크를 넣어두면, 제출 후 그 링크를 누른 폰에서 완료 처리됨 (같은 브라우저여야 함). boot 참고
   giftDeadline: '15:50',                 // 선물 교환 마감(안내 화면 문구)
+  giftPlace: '운영본부',                 // 선물 받는 곳. 완주·교환권·안내 문구의 '운영본부' 자리 (관리자 › 행사 설정)
+  giftText: '',                          // 안내 화면 '선물 교환' 카드 본문. 비우면 기본 문장 (관리자 › 행사 설정)
   contact: '문의는 운영본부로',            // 안내 화면 맨 아래 문구
   notice: '',                            // 긴급 공지. 비어 있지 않으면 홈 맨 위에 빨간 띠 (관리자 › 행사 설정)
   // ↑ eventTitle·eventDate·venue·stampGoal·surveyUrl·giftDeadline·contact 와 SCHEDULE·RESOURCES 는 관리자 › 행사 설정에서 바꾸면 서버 settings 값이 우선
@@ -980,7 +982,8 @@ function vCols(){ return regFields().map(f => ({ label: f.label, get: v => (v &&
 const vColsTH = () => vCols().map(c => `<th>${c.label}</th>`).join('');
 const vColsTD = v => vCols().map(c => `<td class="muted">${esc(c.get(v))}</td>`).join('');
 /* 행사 설정: 관리자 › 행사 설정에서 저장한 값(서버 settings / 로컬 wj:settings)을 CONFIG·SCHEDULE·RESOURCES 위에 덮는다 */
-const SETTING_KEYS = ['eventTitle', 'eventDate', 'venue', 'stampGoal', 'surveyUrl', 'surveyMinSec', 'surveyCodeField', 'giftDeadline', 'contact', 'notice'];
+const SETTING_KEYS = ['eventTitle', 'eventDate', 'venue', 'stampGoal', 'surveyUrl', 'surveyMinSec', 'surveyCodeField', 'giftDeadline', 'giftPlace', 'giftText', 'contact', 'notice'];
+const giftPlace = () => (CONFIG.giftPlace || '운영본부').trim();   // 선물 받는 곳 — 비워 저장해도 기본값
 function applySettings(s){
   if(!s) return;
   SETTING_KEYS.forEach(k => { const v = s[k]; if(v === undefined || v === null) return;
@@ -1294,7 +1297,7 @@ function stampCardHTML(){
   }).join('');
   const ln = local.length;
   if(!surveyOn() && done && !S.pending.length && !S.me.surveyAt){ markSurveyDone().then(renderHome); return; }
-  const title = done ? (S.me.surveyAt || S.me.giftAt ? `<b>완주!</b> 운영본부에서<br>선물 받아가세요` : `<b>완주!</b> 설문 참여하면<br>선물 교환권이 열려요`) : ln >= goal ? `전송이 끝나면<br><b>완주</b>예요` : ln === 0 ? `부스 QR을 찍으면<br>도장이 <b>쾅</b>` : `<b>${goal - ln}개</b> 더 모으면<br>선물이에요`;
+  const title = done ? (S.me.surveyAt || S.me.giftAt ? `<b>완주!</b> ${esc(giftPlace())}에서<br>선물 받아가세요` : `<b>완주!</b> 설문 참여하면<br>선물 교환권이 열려요`) : ln >= goal ? `전송이 끝나면<br><b>완주</b>예요` : ln === 0 ? `부스 QR을 찍으면<br>도장이 <b>쾅</b>` : `<b>${goal - ln}개</b> 더 모으면<br>선물이에요`;
   const foot = S.me.giftAt ? `${I.check} <b>선물 수령 완료</b>` : S.pending.length ? `전송 대기 ${S.pending.length}개 <button class="btn soft sm" style="margin-left:auto" onclick="flushPending()">다시 보내기</button><button class="btn sun sm" style="margin-left:0" onclick="openScanner()">${I.qr} QR 찍기</button>` : done ? (S.me.surveyAt ? `운영본부로 오세요 <button class="btn sun sm" onclick="go('/my')">교환권 보기</button>` : `설문은 1분이면 끝나요 <button class="btn sun sm" onclick="go('/my')">📝 설문 참여</button>`) : `부스 앞 QR을 찍으면 도장 <button class="btn sun sm" onclick="openScanner()">${I.qr} QR 찍기</button>`;
   return `
     <div class="stampcard">
@@ -1395,7 +1398,7 @@ function renderRegister(returnTo){
     <div class="steps">
       <div class="step"><div class="ic">📱</div><div class="t">부스 QR 찍기</div><div class="s">폰 카메라로</div></div>
       <div class="step"><div class="ic">🟡</div><div class="t">도장 ${CONFIG.stampGoal}개 모으기</div><div class="s">부스 어디든</div></div>
-      <div class="step"><div class="ic">🎁</div><div class="t">설문 후 선물</div><div class="s">운영본부에서</div></div>
+      <div class="step"><div class="ic">🎁</div><div class="t">설문 후 선물</div><div class="s">${esc(giftPlace())}에서</div></div>
     </div>
     <div class="notice" id="rExist" style="display:none">${I.bell}<span>이 폰에 <b id="rExistName"></b>님의 기록이 이미 있어요. <b style="cursor:pointer;text-decoration:underline" id="rExistUse">그대로 쓰기</b> · 아래에서 새로 등록하면 기록이 나뉘어요</span></div>
     <div class="card" style="display:flex;flex-direction:column;gap:14px">
@@ -1547,7 +1550,7 @@ function renderMy(){
       <div class="v-head"><div><div class="t">선물 교환권</div><div class="s">${esc(S.me.name)} · ${esc([S.me.school, S.me.grade].filter(Boolean).join(' '))}</div></div><span style="font-size:28px">🎁</span></div>
       <div class="v-body">
         ${S.me.giftAt ? `<div class="v-done">${I.check} ${fmtTime(S.me.giftAt)} 선물 받았어요</div>` : `
-        <div class="v-done" style="align-self:stretch;justify-content:center">${I.check} 설문 참여 완료 · 운영본부에서 선물 받아가세요</div>
+        <div class="v-done" style="align-self:stretch;justify-content:center">${I.check} 설문 참여 완료 · ${esc(giftPlace())}에서 선물 받아가세요</div>
         <div class="qr" id="myQr"></div>
         <div class="code">${shortCode(S.me.id)}</div>
         <p class="small muted" style="text-align:center;line-height:1.6">운영본부(정문 오른쪽) 담당자에게 이 화면을 보여주세요.<br>QR 또는 위 코드로 확인합니다.</p>`}
@@ -1656,7 +1659,7 @@ function renderInfo(){
     <div class="h-sec">자료</div>
     ${RESOURCES.map(r => `<a class="link" href="${esc(r.url)}" target="_blank" rel="noopener"><span class="ic">${I.doc}</span><div class="grow"><div class="t">${esc(r.title)}</div><div class="s">${esc(r.desc)}</div></div><span class="bgo">${I.chev}</span></a>`).join('')}
     <div class="h-sec">선물 교환</div>
-    <div class="card"><p class="desc">부스 ${CONFIG.stampGoal}곳의 도장을 모으고 <b>설문</b>에 참여하면 <b>운영본부</b>에서 선물을 드려요. 내 스탬프 화면의 교환권을 보여주세요.${CONFIG.giftDeadline ? ` 교환은 ${esc(CONFIG.giftDeadline)}까지예요.` : ''}</p></div>
+    <div class="card"><p class="desc">${CONFIG.giftText ? esc(CONFIG.giftText).replace(/\n/g, '<br>') : `부스 ${CONFIG.stampGoal}곳의 도장을 모으고 ${surveyOn() ? '<b>설문</b>에 참여하면 ' : ''}<b>${esc(giftPlace())}</b>에서 선물을 드려요. 내 스탬프 화면의 교환권을 보여주세요.${CONFIG.giftDeadline ? ` 교환은 ${esc(CONFIG.giftDeadline)}까지예요.` : ''}`}</p></div>
     <p class="small muted" style="text-align:center;line-height:1.6">${esc(CONFIG.eventDate)} · ${esc(CONFIG.venue)}${CONFIG.contact ? ' · ' + esc(CONFIG.contact) : ''}</p>`,
     { sub: CONFIG.eventTitle });
 }
@@ -2304,7 +2307,7 @@ function admManual(boothN){
       <div class="bigstamp ${r.dup ? 'dup' : ''}" style="width:160px;height:160px"><div><div class="n">${esc(cur.n)}</div><div class="t">${r.dup ? '이미 찍었어요' : '도장 완료'}</div></div></div>
       <div><div class="stamp-h">${esc(v.name)}${fresh ? ' 등록 완료' : ''} · 도장 ${n}/${goal}${done ? ' 완주! 🎉' : ''}</div>${boothRow(ids || [cur.id], true)}<div class="small muted" style="margin-top:6px">노란 칸 = 받은 부스</div></div>
       ${fresh ? '<p class="stamp-p">다음 부스에서는 이름만 말하면 돼요</p>' : ''}
-      ${done ? '<p class="stamp-p">운영본부에서 선물을 받아가세요</p>' : ''}
+      ${done ? `<p class="stamp-p">${esc(giftPlace())}에서 선물을 받아가세요</p>` : ''}
       <button class="btn blue full" style="max-width:340px;font-size:16px;padding:15px" id="mNext">다음 어린이</button>
       <div class="small muted" id="mCnt">5초 뒤 자동으로 넘어가요</div></div>`;
     let left = 5; const t = setInterval(() => { const c = $('#mCnt'); if(!c) return clearInterval(t); if(--left <= 0){ clearInterval(t); showSearch(); } else c.textContent = `${left}초 뒤 자동으로 넘어가요`; }, 1000);
@@ -2744,6 +2747,8 @@ function admEvent(){
         </div>
         <p class="small muted" style="margin:-4px 0 12px;line-height:1.6">'설문 참여하기'를 누른 뒤 <b>최소 시간</b>이 지나야 '다 했어요'가 켜져요.<br>구글폼에 <b>'방문객 코드' 단답 항목</b>을 만들고 '미리 채워진 링크 가져오기'에서 그 항목의 <code>entry.…</code> ID를 넣으면 응답마다 코드가 자동 입력돼 대조할 수 있어요.<br>구글폼 설정 › 프레젠테이션 › 확인 메시지에 <code>${esc(location.origin + location.pathname)}?survey</code> 를 적어두면, 제출 후 그 링크를 누른 폰은 <b>자동으로 완료 처리</b>돼요.</p>
         <div class="field"><label>선물 교환 마감 (안내 문구)</label><input class="inp" id="evDeadline" value="${esc(CONFIG.giftDeadline)}" maxlength="20" placeholder="예: 15:50"></div>
+        <div class="field"><label>선물 받는 곳 (완주·교환권 화면의 "○○에서 선물 받아가세요")</label><input class="inp" id="evGiftPlace" value="${esc(CONFIG.giftPlace)}" maxlength="20" placeholder="운영본부"></div>
+        <div class="field"><label>선물 교환 안내 (안내 화면 · 비우면 기본 문장)</label><textarea class="inp" id="evGiftText" style="min-height:80px;font-size:14px" maxlength="300" placeholder="예: 부스 7곳 도장을 다 모으면 안내데스크에서 선물을 드려요. 교환권 화면을 보여주세요.">${esc(CONFIG.giftText)}</textarea></div>
         <div class="field"><label>문의 안내 (안내 화면 맨 아래)</label><input class="inp" id="evContact" value="${esc(CONFIG.contact)}" maxlength="60"></div>
         <div class="field"><label>긴급 공지 (홈 맨 위 빨간 띠 · 비우면 안 나옴)</label><input class="inp" id="evNotice" value="${esc(CONFIG.notice)}" maxlength="120" placeholder="예: 우천으로 개막식 11:40으로 변경"></div>
       </div>
@@ -2763,7 +2768,7 @@ function admEvent(){
     const goal = parseInt($('#evGoal').value); if(!(goal >= 1 && goal <= 30)) return toast('완주 개수는 1~30 사이로');
     const surveyMinSec = parseInt($('#evSurveySec').value); if(!(surveyMinSec >= 0 && surveyMinSec <= 600)) return toast('설문 최소 시간은 0~600초 사이로');
     const surveyCodeField = $('#evSurveyField').value.trim(); if(surveyCodeField && !/^[\w.]+$/.test(surveyCodeField)) return toast('항목 ID는 entry.숫자 형식이에요');
-    const data = { eventTitle: $('#evTitle').value.trim(), eventDate: $('#evDate').value.trim(), venue: $('#evVenue').value.trim(), stampGoal: goal, surveyUrl: $('#evSurvey').value.trim(), surveyMinSec, surveyCodeField, giftDeadline: $('#evDeadline').value.trim(), contact: $('#evContact').value.trim(), notice: $('#evNotice').value.trim(),
+    const data = { eventTitle: $('#evTitle').value.trim(), eventDate: $('#evDate').value.trim(), venue: $('#evVenue').value.trim(), stampGoal: goal, surveyUrl: $('#evSurvey').value.trim(), surveyMinSec, surveyCodeField, giftDeadline: $('#evDeadline').value.trim(), giftPlace: $('#evGiftPlace').value.trim(), giftText: $('#evGiftText').value.trim(), contact: $('#evContact').value.trim(), notice: $('#evNotice').value.trim(),
       schedule: parse('#evSchedule', ['time', 'title', 'place']), resources: parse('#evResources', ['title', 'desc', 'url']), surveyOn: $('#evSurveyOn').checked,
       regFields: Object.fromEntries(REG_FIELD_DEFS.map(d => [d.k, { on: $('#rf_' + d.k + '_on').checked, req: $('#rf_' + d.k + '_on').checked && $('#rf_' + d.k + '_req').checked }])) };
     if(!data.eventTitle) return toast('행사명을 적어주세요');
