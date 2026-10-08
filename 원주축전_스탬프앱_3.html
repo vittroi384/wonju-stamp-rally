@@ -462,6 +462,12 @@ body.sheet-open{position:fixed;left:0;right:0;overflow:hidden}   /* 시트 열�
   .qrgrid.portrait .qrc .qrhow{width:100%;text-align:left;padding-top:6mm}
   .qrgrid.portrait .qrc .qrsteps{gap:2.4mm}.qrgrid.portrait .qrc .qrsteps>div{font-size:11pt}.qrgrid.portrait .qrc .qrsteps small{font-size:8.5pt}
   .qrgrid.portrait .qrc .qrbrand{text-align:left;width:100%}
+  /* 세로형 장식(인쇄 전용, 글자 뒤 연한 분류 색): 왼쪽 아래 별 · 오른쪽 위 작은 원 · 왼쪽 위 점선 고리 — 모두 카드 안에 온전히 */
+  .qrgrid.portrait .qrc .qrtxt{isolation:isolate}
+  .qrgrid.portrait .qrc .qrtxt::before{content:"";position:absolute;left:2mm;bottom:3mm;width:46mm;height:46mm;background:var(--c);clip-path:var(--star);opacity:.07;z-index:-1}
+  .qrgrid.portrait .qrc .qrtxt::after{content:"";position:absolute;right:6mm;top:-4mm;width:16mm;height:16mm;border-radius:50%;background:var(--c);opacity:.1;z-index:-1}
+  .qrgrid.portrait .qrc .qr{position:relative}
+  .qrgrid.portrait .qrc .qr::before{content:"";position:absolute;left:-13mm;top:-3mm;width:22mm;height:22mm;border-radius:50%;border:1.4mm dotted var(--c);opacity:.35;box-sizing:border-box}
   .qrc .t{font-size:20pt;margin-top:4mm;line-height:1.3}
   .qrc .u{font-size:13pt;margin-top:3mm;word-break:keep-all}
 }
