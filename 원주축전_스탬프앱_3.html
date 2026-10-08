@@ -1808,6 +1808,7 @@ function layoutLabels(ids){
       /* 측문 띠(띠 바깥 16~50px)와 같은 높이의 줄이면 띠를 장애물로 보고 알약을 접선 방향으로 비킨다: 문 앞쪽 알약은 뒤로, 뒤쪽은 앞으로. 이웃 간격(need)도 유지 */
       if(!flip) sg.forEach(gt => {                                                                                // 안쪽엔 문이 없다
         const lo = gt.id === 'gate-main' ? 29 : 16, hi = lo + 34; if(dist - e > hi || dist + e < lo) return;   // 측문 띠는 띠 바깥 16~50px, 정문 띠는 29~63px
+        const gn = (gt.x - m.x) * nx + (gt.y - m.y) * ny; if(gn <= 0 || gn > 200) return;                               // 이 줄과 같은 쪽(바깥) 가까이에 있는 문만 — 위쪽 정문이 아래 줄 이름표를 밀어내던 문제(30번대 이름표가 멀리 튀던 것)
         const gw = (gt.x - m.x) * tx + (gt.y - m.y) * ty; if(Math.abs(gw) > 420) return;
         const needG = o => gt.w / 2 + o.w / 2 + gap;
         let cap = Infinity;
@@ -2674,7 +2675,7 @@ function admSurvey(){
         <div class="row"><button class="btn blue" id="sqSave" style="white-space:nowrap;flex-shrink:0">문항 저장</button><span class="small muted">저장하면 방문객 폰에 5분 안에 반영돼요. 응답이 쌓인 뒤 문항 id 를 바꾸면 집계가 나뉘니 제목만 고치세요.</span></div>
       </div>
       <div style="display:flex;flex-direction:column;gap:12px">
-        <div class="row"><div class="h-sec" style="margin:0">응답 결과</div><span class="grow"></span><button class="btn xs soft" id="sqLoad">불러오기</button><button class="btn xs line" id="sqCsv">응답 CSV</button></div>
+        <div class="row"><div class="h-sec" style="margin:0">응답 결과</div><span class="grow"></span><button class="btn xs soft" id="sqLoad">불러오기</button><button class="btn xs line" id="sqCsv">응답 엑셀</button></div>
         <div id="sqRes"><div class="empty">불러오기를 누르면 문항별 집계가 나와요</div></div>
       </div>
     </div>`);
@@ -2722,17 +2723,17 @@ function admSurvey(){
     }).join('');
   };
   $('#sqLoad').onclick = load;
-  $('#sqCsv').onclick = async () => { if(!rows){ await load(); if(!rows) return; } download('survey.csv', '\ufeff' + [['제출시각', '학교', '학년', '학년군', '성별', ...SURVEY.map(q => q.title)]].concat(rows.map(r => [new Date(r.at).toLocaleString('ko-KR'), r.school, r.grade, gradeGroup(r.grade), r.gender, ...SURVEY.map(q => { const v = r.answers?.[q.id]; return Array.isArray(v) ? v.join(' | ') : (v ?? ''); })])).map(r => r.map(csv).join(',')).join('\n')); };
+  $('#sqCsv').onclick = async () => { if(!rows){ await load(); if(!rows) return; } downloadXlsx('설문 응답.xlsx', [{ name: '설문 응답', cols: [['제출시각', 15, 'center'], ['학교', 18], ['학년', 8, 'center'], ['학년군', 8, 'center'], ['성별', 7, 'center'], ...SURVEY.map(q => [q.title, 30])], rows: rows.map(r => [fmtT(r.at), r.school, r.grade, gradeGroup(r.grade), r.gender, ...SURVEY.map(q => { const v = r.answers?.[q.id]; return Array.isArray(v) ? v.join(' | ') : (v ?? ''); })]) }]); };
 }
-/* 데이터: CSV 내보내기 3종(스탬프·명단·부스별 집계), 비번 변경, 부스 기본값 복원, 데모 데이터(로컬), 개인정보 파기 */
+/* 데이터: 엑셀 내보내기 3종(스탬프·명단·부스별 집계), 비번 변경, 부스 기본값 복원, 데모 데이터(로컬), 개인정보 파기 */
 function admData(st){
   const local = DB === LocalDB; const visitors = { length: st.visitors }, stamps = { length: st.stamps };
   admShell('data', `
     <div class="split">
       <div style="display:flex;flex-direction:column;gap:14px">
         <div class="card"><div class="h-sec" style="margin:0 0 10px">내보내기</div>
-          <p class="small muted" style="line-height:1.6;margin-bottom:12px">행사 보고서용. 스탬프 기록은 방문객 이름·학교·학년·성별과 함께 나가요. 명단에는 학년군(초저·초고·중·고·성인)과 설문 완료 시각이 붙어요.</p>
-          <div class="row" style="flex-wrap:wrap"><button class="btn sm" id="exStamps">스탬프 기록 CSV</button><button class="btn sm line" id="exVisitors">방문객 명단 CSV</button><button class="btn sm line" id="exSummary">부스별 집계 CSV</button></div></div>
+          <p class="small muted" style="line-height:1.6;margin-bottom:12px">행사 보고서용 엑셀 파일(제목 줄 고정·필터·합계). 스탬프 기록은 방문객 이름·학교·학년·성별과 함께 나가고 부스별 집계 시트가 같이 붙어요. 명단에는 학년군(초저·초고·중·고·성인)과 설문 완료 시각이 붙어요.</p>
+          <div class="row" style="flex-wrap:wrap"><button class="btn sm" id="exStamps">스탬프 기록 엑셀</button><button class="btn sm line" id="exVisitors">방문객 명단 엑셀</button><button class="btn sm line" id="exSummary">부스별 집계 엑셀</button></div></div>
         <div class="card"><div class="h-sec" style="margin:0 0 10px">설정</div>
           <div class="field" style="margin-bottom:12px"><label>관리자 비밀번호${local ? ' (이 세션)' : ''}</label><input class="inp" id="setPw" type="password" placeholder="새 비밀번호"></div>
           <button class="btn sm soft" id="setPwGo">바꾸기</button>
@@ -2746,9 +2747,14 @@ function admData(st){
       </div>
     </div>`);
   const fetchAll = async () => { toast('내보낼 데이터를 모으는 중…'); const [stamps, visitors] = await Promise.all([DB.allStamps(), DB.allVisitors()]); return { stamps, visitors, vmap: Object.fromEntries(visitors.map(v => [v.id, v])) }; };
-  $('#exStamps').onclick = async () => { const { stamps, vmap } = await fetchAll(); download('stamps.csv', '\ufeff' + [['시각', '부스번호', '부스명', '이름', '학교', '학년', '성별']].concat(stamps.slice().sort((a, b) => a.at - b.at).map(s => { const b = boothById(s.boothId), v = vmap[s.visitorId]; return [new Date(s.at).toLocaleString('ko-KR'), b?.n || '', b?.name || '', v?.name || '', v?.school || '', v?.grade || '', v?.gender || '']; })).map(r => r.map(csv).join(',')).join('\n')); };
-  $('#exVisitors').onclick = async () => { const { stamps, visitors } = await fetchAll(); const cnt = {}; stamps.forEach(s => cnt[s.visitorId] = (cnt[s.visitorId] || 0) + 1); download('visitors.csv', '\ufeff' + [['등록시각', '이름', '학교', '학년', '학년군', '성별', '스탬프수', '설문완료', '선물수령']].concat(visitors.map(v => [new Date(v.createdAt).toLocaleString('ko-KR'), v.name, v.school || '', v.grade || '', gradeGroup(v.grade), v.gender || '', cnt[v.id] || 0, v.surveyAt ? new Date(v.surveyAt).toLocaleString('ko-KR') : '', v.giftAt ? new Date(v.giftAt).toLocaleString('ko-KR') : ''])).map(r => r.map(csv).join(',')).join('\n')); };
-  $('#exSummary').onclick = () => { const cnt = {}; Object.entries(st.perBooth).forEach(([k, v]) => cnt[k] = v.n); download('booth_summary.csv', '\ufeff' + [['부스번호', '부스명', '운영기관', '분류', '스탬프수']].concat(S.booths.map(b => [b.n, b.name, b.org, catOf(b.cat).name, cnt[b.id] || 0])).map(r => r.map(csv).join(',')).join('\n')); };
+  const sumCols = [['부스번호', 10, 'center'], ['부스명', 34], ['운영기관', 22], ['분류', 14], ['스탬프수', 10, 'center']], sumRows = cnt => S.booths.map(b => [b.n, b.name, b.org || '', catOf(b.cat).name, cnt[b.id] || 0]);   // 부스별 집계 표(스탬프 기록 파일의 둘째 시트에도 같이)
+  $('#exStamps').onclick = async () => { const { stamps, vmap } = await fetchAll(); const rows = stamps.slice().sort((a, b) => a.at - b.at).map(s => { const b = boothById(s.boothId), v = vmap[s.visitorId]; return [fmtT(s.at), b?.n || '', b?.name || '', v?.name || '', v?.school || '', v?.grade || '', v?.gender || '']; }); const cnt = {}; stamps.forEach(s => cnt[s.boothId] = (cnt[s.boothId] || 0) + 1);
+    downloadXlsx('스탬프 기록.xlsx', [{ name: '스탬프 기록', cols: [['시각', 15, 'center'], ['부스번호', 10, 'center'], ['부스명', 34], ['이름', 12], ['학교', 18], ['학년', 8, 'center'], ['성별', 7, 'center']], rows }, { name: '부스별 집계', cols: sumCols, rows: sumRows(cnt), total: ['', '합계', '', '', stamps.length] }]); };
+  $('#exVisitors').onclick = async () => { const { stamps, visitors } = await fetchAll(); const cnt = {}; stamps.forEach(s => cnt[s.visitorId] = (cnt[s.visitorId] || 0) + 1); const goal = CONFIG.stampGoal;
+    const rows = visitors.map(v => [fmtT(v.createdAt), v.name, v.school || '', v.grade || '', gradeGroup(v.grade), v.gender || '', cnt[v.id] || 0, fmtT(v.surveyAt), fmtT(v.giftAt)]);
+    downloadXlsx('방문객 명단.xlsx', [{ name: '방문객 명단', cols: [['등록시각', 15, 'center'], ['이름', 12], ['학교', 18], ['학년', 8, 'center'], ['학년군', 8, 'center'], ['성별', 7, 'center'], ['스탬프수', 10, 'center'], ['설문완료', 15, 'center'], ['선물수령', 15, 'center']], rows },
+      { name: '요약', cols: [['항목', 26], ['값', 12, 'center']], rows: [['방문객 수', visitors.length], [`완주 (도장 ${goal}개 이상)`, visitors.filter(v => (cnt[v.id] || 0) >= goal).length], ['설문 완료', visitors.filter(v => v.surveyAt).length], ['선물 수령', visitors.filter(v => v.giftAt).length], ['스탬프 합계', stamps.length]] }]); };
+  $('#exSummary').onclick = () => { const cnt = {}; let total = 0; Object.entries(st.perBooth).forEach(([k, v]) => { cnt[k] = v.n; total += v.n; }); downloadXlsx('부스별 집계.xlsx', [{ name: '부스별 집계', cols: sumCols, rows: sumRows(cnt), total: ['', '합계', '', '', total] }]); };
   $('#boothReset').onclick = async () => { if(!confirm('저장된 부스 목록을 지우고 파일에 든 기본 배치도(90 + 운영·네컷 5)로 되돌릴까요? 도장 기록은 그대로예요.')) return;
     const bt = $('#boothReset'); bt.disabled = true;
     try{ if(DB === LocalDB){ try{ localStorage.removeItem('wj:booths'); }catch(e){} delete mem['wj:booths']; } else { await DB.saveBooths([]); }
@@ -2762,6 +2768,24 @@ function admData(st){
 }
 const csv = v => { v = String(v ?? ''); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
 function parseCSV(t){ const rows = [], re = /("([^"]|"")*"|[^,\n\r]*)(,|\r?\n|$)/g; let row = [], m; t = t.replace(/^\ufeff/, ''); if(!/\n$/.test(t)) t += '\n';   /* \ub9c8\uc9c0\ub9c9 \uce78\uc774 \ube44\uace0 \ub05d\uc5d0 \uc904\ubc14\uafc8\uc774 \uc5c6\uc73c\uba74 \ub9c8\uc9c0\ub9c9 \ud589\uc774 \ube60\uc9c0\ub358 \ubb38\uc81c */ while((m = re.exec(t)) && m[0] !== ''){ let f = m[1]; if(f.startsWith('"')) f = f.slice(1, -1).replace(/""/g, '"'); row.push(f.trim()); if(m[3] !== ','){ rows.push(row); row = []; } } return rows.filter(r => r.some(x => x)); }
+/* 엑셀(xlsx) 내려받기: 제목 줄 진하게·고정, 자동 필터, 열 너비, 숫자 열 가운데, 줄무늬, 합계 줄. 라이브러리(ExcelJS)는 누를 때만 CDN 에서 받고, 못 받으면 같은 내용을 CSV 로
+   sheets: [{ name, cols: [[제목, 너비, 정렬?]], rows, total? }] */
+const loadXlsxLib = () => window.ExcelJS ? Promise.resolve() : new Promise((res, rej) => { const el = document.createElement('script'); el.src = 'https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js'; el.onload = res; el.onerror = () => rej(new Error('엑셀 라이브러리를 못 불러왔어요 (인터넷 연결 확인)')); document.head.appendChild(el); });
+const fmtT = t => { if(!t) return ''; const d = new Date(t), z = n => String(n).padStart(2, '0'); return `${d.getMonth() + 1}/${d.getDate()} ${z(d.getHours())}:${z(d.getMinutes())}:${z(d.getSeconds())}`; };
+async function downloadXlsx(name, sheets){
+  try{ toast('엑셀 만드는 중…'); await loadXlsxLib(); }catch(e){ const sh = sheets[0]; toast(e.message + ' · CSV로 내려받아요'); return download(name.replace(/\.xlsx$/, '.csv'), '\ufeff' + [sh.cols.map(c => c[0])].concat(sh.rows, sh.total ? [sh.total] : []).map(r => r.map(csv).join(',')).join('\n')); }
+  const wb = new ExcelJS.Workbook();
+  sheets.forEach(sh => {
+    const ws = wb.addWorksheet(sh.name, { views: [{ state: 'frozen', ySplit: 1 }] });
+    ws.columns = sh.cols.map(c => ({ header: c[0], width: c[1] }));
+    sh.rows.forEach(r => ws.addRow(r));
+    const hdr = ws.getRow(1); hdr.font = { bold: true, color: { argb: 'FFFFFFFF' } }; hdr.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF151A2D' } }; hdr.alignment = { vertical: 'middle', horizontal: 'center' }; hdr.height = 24;
+    ws.eachRow((row, i) => { if(i === 1) return; row.height = 20; if(i % 2 === 1) row.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF4F5F9' } }; sh.cols.forEach((c, k) => { row.getCell(k + 1).alignment = { vertical: 'middle', horizontal: c[2] || 'left' }; }); });
+    if(sh.total){ const t = ws.addRow(sh.total); t.font = { bold: true }; t.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFE9A6' } }; t.height = 22; sh.cols.forEach((c, k) => { t.getCell(k + 1).alignment = { vertical: 'middle', horizontal: c[2] || 'left' }; }); }
+    ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: sh.cols.length } };
+  });
+  const buf = await wb.xlsx.writeBuffer(); const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+}
 function download(name, text){ const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([text], { type: 'text/csv;charset=utf-8' })); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); }
 
 /* =====================================================================
