@@ -447,6 +447,21 @@ body.sheet-open{position:fixed;left:0;right:0;overflow:hidden}   /* 시트 열�
   .qrc .qrsteps small{display:block;font-size:9.5pt;color:var(--ink-3);font-weight:600;margin-top:.6mm}
   .qrc .qrbrand{display:block;margin-top:1.5mm;font-size:8.5pt;color:var(--ink-3);letter-spacing:.02em;word-break:keep-all}
   .qrc .n{font-size:64pt;line-height:1;font-weight:900}
+  /* 세로형: A4 를 가로로 놓고(@page 는 admQR 이 <style id=qrPageStyle> 로 바꿈) 좌우 A5 세로 카드 2장. QR 위, 번호·이름 아래, 안내는 맨 아래 */
+  .qrgrid.portrait{grid-template-columns:1fr 1fr}
+  .qrgrid.portrait .qrc{height:209mm;flex-direction:column;align-items:center;justify-content:flex-start;text-align:center;padding:12mm 10mm 8mm;gap:3mm}
+  .qrgrid.portrait .qrc::before{top:0;left:0;right:0;bottom:auto;width:auto;height:8mm}
+  .qrgrid.portrait .qrc::after{right:-30mm;top:auto;bottom:-30mm}
+  .qrgrid.portrait .qrc:nth-child(odd){border-bottom:0!important;border-right:1px dashed #999!important}
+  .qrgrid.portrait .qrc .qr{width:82mm;height:82mm;margin-top:1mm}
+  .qrgrid.portrait .qrc .qrtxt{height:auto;flex:1;width:100%;align-items:center;justify-content:flex-start;text-align:center}
+  .qrgrid.portrait .qrc .qrpill{margin-bottom:2mm}
+  .qrgrid.portrait .qrc .n{align-self:center;font-size:44pt;padding:2mm 5mm 2.5mm}
+  .qrgrid.portrait .qrc .t{font-size:17pt;margin-top:2.5mm}
+  .qrgrid.portrait .qrc .u{text-align:center}
+  .qrgrid.portrait .qrc .qrhow{width:100%;text-align:left;padding-top:3mm}
+  .qrgrid.portrait .qrc .qrsteps{gap:2.4mm}.qrgrid.portrait .qrc .qrsteps>div{font-size:11pt}.qrgrid.portrait .qrc .qrsteps small{font-size:8.5pt}
+  .qrgrid.portrait .qrc .qrbrand{text-align:left;width:100%}
   .qrc .t{font-size:20pt;margin-top:4mm;line-height:1.3}
   .qrc .u{font-size:13pt;margin-top:3mm;word-break:keep-all}
 }
@@ -2548,13 +2563,19 @@ function qrStepsHTML(){
 }
 function admQR(){
   const base = location.origin + location.pathname;
+  let layout = 'landscape'; try{ layout = localStorage.getItem('wj:qr_layout') || 'landscape'; }catch(e){}   // 가로형(기본) / 세로형
+  let pst = $('#qrPageStyle'); if(!pst){ pst = document.createElement('style'); pst.id = 'qrPageStyle'; document.head.appendChild(pst); }
+  pst.textContent = layout === 'portrait' ? '@media print{@page{size:A4 landscape;margin:0}}' : '';
   admShell('qr', `
     <div class="card tight no-print row" style="flex-wrap:wrap;gap:10px">
       <div class="grow"><b>부스 QR 인쇄 시트</b><div class="small muted" style="margin-top:3px">QR 주소: <code>${esc(base)}?b=부스번호&t=토큰</code> — 토큰이 있어야 도장이 찍혀요(번호만 쳐서 찍는 치팅 차단). 도메인이 바뀌면 재인쇄해야 해요. 인쇄 전에 주소를 확정하세요.${noStampSet().size ? `<br>도장 없는 부스 ${noStampSet().size}개는 빠져 있어요 (부스 탭 › QR 제외).` : ''}</div><div class="small" id="qrStatus" style="margin-top:3px"></div></div>
-      <button class="btn sm" onclick="print()">인쇄</button></div>
-    <div class="qrgrid">
+      <div class="row" style="gap:6px;align-items:center"><button class="btn sm ${layout === 'portrait' ? 'line' : 'blue'}" id="qrLand">가로형</button><button class="btn sm ${layout === 'portrait' ? 'blue' : 'line'}" id="qrPort">세로형</button><button class="btn sm" onclick="print()">인쇄</button></div></div>
+    <p class="small muted no-print" style="margin:-4px 0 6px">가로형: A4 세로 용지 한 장에 가로 카드 2장(위·아래) · 세로형: A4 가로 용지 한 장에 세로 카드 2장(왼쪽·오른쪽). 인쇄 창에서 용지 방향이 자동으로 맞춰져요.</p>
+    <div class="qrgrid ${layout === 'portrait' ? 'portrait' : ''}">
       <div class="qrc entry" style="--c:var(--blue)"><div class="qr" id="qr-entry"></div><div class="qrtxt"><div class="qrpill"><span class="dot"></span>입장 · 안내판용</div><div class="n entry">START</div><div class="t">QR을 찍고 등록하면<br>스탬프 랠리 시작!</div><div class="u">${esc(base)}?join</div><div class="qrhow">${qrStepsHTML()}</div><div class="qrbrand">${esc(CONFIG.eventTitle)}</div></div></div>
-      ${S.booths.filter(qrNeeded).map(b => { const c = catOf(b.cat); return `<div class="qrc" style="--c:${c.color}"><div class="qr" id="qr-${esc(b.id)}"></div><div class="qrtxt"><div class="qrpill"><span class="dot"></span>${esc(c.name)}</div><div class="n"><small>BOOTH</small>${esc(b.n)}</div><div class="t">${esc(b.name)}</div><div class="u">${esc(b.org)}</div><div class="qrhow">${qrStepsHTML()}</div><div class="qrbrand">${esc(CONFIG.eventTitle)}</div></div></div>`; }).join('')}</div>`);
+      ${S.booths.filter(qrNeeded).map(b => { const c = catOf(b.cat); return `<div class="qrc" style="--c:${c.color}"><div class="qr" id="qr-${esc(b.id)}"></div><div class="qrtxt"><div class="qrpill"><span class="dot"></span>${esc(c.name)}</div><div class="n"><small>BOOTH</small>${esc(b.n)}</div><div class="t">${esc(b.name)}</div>${b.variant && b.variant.at ? `<div class="u">${esc(b.variant.at)}부터 → <b>${esc(b.variant.n || b.n)} ${esc(b.variant.name)}</b></div>` : ''}<div class="qrhow">${qrStepsHTML()}</div><div class="qrbrand">${esc(CONFIG.eventTitle)}</div></div></div>`; }).join('')}</div>`);
+  const setLayout = v => { try{ localStorage.setItem('wj:qr_layout', v); }catch(e){} admQR(); };
+  $('#qrLand').onclick = () => setLayout('landscape'); $('#qrPort').onclick = () => setLayout('portrait');
   (async () => {
     let toks = {};
     if(S.boothsDirty){   // 부스 탭에서 추가·삭제·순서를 바꾸고 저장 안 한 상태. 예전엔 토큰 발급을 위해 그 목록을 검증 없이 서버에 저장해 버렸음
