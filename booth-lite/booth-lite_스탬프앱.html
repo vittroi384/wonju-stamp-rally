@@ -470,7 +470,7 @@ body.sheet-open{position:fixed;left:0;right:0;overflow:hidden}   /* 시트 열�
   .qrc .n.entry{font-size:20pt;letter-spacing:.1em;color:#fff;padding:5mm 8mm}
   .qrc .t{font-size:19pt;font-weight:900;margin-top:4mm;line-height:1.3;color:var(--ink);word-break:keep-all;overflow-wrap:anywhere}
   .qrc .u{font-size:12pt;margin-top:2mm;color:var(--ink-2);word-break:keep-all;overflow-wrap:anywhere}
-  .qrc .qrhow{display:block;margin-top:auto;padding-top:5mm;font-size:10.5pt;font-weight:700;color:var(--ink-2);line-height:1.4;word-break:keep-all}
+  .qrc .qrhow{display:block;margin-top:0;padding-top:7mm;font-size:10.5pt;font-weight:700;color:var(--ink-2);line-height:1.4;word-break:keep-all}   /* 이름 바로 아래 고정 간격(맨 아래로 밀지 않음) */
   .qrc .qrhow b{color:var(--c)}
   /* 카드 아래 비어 있던 자리에 참여 안내 3단계(번호 동그라미는 분류 색) */
   .qrc .qrsteps{display:flex;flex-direction:column;gap:3.6mm;margin-top:1mm}
@@ -491,7 +491,7 @@ body.sheet-open{position:fixed;left:0;right:0;overflow:hidden}   /* 시트 열�
   .qrgrid.portrait .qrc .n{align-self:center;font-size:44pt;padding:2mm 5mm 2.5mm}
   .qrgrid.portrait .qrc .t{font-size:17pt;margin-top:2.5mm}
   .qrgrid.portrait .qrc .u{text-align:center}
-  .qrgrid.portrait .qrc .qrhow{width:100%;text-align:left;padding-top:3mm}
+  .qrgrid.portrait .qrc .qrhow{width:100%;text-align:left;padding-top:6mm}
   .qrgrid.portrait .qrc .qrsteps{gap:2.4mm}.qrgrid.portrait .qrc .qrsteps>div{font-size:11pt}.qrgrid.portrait .qrc .qrsteps small{font-size:8.5pt}
   .qrgrid.portrait .qrc .qrbrand{text-align:left;width:100%}
   .qrc .t{font-size:20pt;margin-top:4mm;line-height:1.3}
@@ -2761,7 +2761,7 @@ function admQR(){
     <p class="small muted no-print" style="margin:-4px 0 6px">가로형: A4 세로 용지 한 장에 가로 카드 2장(위·아래) · 세로형: A4 가로 용지 한 장에 세로 카드 2장(왼쪽·오른쪽). 인쇄 창에서 용지 방향이 자동으로 맞춰져요.</p>
     <div class="qrgrid ${layout === 'portrait' ? 'portrait' : ''}">
       <div class="qrc entry" style="--c:var(--blue)"><div class="qr" id="qr-entry"></div><div class="qrtxt"><div class="qrpill"><span class="dot"></span>입장 · 안내판용</div><div class="n entry">START</div><div class="t">QR을 찍고 등록하면<br>스탬프 랠리 시작!</div><div class="u">${esc(base)}?join</div><div class="qrhow">${qrStepsHTML()}</div><div class="qrbrand">${esc(CONFIG.eventTitle)}</div></div></div>
-      ${S.booths.filter(qrNeeded).map(b => { const v = b.variant && b.variant.at ? b.variant : null, c = catOf(v && v.cat ? v.cat : b.cat), nShow = v && v.n ? v.n : b.n, nameShow = v && v.name ? v.name : b.name; return `<div class="qrc" style="--c:${c.color}"><div class="qr" id="qr-${esc(b.id)}"></div><div class="qrtxt"><div class="qrpill"><span class="dot"></span>${esc(c.name)}</div><div class="n"><small>BOOTH</small>${esc(nShow)}</div><div class="t">${esc(nameShow)}</div>${v ? `<div class="u">${esc(v.at)} 전까지는 ${esc(b.n)} ${esc(b.name)}</div>` : ''}<div class="qrhow">${qrStepsHTML()}</div><div class="qrbrand">${esc(CONFIG.eventTitle)}</div></div></div>`; }).join('')}</div>`);
+      ${S.booths.filter(qrNeeded).map(b => { const v = b.variant && b.variant.at ? b.variant : null, c = catOf(v && v.cat ? v.cat : b.cat), nShow = v && v.n ? v.n : b.n, nameShow = v && v.name ? v.name : b.name; return `<div class="qrc" style="--c:${c.color}"><div class="qr" id="qr-${esc(b.id)}"></div><div class="qrtxt"><div class="qrpill"><span class="dot"></span>${esc(c.name)}</div><div class="n"><small>BOOTH</small>${esc(nShow)}</div><div class="t">${esc(nameShow)}</div><div class="qrhow">${qrStepsHTML()}</div><div class="qrbrand">${esc(CONFIG.eventTitle)}</div></div></div>`; }).join('')}</div>`);
   const setLayout = v => { try{ localStorage.setItem('wj:qr_layout', v); }catch(e){} admQR(); };
   $('#qrLand').onclick = () => setLayout('landscape'); $('#qrPort').onclick = () => setLayout('portrait');
   (async () => {
