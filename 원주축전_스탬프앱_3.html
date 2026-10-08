@@ -1298,7 +1298,7 @@ function hoursState(b){
 }
 function hoursChipHTML(b){
   const h = hoursState(b); let out = closedSet().has(b.id) ? '<div class="bhours before">⏸ 지금 쉬는 중</div>' : ''; out += h ? `<div class="bhours ${h.state}">🕒 ${esc(h.text)}${h.label ? ' · ' + h.label : ''}</div>` : '';
-  const v = b.variant; if(v && v.at) out += b.switched ? `<div class="bhours">🔁 ${esc(v.at)} 전엔 ${v.n ? esc(b.n) + ' ' : ''}${esc(b.baseName)}</div>` : `<div class="bhours before">🔁 ${esc(v.at)}부터 ${v.n ? esc(v.n) + ' ' : ''}${esc(v.name)}</div>`;
+  /* 시간대 전환 안내 칩은 방문객에게 보이지 않음(번호·이름만 바뀜 — 사용자 지시) */
   return out;
 }
 function boothItemHTML(b){
@@ -1445,7 +1445,7 @@ function renderBooth(n){
     </div>
     ${b.img ? `<div class="bimgwrap" id="bImgWrap" hidden><img class="bimg" id="bImg" alt="${esc(b.name)} 부스 사진"><span class="hint">탭하면 크게 보기</span></div>` : ''}
     <div class="card"><div class="kv"><div><div class="k">체험 소개</div></div><p class="desc">${esc(b.desc || DESC_BY_CAT[b.cat])}</p>
-      <div class="k" style="margin-top:4px">위치</div><div class="v" style="font-size:14px">${esc(zoneOf(b.zone).name)} <button class="more" style="border:0;background:none;color:var(--blue);font-weight:800;font-size:13px;padding:0 4px" data-go="${esc('/map/' + b.n)}">지도 ›</button></div>${b.hours ? `<div class="k" style="margin-top:4px">운영 시간</div><div class="v" style="font-size:14px">${esc(b.hours)}${(() => { const h = hoursState(b); return h && h.label ? ` <span class="bhours ${h.state}" style="display:inline;margin:0">· ${h.label}</span>` : ''; })()}</div>` : ''}${b.variant && b.variant.at ? `<div class="k" style="margin-top:4px">시간대</div><div class="v" style="font-size:14px">${b.switched ? `${esc(b.variant.at)} 전엔 ${b.variant.n ? esc(b.n) + ' ' : ''}${esc(b.baseName)}` : `${esc(b.variant.at)}부터 <b>${b.variant.n ? esc(b.variant.n) + ' ' : ''}${esc(b.variant.name)}</b>(으)로 바뀌어요`}</div>` : ''}</div></div>
+      <div class="k" style="margin-top:4px">위치</div><div class="v" style="font-size:14px">${esc(zoneOf(b.zone).name)} <button class="more" style="border:0;background:none;color:var(--blue);font-weight:800;font-size:13px;padding:0 4px" data-go="${esc('/map/' + b.n)}">지도 ›</button></div>${b.hours ? `<div class="k" style="margin-top:4px">운영 시간</div><div class="v" style="font-size:14px">${esc(b.hours)}${(() => { const h = hoursState(b); return h && h.label ? ` <span class="bhours ${h.state}" style="display:inline;margin:0">· ${h.label}</span>` : ''; })()}</div>` : ''}</div></div>
     ${ytId(b.video) ? `<div class="card tight"><div class="kv"><div class="k">체험 영상</div><div class="yt"><iframe src="https://www.youtube-nocookie.com/embed/${ytId(b.video)}?rel=0" title="${esc(b.name)} 영상" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div></div></div>` : ''}
     ${b.pdf ? `<a class="btn line full" id="bPdf" target="_blank" rel="noopener" hidden>${I.doc} 부스 자료 PDF 보기</a>` : ''}
     ${!st && !hasStamp(b) ? `<div class="stampstate">
