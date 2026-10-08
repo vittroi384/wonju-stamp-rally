@@ -628,7 +628,7 @@ const CONFIG = {
   surveyMinSec: 60,                      // '설문 참여하기'를 누른 뒤 '설문 다 했어요'가 켜지기까지 초. 열자마자 누르는 걸 막음 (링크가 비어 있으면 0). 관리자 › 행사 설정
   surveyCodeField: '',                   // 구글폼 항목 ID(entry.123456…). 채우면 설문 링크에 방문객 코드가 미리 입력돼 응답과 대조 가능. 관리자 › 행사 설정
   // 설문 완료 자동 처리: 구글폼 확인 메시지에 '주소?survey' 링크를 넣어두면, 제출 후 그 링크를 누른 폰에서 완료 처리됨 (같은 브라우저여야 함). boot 참고
-  giftDeadline: '15:50',                 // 선물 교환 마감(안내 화면 문구)
+  giftDeadline: '',                      // 선물 교환 마감(안내 문구). 비우면 '행사 종료 전까지' (관리자 › 행사 설정)
   giftPlace: '운영본부',                 // 선물 받는 곳. 완주·교환권·안내 문구의 '운영본부' 자리 (관리자 › 행사 설정)
   giftText: '',                          // 안내 화면 '선물 교환' 카드 본문. 비우면 기본 문장 (관리자 › 행사 설정)
   cameraKeepMs: 180000,                  // 스캐너를 닫은 뒤 카메라를 들고 있는 시간(ms). 그 안에 다시 열면 권한 창 없이 바로 켜짐. 0 이면 바로 끔
@@ -1701,7 +1701,7 @@ function renderInfo(){
     <div class="h-sec">자료</div>
     ${RESOURCES.map(r => `<a class="link" href="${esc(r.url)}" target="_blank" rel="noopener"><span class="ic">${I.doc}</span><div class="grow"><div class="t">${esc(r.title)}</div><div class="s">${esc(r.desc)}</div></div><span class="bgo">${I.chev}</span></a>`).join('')}`}
     <div class="h-sec">선물 교환</div>
-    <div class="card"><p class="desc">${CONFIG.giftText ? esc(CONFIG.giftText).replace(/\n/g, '<br>') : `부스 ${CONFIG.stampGoal}곳의 도장을 모으고 ${surveyOn() ? '<b>설문</b>에 참여하면 ' : ''}<b>${esc(giftPlace())}</b>에서 선물을 드려요. 내 스탬프 화면의 교환권을 보여주세요.${CONFIG.giftDeadline && !CONFIG.miniMode ? ` 교환은 ${esc(CONFIG.giftDeadline)}까지예요.` : ''}`}</p></div>
+    <div class="card"><p class="desc">${CONFIG.giftText ? esc(CONFIG.giftText).replace(/\n/g, '<br>') : `부스 ${CONFIG.stampGoal}곳의 도장을 모으고 ${surveyOn() ? '<b>설문</b>에 참여하면 ' : ''}<b>${esc(giftPlace())}</b>에서 선물을 드려요. 내 스탬프 화면의 교환권을 보여주세요.${CONFIG.miniMode ? '' : CONFIG.giftDeadline ? ` 교환은 ${esc(CONFIG.giftDeadline)}까지예요.` : ' 행사 종료 전까지 교환할 수 있어요.'}`}</p></div>
     <p class="small muted" style="text-align:center;line-height:1.6">${esc(CONFIG.eventDate)} · ${esc(CONFIG.venue)}${CONFIG.contact ? ' · ' + esc(CONFIG.contact) : ''}</p>`,
     { sub: CONFIG.eventTitle });
 }
@@ -2751,9 +2751,9 @@ function boothOpen(b){ if(!b) return true; if(closedSet().has(b.id)) return fals
 /* QR 인쇄 시트. 부스별 QR 주소 = base?b=번호&t=토큰. 토큰은 DB.boothTokens (부스가 서버에 없으면 먼저 저장해 발급). 같은 탭의 테스트 번호 입력도 통과되게 qrTok 에 넣음 */
 /* QR 인쇄 카드 아래 참여 안내 3단계. 완주 개수·선물 받는 곳·설문 사용 여부·교환 마감은 행사 설정값을 따라감 */
 function qrStepsHTML(){
-  const goal = CONFIG.stampGoal, place = typeof giftPlace === 'function' ? giftPlace() : '운영본부', dl = CONFIG.giftDeadline ? `교환은 ${esc(CONFIG.giftDeadline)}까지` : '';
+  const goal = CONFIG.stampGoal, place = typeof giftPlace === 'function' ? giftPlace() : '운영본부', dl = CONFIG.giftDeadline ? `교환은 ${esc(CONFIG.giftDeadline)}까지` : '행사 종료 전까지 교환할 수 있어요';
   const s1 = CONFIG.miniMode ? `<b>체험을 마치면</b> 부스에서 도장을 받아요<small>폰이 있으면 카메라로 이 QR을 찍어도 돼요</small>` : `<b>부스 체험 후</b> 폰 카메라로 이 QR을 찍어요<small>처음이면 이름·학교만 적으면 바로 시작</small>`;
-  const s3 = (typeof surveyOn === 'function' && !surveyOn()) ? `도장을 다 모으면 <b>${esc(place)}</b>에서 선물!<small>${dl}</small>` : `짧은 <b>설문</b> 하고 <b>${esc(place)}</b>에서 선물!<small>${dl || '설문은 1분이면 끝나요'}</small>`;
+  const s3 = (typeof surveyOn === 'function' && !surveyOn()) ? `도장을 다 모으면 <b>${esc(place)}</b>에서 선물!<small>${dl}</small>` : `짧은 <b>설문</b> 하고 <b>${esc(place)}</b>에서 선물!<small>${dl}</small>`;
   return `<div class="qrsteps"><div><i>1</i><div>${s1}</div></div><div><i>2</i><div>도장 <b>${goal}개</b> 모으기<small>앱의 별이 하나씩 채워져요</small></div></div><div><i>3</i><div>${s3}</div></div></div>`;
 }
 function admQR(){
