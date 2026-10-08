@@ -126,14 +126,19 @@ select.inp.sm{padding-right:30px;background-position:right 10px center}
 .sc-count .n small{font-size:16px;color:rgba(255,255,255,.55);font-weight:700;letter-spacing:0}
 .sc-count .l{font-size:11px;color:rgba(255,255,255,.55);font-weight:700;margin-top:2px}
 .slots{display:grid;grid-template-columns:repeat(var(--cols,7),1fr);gap:3px;margin:18px -10px 0;justify-items:center}   /* 좌우 -10px 로 카드 여백까지 써서 별을 키움(별 꼭짓점 사이 여백이 커서 3px 간격이면 충분) */
-/* 도장 칸 = 뚱뚱한 별(clip-path). 빈 칸: 흐린 별 테두리(::before 가 안쪽을 카드색으로 덮음) · 찍힘: 노란 별 · 마지막 칸: 노란 테두리 별 + 🎁 */
-.slot{width:100%;aspect-ratio:1;max-width:80px;clip-path:var(--star);background:rgba(255,255,255,.32);display:grid;place-items:center;position:relative;isolation:isolate;box-sizing:border-box;font-size:12px;font-weight:800;color:rgba(255,255,255,.4)}   /* 숫자는 별 안쪽 오각형 중심 = 정가운데 */
-.slot::before{content:"";position:absolute;inset:0;background:var(--ink);clip-path:var(--star);transform:scale(.8);transform-origin:50% 50%;z-index:-1}
+/* 도장 칸 = 뚱뚱한 별(clip-path), 큰 도장(.bigstamp)과 같은 3겹: 바깥 별(요소 배경) · 점선 띠(::after, .9) · 안쪽 별(::before, .8).
+   빈 칸: 흐린 테두리 + 흐린 점선 + 안쪽은 카드색 · 찍힘: 노란 별 + 진한 점선 띠 + 안쪽 노랑 · 마지막 칸: 노란 테두리 + 🎁 */
+.slot{width:100%;aspect-ratio:1;max-width:80px;clip-path:var(--star);background:linear-gradient(160deg,rgba(255,255,255,.42),rgba(255,255,255,.2));display:grid;place-items:center;position:relative;isolation:isolate;box-sizing:border-box;font-size:12px;font-weight:800;color:rgba(255,255,255,.55)}   /* 숫자는 별 안쪽 오각형 중심 = 정가운데 */
+.slot::before{content:"";position:absolute;inset:0;background:var(--ink);clip-path:var(--star);transform:scale(.78);transform-origin:50% 50%;z-index:-1}
+.slot::after{content:"";position:absolute;inset:0;clip-path:var(--star);background:repeating-conic-gradient(rgba(255,255,255,.42) 0 5deg,transparent 5deg 11deg);transform:scale(.9);transform-origin:50% 50%;z-index:-2}
 .slot.ink{background:var(--sun);color:var(--ink);transform:rotate(-8deg);animation:stampIn .5s cubic-bezier(.2,1.6,.4,1) both}
-.slot.ink::before{display:none}
+.slot.ink::before{background:var(--sun)}
+.slot.ink::after{background:repeating-conic-gradient(rgba(21,26,45,.45) 0 5deg,transparent 5deg 11deg)}
 .slot.ink .num{font-size:15px;font-weight:900;letter-spacing:-.02em}
 .slot.gift{background:var(--sun);color:var(--sun);font-size:17px}
+.slot.gift::after{background:repeating-conic-gradient(rgba(255,200,61,.6) 0 5deg,transparent 5deg 11deg)}
 .slot.ink.pend{background:var(--sun-soft)}
+.slot.ink.pend::before{background:var(--sun-soft)}
 .sg .n.pend{background:var(--sun-soft);border:2px dashed var(--sun)}
 @keyframes stampIn{0%{transform:scale(1.9) rotate(10deg);opacity:0}60%{opacity:1}100%{transform:scale(1) rotate(-8deg);opacity:1}}
 .sc-foot{margin-top:14px;font-size:12.5px;color:rgba(255,255,255,.7);display:flex;align-items:center;gap:8px}
