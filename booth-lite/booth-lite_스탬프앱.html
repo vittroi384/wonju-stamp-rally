@@ -1002,7 +1002,7 @@ function readAge(sel){ const a = parseInt($(sel).value); return a >= 1 && a <= 1
 /* 등록 항목. 이름은 항상 받고, 아래 셋은 관리자 › 행사 설정에서 사용/필수를 켜고 끔(settings.regFields = {org:{on,req}, age:{…}, phone:{…}}).
    DB 열은 축전 앱과 같게 두고 뜻만 다름: school = 소속, grade = 나이, gender = 연락처 (SQL 안 바꾸려고) */
 const REG_FIELD_DEFS = [
-  { k: 'org',   label: '소속',   col: 'school', type: 'text',   ph: '학교·기관·단체명', max: 30, on: true,  req: true },
+  { k: 'org',   label: '소속',   col: 'school', type: 'text',   ph: '',                max: 30, on: true,  req: true },
   { k: 'age',   label: '나이',   col: 'grade',  type: 'number', ph: '예: 12',           max: 3,  on: true,  req: true },
   { k: 'phone', label: '연락처', col: 'gender', type: 'tel',    ph: '010-1234-5678',    max: 20, on: true,  req: false },
 ];
@@ -1444,7 +1444,7 @@ function renderRegister(returnTo){
       <p>${regDescHTML(`부스에 붙은 QR을 찍으면 도장이 찍혀요. <span style="white-space:nowrap">${regLabels()}만</span> 적으면 바로 시작할 수 있어요.`)}</p>
     </div>
     <div class="steps">
-      ${CONFIG.miniMode ? `<div class="step"><div class="ic">🖐️</div><div class="t">부스에서 도장 받기</div><div class="s">체험을 마치면</div></div>` : `<div class="step"><div class="ic">📱</div><div class="t">부스 QR 찍기</div><div class="s">폰 카메라로</div></div>`}
+      <div class="step"><div class="ic">📱</div><div class="t">부스 QR 찍기</div><div class="s">폰 카메라로</div></div>
       <div class="step"><div class="ic">🟡</div><div class="t">도장 ${CONFIG.stampGoal}개 모으기</div><div class="s">부스 어디든</div></div>
       <div class="step"><div class="ic">🎁</div><div class="t">${CONFIG.miniMode && !surveyOn() ? '선물 받기' : '설문 후 선물'}</div><div class="s">${esc(giftPlace())}에서</div></div>
     </div>
@@ -2777,7 +2777,7 @@ function boothOpen(b){ if(!b) return true; if(closedSet().has(b.id)) return fals
 /* QR 인쇄 카드 아래 참여 안내 3단계. 완주 개수·선물 받는 곳·설문 사용 여부·교환 마감은 행사 설정값을 따라감 */
 function qrStepsHTML(){
   const goal = CONFIG.stampGoal, place = typeof giftPlace === 'function' ? giftPlace() : '운영본부', dl = CONFIG.giftDeadline ? `교환은 ${esc(CONFIG.giftDeadline)}까지입니다` : '교환은 행사 종료 전까지입니다';
-  const s1 = CONFIG.miniMode ? `<b>체험을 마치면</b> 부스에서 도장을 받으세요<small>휴대폰이 있으면 카메라로 이 QR을 찍어도 됩니다</small>` : `<b>부스 체험 후</b> 휴대폰 카메라로 이 QR을 찍어 주세요<small>처음이면 이름·학교만 적으면 바로 시작됩니다</small>`;
+  const s1 = `<b>부스 체험 후</b> 휴대폰 카메라로 이 QR을 찍어 주세요<small>처음이면 ${esc(regLabels())}만 적으면 바로 시작됩니다</small>`;   // 등록 항목은 행사 설정을 따라감
   const s3 = (typeof surveyOn === 'function' && !surveyOn()) ? `도장을 다 모으면 <b>${esc(place)}</b>에서 선물을 받아 가세요<small>${dl}</small>` : `짧은 <b>설문</b> 후 <b>${esc(place)}</b>에서 선물을 받아 가세요<small>${dl}</small>`;
   return `<div class="qrsteps"><div><i>1</i><div>${s1}</div></div><div><i>2</i><div>도장 <b>${goal}개</b>를 모아 주세요<small>앱의 별이 하나씩 채워집니다</small></div></div><div><i>3</i><div>${s3}</div></div></div>`;
 }
