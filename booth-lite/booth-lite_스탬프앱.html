@@ -425,6 +425,14 @@ body.sheet-open{position:fixed;left:0;right:0;overflow:hidden}   /* 시트 열�
 .bar{height:6px;border-radius:3px;background:var(--line-2);overflow:hidden;min-width:60px}
 .bar i{display:block;height:100%;background:var(--blue);border-radius:3px}
 .tscroll{overflow-x:auto;border-radius:var(--r)}
+/* 현황 › 부스별 도장 표(아코 부스): 번호 배지 + 이름(말줄임) · 숫자 + 막대 · 최근 — 폰 너비에서도 한 줄 */
+.btbl{table-layout:fixed}.btbl td{padding:12px 12px}.btbl th{padding:11px 12px}
+.btbl .bcell{display:flex;align-items:center;gap:9px;min-width:0}.btbl .bcell b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:14px}
+.btbl .bn{flex-shrink:0;min-width:28px;height:28px;padding:0 7px;border-radius:9px;color:#fff;font-weight:900;font-size:13px;display:grid;place-items:center}
+.btbl .ncell{display:flex;align-items:center;gap:8px}.btbl .ncell .num{min-width:24px;text-align:right}.btbl .ncell .bar{flex:1;min-width:40px}
+.stat.warn .d b{color:var(--coral)}
+.chart .cbar.zero{fill:var(--line)}
+@media (max-width:600px){.stat{padding:13px 14px}.stat .v{font-size:26px}.btbl td,.btbl th{padding:11px 9px}}
 .chart{background:var(--card);border-radius:var(--r);padding:16px;box-shadow:var(--sh-1)}
 .chart svg{width:100%;height:150px;display:block}
 .chart .cbar{fill:var(--blue)}
@@ -2155,26 +2163,28 @@ async function renderAdmin(tab, arg){
 /* 현황: 등록·총 도장·완주·수령 수치 + 시간대별 막대 + 부스별 표. 데이터는 DB.stats 한 번 */
 function admDash(st){
   const perBooth = st.perBooth, achieved = st.achievers, got = achieved.filter(v => v.giftAt);
-  const hours = Array.from({ length: 8 }, (_, i) => 9 + i); const perHour = hours.map(h => st.perHour[h] || 0);
+  /* 시간대: 기본 9~16시, 기록이 그 밖에 있으면 그 시간까지 넓힘 (행사 시간이 달라도 막대가 비지 않게) */
+  const hk = Object.keys(st.perHour || {}).map(Number).filter(h => !isNaN(h) && (st.perHour[h] || 0) > 0);
+  const h0 = Math.min(9, ...hk), h1 = Math.max(16, ...hk);
+  const hours = Array.from({ length: h1 - h0 + 1 }, (_, i) => h0 + i); const perHour = hours.map(h => st.perHour[h] || 0);
   const maxH = Math.max(1, ...perHour), maxB = Math.max(1, ...Object.values(perBooth).map(x => x.n));
   const ranked = S.booths.map(b => ({ b, n: perBooth[b.id]?.n || 0, last: perBooth[b.id]?.last || 0 })).sort((a, b) => b.n - a.n);
   const active = ranked.filter(r => r.n > 0).length; const visitors = { length: st.visitors }, stamps = { length: st.stamps };
+  const peak = Math.max(...perHour) > 0 ? `${hours[perHour.indexOf(Math.max(...perHour))]}시` : '—';
+  const W = 14 + hours.length * 47;
   admShell('dash', `
     <div class="stats">
-      <div class="stat"><div class="k">등록 방문객</div><div class="v">${visitors.length.toLocaleString()}<small>명</small></div><div class="d">스탬프 1개 이상 ${st.active.toLocaleString()}명</div></div>
-      <div class="stat"><div class="k">총 스탬프</div><div class="v">${stamps.length.toLocaleString()}<small>개</small></div><div class="d">부스당 평균 ${active ? (stamps.length / active).toFixed(1) : 0}개</div></div>
-      <div class="stat"><div class="k">${CONFIG.stampGoal}개 달성</div><div class="v">${achieved.length}<small>명</small></div><div class="d">방문객의 ${visitors.length ? Math.round(achieved.length / visitors.length * 100) : 0}%</div></div>
-      <div class="stat"><div class="k">선물 수령</div><div class="v">${got.length}<small>명</small></div><div class="d">미수령 ${achieved.length - got.length}명</div></div>
+      <div class="stat"><div class="k">등록</div><div class="v">${visitors.length.toLocaleString()}<small>명</small></div><div class="d">도장 1개 이상 ${st.active.toLocaleString()}명</div></div>
+      <div class="stat"><div class="k">도장</div><div class="v">${stamps.length.toLocaleString()}<small>개</small></div><div class="d">부스당 평균 ${active ? (stamps.length / active).toFixed(1) : 0}개</div></div>
+      <div class="stat"><div class="k">완주 (${CONFIG.stampGoal}개)</div><div class="v">${achieved.length}<small>명</small></div><div class="d">등록의 ${visitors.length ? Math.round(achieved.length / visitors.length * 100) : 0}%</div></div>
+      <div class="stat ${achieved.length - got.length ? 'warn' : ''}"><div class="k">선물 수령</div><div class="v">${got.length}<small>명</small></div><div class="d">${achieved.length - got.length ? `미수령 <b>${achieved.length - got.length}명</b>` : '미수령 없음'}</div></div>
     </div>
-    <div class="split">
-      <div class="chart"><div class="h-sec" style="margin:0 0 10px">시간대별 스탬프</div>
-        <svg viewBox="0 0 400 150">${perHour.map((n, i) => { const x = 14 + i * 47, h = Math.round(n / maxH * 100); return `<rect class="cbar" x="${x}" y="${122 - h}" width="30" height="${h}" rx="6"/><text class="cval" x="${x + 15}" y="${116 - h}">${n || ''}</text><text class="clbl" x="${x + 15}" y="140">${hours[i]}시</text>`; }).join('')}</svg></div>
-      <div class="chart"><div class="h-sec" style="margin:0 0 10px">운영 메모</div>
-        <p class="desc small" style="line-height:1.7">참여 부스 <b>${active}/${S.booths.length}</b> · 가장 붐비는 시간 <b>${hours[perHour.indexOf(Math.max(...perHour))]}시</b><br>${ranked[0]?.n ? `최다 방문 <b>${esc(ranked[0].b.n)} ${esc(ranked[0].b.name)}</b> (${ranked[0].n})<br>` : ''}${ranked.filter(r => r.n === 0).length ? `아직 방문 없음 <b>${ranked.filter(r => r.n === 0).length}곳</b>` : '모든 부스에 방문 기록이 있어요'}</p>
-        <button class="btn sm soft" style="margin-top:12px" onclick="route()">↻ 새로고침</button></div>
+    <div class="chart" style="margin-top:12px">
+      <div class="row" style="margin-bottom:6px"><div class="h-sec" style="margin:0">시간대별 도장</div><span class="grow"></span><span class="small muted">붐비는 시간 <b>${peak}</b></span><button class="btn xs soft" onclick="route()">↻ 새로고침</button></div>
+      <div class="tscroll"><svg viewBox="0 0 ${W} 150" style="${hours.length > 10 ? `min-width:${Math.min(W, 560)}px` : ''}">${perHour.map((n, i) => { const x = 14 + i * 47, h = Math.round(n / maxH * 100); return `<rect class="cbar ${n ? '' : 'zero'}" x="${x}" y="${122 - (n ? h : 2)}" width="30" height="${n ? h : 2}" rx="6"/><text class="cval" x="${x + 15}" y="${116 - h}">${n || ''}</text><text class="clbl" x="${x + 15}" y="140">${hours[i]}시</text>`; }).join('')}</svg></div>
     </div>
-    <p class="desc small" style="margin:14px 2px 6px">열 제목을 누르면 정렬(한 번 더 누르면 오름·내림), 부스 줄을 누르면 그 부스 참여자 명단</p>
-    <div class="tscroll"><table class="table" id="admBoothTbl"><thead><tr><th>#</th>${[['num', '부스'], ['org', '운영'], ['n', '스탬프']].map(([k, t]) => `<th class="sortable" data-k="${k}">${t}</th>`).join('')}<th></th><th class="sortable" data-k="last">최근</th></tr></thead><tbody></tbody></table></div>`);
+    <div class="row" style="margin:16px 2px 8px"><div class="h-sec" style="margin:0">부스별 도장</div><span class="grow"></span><span class="small muted">참여 ${active}/${S.booths.length} · 줄을 누르면 참여자 명단</span></div>
+    <table class="table btbl" id="admBoothTbl"><colgroup><col><col style="width:132px"><col style="width:62px"></colgroup><thead><tr>${[['num', '부스'], ['n', '도장'], ['last', '최근']].map(([k, t]) => `<th class="sortable" data-k="${k}">${t}</th>`).join('')}</tr></thead><tbody></tbody></table>`);
   admBoothTable(ranked, maxB);
 }
 /* 현황 부스별 표: 정렬 상태는 탭을 다시 열어도 유지. 번호 정렬은 숫자 → 문자(본1·네1) 순 */
@@ -2185,7 +2195,7 @@ function admBoothTable(rows, maxB){
   const cmp = (a, b) => { if(k === 'num'){ const x = numKey(a.b), y = numKey(b.b); return (x[0] - y[0]) || (x[1] - y[1]) || x[2].localeCompare(y[2], 'ko'); } if(k === 'org') return String(a.b.org || '').localeCompare(String(b.b.org || ''), 'ko'); if(k === 'last') return (a.last || 0) - (b.last || 0); return a.n - b.n; };
   const list = [...rows].sort((a, b) => cmp(a, b) * sg || (b.n - a.n));
   const tbl = $('#admBoothTbl'); if(!tbl) return;
-  tbl.querySelector('tbody').innerHTML = list.map((r, i) => { const c = catOf(r.b.cat); return `<tr class="rowbtn" data-bv="${esc(r.b.id)}" tabindex="0"><td class="muted">${i + 1}</td><td><span class="pill" style="background:${c.color}1a;color:${c.color}"><span class="dot"></span>${esc(r.b.n)}</span> <b>${esc(r.b.name)}</b></td><td class="muted">${esc(r.b.org)}</td><td class="num">${r.n}</td><td><div class="bar"><i style="width:${r.n / maxB * 100}%"></i></div></td><td class="muted">${r.last ? fmtTime(r.last) : '—'}</td></tr>`; }).join('');
+  tbl.querySelector('tbody').innerHTML = list.map(r => { const c = catOf(r.b.cat); return `<tr class="rowbtn" data-bv="${esc(r.b.id)}" tabindex="0"><td><div class="bcell"><span class="bn" style="background:${c.color}">${esc(r.b.n)}</span><b>${esc(r.b.name)}</b></div></td><td><div class="ncell"><span class="num">${r.n}</span><div class="bar"><i style="width:${r.n / maxB * 100}%"></i></div></div></td><td class="muted" style="white-space:nowrap">${r.last ? fmtTime(r.last) : '—'}</td></tr>`; }).join('');
   $$('th.sortable', tbl).forEach(th => { th.classList.toggle('on', th.dataset.k === k); th.dataset.dir = th.dataset.k === k ? dir : ''; th.onclick = () => { if(admBoothSort.k === th.dataset.k) admBoothSort.dir = admBoothSort.dir === 'asc' ? 'desc' : 'asc'; else { admBoothSort.k = th.dataset.k; admBoothSort.dir = th.dataset.k === 'num' || th.dataset.k === 'org' ? 'asc' : 'desc'; } admBoothTable(rows, maxB); }; });
   $$('[data-bv]', tbl).forEach(tr => { const open = () => admBoothVisitors(tr.dataset.bv); tr.onclick = open; tr.onkeydown = e => { if(e.key === 'Enter') open(); }; });
 }
