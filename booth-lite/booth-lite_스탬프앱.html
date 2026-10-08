@@ -411,9 +411,9 @@ body.sheet-open{position:fixed;left:0;right:0;overflow:hidden}   /* 시트 열�
 .tb-qr svg{width:22px;height:22px}
 .tb-form{display:grid;grid-template-columns:1fr 1fr;gap:12px 14px}.tb-form .field.full{grid-column:1/-1}.tb-form .inp{font-size:18px;padding:14px 16px}@media(max-width:600px){.tb-form{grid-template-columns:1fr}}
 .stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
-.stat{background:var(--card);border-radius:var(--r);padding:16px;box-shadow:var(--sh-1);min-width:0}
+.stat{background:var(--card);border-radius:var(--r);padding:14px 16px;box-shadow:var(--sh-1);min-width:0}
 .stat .k{font-size:12px;font-weight:700;color:var(--ink-3)}
-.stat .v{font-size:30px;font-weight:900;letter-spacing:-.03em;margin-top:6px;line-height:1}
+.stat .v{font-size:26px;font-weight:900;letter-spacing:-.03em;margin-top:6px;line-height:1}
 .stat .v small{font-size:13px;color:var(--ink-3);font-weight:700;letter-spacing:0;margin-left:3px}
 .stat .d{font-size:12px;color:var(--ink-2);margin-top:8px;font-weight:600}
 .table{width:100%;border-collapse:collapse;background:var(--card);border-radius:var(--r);overflow:hidden;box-shadow:var(--sh-1);font-size:13.5px}
@@ -457,7 +457,8 @@ body.sheet-open{position:fixed;left:0;right:0;overflow:hidden}   /* 시트 열�
 .adm-login{max-width:380px;margin:60px auto 0;display:flex;flex-direction:column;gap:14px}
 .adm-login h1{font-size:24px;font-weight:900;letter-spacing:-.02em}
 .split{display:grid;grid-template-columns:1.1fr .9fr;gap:14px;align-items:start}
-@media (max-width:820px){.split{grid-template-columns:1fr}.stats{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:820px){.split{grid-template-columns:1fr}}
+@media (max-width:640px){.stats{grid-template-columns:repeat(2,1fr)}}   /* 태블릿은 4칸 한 줄, 폰만 2×2 */
 @media print{
   @page{size:A4;margin:0}                    /* 여백 0 = 브라우저가 찍는 날짜·제목·주소·쪽번호가 사라짐 */
   body{background:#fff}
@@ -2179,9 +2180,9 @@ function admDash(st){
       <div class="stat"><div class="k">완주 (${CONFIG.stampGoal}개)</div><div class="v">${achieved.length}<small>명</small></div><div class="d">등록의 ${visitors.length ? Math.round(achieved.length / visitors.length * 100) : 0}%</div></div>
       <div class="stat ${achieved.length - got.length ? 'warn' : ''}"><div class="k">선물 수령</div><div class="v">${got.length}<small>명</small></div><div class="d">${achieved.length - got.length ? `미수령 <b>${achieved.length - got.length}명</b>` : '미수령 없음'}</div></div>
     </div>
-    <div class="chart" style="margin-top:12px">
+    <div class="chart" style="margin-top:12px;padding:12px 16px 8px">
       <div class="row" style="margin-bottom:6px"><div class="h-sec" style="margin:0">시간대별 도장</div><span class="grow"></span><span class="small muted">붐비는 시간 <b>${peak}</b></span><button class="btn xs soft" onclick="route()">↻ 새로고침</button></div>
-      <div class="tscroll"><svg viewBox="0 0 ${W} 150" style="${hours.length > 10 ? `min-width:${Math.min(W, 560)}px` : ''}">${perHour.map((n, i) => { const x = 14 + i * 47, h = Math.round(n / maxH * 100); return `<rect class="cbar ${n ? '' : 'zero'}" x="${x}" y="${122 - (n ? h : 2)}" width="30" height="${n ? h : 2}" rx="6"/><text class="cval" x="${x + 15}" y="${116 - h}">${n || ''}</text><text class="clbl" x="${x + 15}" y="140">${hours[i]}시</text>`; }).join('')}</svg></div>
+      <div class="tscroll"><svg viewBox="0 0 ${W} 150" style="display:block;width:100%;height:120px;${hours.length > 10 ? `min-width:${Math.min(W, 560)}px` : ''}">${perHour.map((n, i) => { const x = 14 + i * 47, h = Math.round(n / maxH * 100); return `<rect class="cbar ${n ? '' : 'zero'}" x="${x}" y="${122 - (n ? h : 2)}" width="30" height="${n ? h : 2}" rx="6"/><text class="cval" x="${x + 15}" y="${116 - h}">${n || ''}</text><text class="clbl" x="${x + 15}" y="140">${hours[i]}시</text>`; }).join('')}</svg></div>
     </div>
     <div class="row" style="margin:16px 2px 8px"><div class="h-sec" style="margin:0">부스별 도장</div><span class="grow"></span><span class="small muted">참여 ${active}/${S.booths.length} · 줄을 누르면 참여자 명단</span></div>
     <table class="table btbl" id="admBoothTbl"><colgroup><col><col style="width:132px"><col style="width:62px"></colgroup><thead><tr>${[['num', '부스'], ['n', '도장'], ['last', '최근']].map(([k, t]) => `<th class="sortable" data-k="${k}">${t}</th>`).join('')}</tr></thead><tbody></tbody></table>`);
