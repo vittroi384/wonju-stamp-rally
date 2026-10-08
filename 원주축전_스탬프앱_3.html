@@ -165,8 +165,8 @@ select.inp.sm{padding-right:30px;background-position:right 10px center}
 .searchbar svg{width:17px;height:17px;color:var(--ink-3);flex-shrink:0}
 .searchbar input{border:0;background:none;outline:none;flex:1;font-size:15px;color:var(--ink);min-width:0}
 /* 관리자 › 행사 설정 › [첫 화면 미리보기] 때 화면 아래에 떠 있는 바 */
-.pvbar{position:fixed;left:14px;right:14px;bottom:calc(14px + var(--sab,0px));z-index:60;display:flex;align-items:center;gap:10px;background:var(--ink);color:#fff;border-radius:18px;padding:10px 10px 10px 16px;box-shadow:0 10px 30px rgba(21,26,45,.35)}
-.pvbar .l{flex:1;min-width:0;font-size:13px;line-height:1.35}.pvbar .l b{display:block;font-size:14px}.pvbar .l span{color:rgba(255,255,255,.7)}
+.pvbar{position:fixed;left:14px;right:14px;bottom:calc(12px + var(--sab,0px));z-index:60;display:flex;align-items:center;gap:10px;background:var(--ink);color:#fff;border-radius:999px;padding:6px 6px 6px 16px;box-shadow:0 10px 30px rgba(21,26,45,.35)}
+.pvbar .l{flex:1;min-width:0;font-size:13px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.pvbar .l b{font-size:14px;margin-right:6px}.pvbar .l span{color:rgba(255,255,255,.7)}
 .pvbar .btn{flex-shrink:0}
 .notice{display:flex;align-items:center;gap:10px;background:var(--sun-soft);color:var(--sun-ink);border-radius:14px;padding:11px 14px;font-size:13px;font-weight:700}
 .notice svg{width:16px;height:16px;flex-shrink:0}
@@ -1378,7 +1378,7 @@ function regDescHTML(dflt){ const t = (CONFIG.regDesc || '').trim(); return t ? 
 function renderRegister(returnTo){
   returnTo = safeReturn(returnTo);
   shell(null, '', `
-    ${S.regPreview ? `<div class="pvbar"><div class="l"><b>미리보기</b><span>방문객이 처음 보는 화면 · 저장 전 내용</span></div><button class="btn sun sm" onclick="S.regPreview=false;go(admPath('/event'))">설정으로 돌아가기</button></div>` : ''}
+    ${S.regPreview ? `<div class="pvbar"><div class="l"><b>👀 미리보기</b><span>저장 전 내용</span></div><button class="btn sun sm" onclick="S.regPreview=false;go(admPath('/event'))">설정으로 돌아가기</button></div>` : ''}
     <div class="reg-hero">
       <div class="eyebrow">${esc(CONFIG.eventTitle)}</div>
       <h1>${regTitleHTML(false)}</h1>
@@ -1423,7 +1423,7 @@ function renderRegister(returnTo){
     $$('#rGrade button').forEach(g => g.onclick = () => { gradeNo = g.dataset.n; $$('#rGrade button').forEach(x => x.classList.toggle('on', x === g)); });
     $('#rSchoolL').textContent = adult ? '소속 (선택)' : '학교'; $('#rSchool').placeholder = adult ? '학교·기관명 (없으면 비워도 돼요)' : '학교명';   // 성인은 학교 대신 소속, 비워도 됨
   });
-  if(S.regPreview){ $('#main').style.paddingBottom = '96px'; $('#rGo').onclick = () => toast('미리보기 중이에요 — 등록은 되지 않아요'); return; }
+  if(S.regPreview){ $('#main').style.paddingBottom = '72px'; $('#rGo').onclick = () => toast('미리보기 중이에요 — 등록은 되지 않아요'); return; }
   $('#rGo').onclick = async () => {
     const name = $('#rName').value.trim(), school = $('#rSchool').value.trim();
     if(!level) return toast('초등·중등·고등·성인 중에 골라주세요');
@@ -2623,9 +2623,9 @@ function admEvent(){
         <div class="field"><label>일시</label><input class="inp" id="evDate" value="${esc(CONFIG.eventDate)}" maxlength="40"></div>
         <div class="field"><label>장소</label><input class="inp" id="evVenue" value="${esc(CONFIG.venue)}" maxlength="40"></div>
         <div class="field"><label>완주 도장 개수</label><input class="inp" id="evGoal" type="number" min="1" max="30" value="${CONFIG.stampGoal}"></div>
-        <div class="field"><label>첫 화면 제목 (홈 카드·등록 화면 · 줄바꿈 가능 · 비우면 "체험하고 스탬프를 모아보세요")</label><textarea class="inp" id="evRegTitle" style="min-height:64px;font-size:14px" maxlength="60" placeholder="예: 참여기업 부스 행사&#10;도장 7개 모으고 선물 받기">${esc(CONFIG.regTitle)}</textarea></div>
-        <div class="field"><label>첫 화면 설명 (등록 화면 · 비우면 기본 문장)</label><input class="inp" id="evRegDesc" value="${esc(CONFIG.regDesc)}" maxlength="120" placeholder="예: 부스에서 도장을 받고, 다 모으면 선물을 드려요"></div>
-        <div class="row" style="margin:-4px 0 12px"><button class="btn sm line" id="evPreview">첫 화면 미리보기</button><span class="small muted">저장 안 해도 지금 적은 대로 보여요</span></div>
+        <div class="field"><label>첫 화면 제목 (홈·등록 화면 · 줄바꿈 가능 · 비우면 기본 문구)</label><textarea class="inp" id="evRegTitle" style="min-height:64px;font-size:14px" maxlength="60" placeholder="예: 참여기업 부스 행사&#10;도장 7개 모으고 선물 받기">${esc(CONFIG.regTitle)}</textarea></div>
+        <div class="field"><label>첫 화면 설명 (등록 화면 제목 아래 · 비우면 기본 문장)</label><input class="inp" id="evRegDesc" value="${esc(CONFIG.regDesc)}" maxlength="120" placeholder="예: 부스에서 도장을 받고, 다 모으면 선물을 드려요"></div>
+        <div class="row" style="margin:2px 0 6px;padding:10px 12px;background:var(--bg);border-radius:12px"><button class="btn sm line" id="evPreview" style="white-space:nowrap;flex-shrink:0">👀 첫 화면 미리보기</button><span class="small muted" style="line-height:1.3">저장 전에도 지금 적은 대로 보여요</span></div>
         <div class="field"><label>설문 링크 (구글폼 등 · 선택)</label><input class="inp" id="evSurvey" value="${esc(CONFIG.surveyUrl)}" placeholder="비우면 앱 안의 설문(설문 탭)을 써요"></div>
         <div class="row" style="gap:10px;align-items:flex-start">
           <div class="field" style="flex:0 0 130px"><label>설문 최소 시간(초)</label><input class="inp" id="evSurveySec" type="number" min="0" max="600" value="${CONFIG.surveyMinSec}"></div>
