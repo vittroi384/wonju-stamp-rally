@@ -451,7 +451,7 @@ body.sheet-open{position:fixed;left:0;right:0;overflow:hidden}   /* 시트 열�
   .qrgrid.portrait{grid-template-columns:1fr 1fr}
   .qrgrid.portrait .qrc{height:209mm;flex-direction:column;align-items:center;justify-content:flex-start;text-align:center;padding:12mm 10mm 8mm;gap:3mm}
   .qrgrid.portrait .qrc::before{top:0;left:0;right:0;bottom:auto;width:auto;height:8mm}
-  .qrgrid.portrait .qrc::after{right:-30mm;top:auto;bottom:-30mm}
+  .qrgrid.portrait .qrc::after{top:auto;left:auto;right:7mm;bottom:7mm;width:40mm;height:40mm;aspect-ratio:1/1;border-radius:50%;opacity:.07}   /* 카드 안에 온전히 들어오는 작은 원(잘려서 타원처럼 보이지 않게) */
   .qrgrid.portrait .qrc:nth-child(odd){border-bottom:0!important;border-right:1px dashed #999!important}
   .qrgrid.portrait .qrc .qr{width:82mm;height:82mm;margin-top:1mm}
   .qrgrid.portrait .qrc .qrtxt{height:auto;flex:1;width:100%;align-items:center;justify-content:flex-start;text-align:center}
