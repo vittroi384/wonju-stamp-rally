@@ -815,7 +815,7 @@ const LocalDB = {
   },
   async purgeVisitors(){ await this._save({visitors:[],stamps:[]}); },
   async seedDemo(booths){
-    const d={visitors:[],stamps:[]}; const schools=['가온초','라온중','사랑고','푸른초','하늘고','나래초','마루중','아람고','다솜초','바다중'];
+    const d={visitors:[],stamps:[]}; const schools=['원주중','대성고','평원중','진광고','치악고','상지여고','북원여고','단구초','동명초','원주여고'];
     const names=['김하늘','이서준','박지우','최민준','정수아','강도윤','조예린','윤시우','장하린','임준서','한지안','오유나','서지호','신아인','권도현','황서윤'];
     const t0=new Date(); t0.setHours(10,0,0,0);
     for(let i=0;i<180;i++){
@@ -1458,7 +1458,7 @@ function renderBooth(n){
     ${closedSet().has(b.id) ? `<div class="notice">${I.bell}<span>지금은 잠시 쉬는 중이에요. 다시 열리면 흐린 표시가 사라져요</span></div>` : ''}
     ${st || !hasStamp(b) ? '' : boothForMe(b) ? `<button class="btn sun full" onclick="openScanner()">${I.qr} QR 찍고 도장 받기</button>` : `<div class="notice">${I.bell}<span>${esc(targetName(b.target))} 친구들만 참여하는 부스예요</span></div>`}
     ${CONFIG.miniMode ? '' : `<button class="btn ${st ? '' : 'line'} full" data-go="${esc('/map/' + b.n)}">${I.pin} 지도에서 위치 보기</button>`}
-    ${S.admin ? `<button class="btn line full" data-go="${esc('/stamp/' + b.n)}">${I.qr} QR 링크 미리보기 (관리자)</button>` : ''}`,
+    `,
     { back: true });
   if(b.img) resolveFileUrl(b.img).then(u => { const el = $('#bImg'); if(el && u){ el.src = u; el.onclick = () => openLightbox(u); $('#bImgWrap').hidden = false; } });
   if(b.pdf) resolveFileUrl(b.pdf).then(u => { const el = $('#bPdf'); if(el && u){ el.href = u; el.hidden = false; } });
