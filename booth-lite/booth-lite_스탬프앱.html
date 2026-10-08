@@ -629,6 +629,8 @@ const CONFIG = {
   surveyCodeField: '',                   // 구글폼 항목 ID(entry.123456…). 채우면 설문 링크에 방문객 코드가 미리 입력돼 응답과 대조 가능. 관리자 › 행사 설정
   // 설문 완료 자동 처리: 구글폼 확인 메시지에 '주소?survey' 링크를 넣어두면, 제출 후 그 링크를 누른 폰에서 완료 처리됨 (같은 브라우저여야 함). boot 참고
   giftDeadline: '',                      // 선물 교환 마감(안내 문구). 비우면 '행사 종료 전까지' (관리자 › 행사 설정)
+  regTitle: '',                          // 첫 화면(홈 카드·등록 화면) 제목. 줄바꿈 가능. 비우면 '부스 N곳 돌고 선물 받아가기' (관리자 › 행사 설정)
+  regDesc: '',                           // 등록 화면 설명 문장. 비우면 기본 문장 (관리자 › 행사 설정)
   giftPlace: '운영본부',                 // 선물 받는 곳. 완주·교환권·안내 문구의 '운영본부' 자리 (관리자 › 행사 설정)
   giftText: '',                          // 안내 화면 '선물 교환' 카드 본문. 비우면 기본 문장 (관리자 › 행사 설정)
   cameraKeepMs: 180000,                  // 스캐너를 닫은 뒤 카메라를 들고 있는 시간(ms). 그 안에 다시 열면 권한 창 없이 바로 켜짐. 0 이면 바로 끔
@@ -1020,7 +1022,7 @@ function vCols(){ return regFields().map(f => ({ label: f.label, get: v => (v &&
 const vColsTH = () => vCols().map(c => `<th>${c.label}</th>`).join('');
 const vColsTD = v => vCols().map(c => `<td class="muted">${esc(c.get(v))}</td>`).join('');
 /* 행사 설정: 관리자 › 행사 설정에서 저장한 값(서버 settings / 로컬 wj:settings)을 CONFIG·SCHEDULE·RESOURCES 위에 덮는다 */
-const SETTING_KEYS = ['eventTitle', 'eventDate', 'venue', 'stampGoal', 'surveyUrl', 'surveyMinSec', 'surveyCodeField', 'giftDeadline', 'giftPlace', 'giftText', 'contact', 'notice'];
+const SETTING_KEYS = ['eventTitle', 'eventDate', 'venue', 'stampGoal', 'surveyUrl', 'surveyMinSec', 'surveyCodeField', 'giftDeadline', 'giftPlace', 'giftText', 'regTitle', 'regDesc', 'contact', 'notice'];
 const giftPlace = () => (CONFIG.giftPlace || '운영본부').trim();   // 선물 받는 곳 — 비워 저장해도 기본값
 function applySettings(s){
   if(!s) return;
@@ -1322,7 +1324,7 @@ function stampCardHTML(){
   const goal = CONFIG.stampGoal, n = S.myStamps.length, done = goalReached();
   if(!S.me) return `
     <div class="stampcard">
-      <div class="sc-top"><div><div class="sc-hello">스탬프 랠리</div><div class="sc-title">부스 <b>${goal}곳</b> 체험하고<br>선물 받아가세요</div></div></div>
+      <div class="sc-top"><div><div class="sc-hello">스탬프 랠리</div><div class="sc-title">${regTitleHTML(true)}</div></div></div>
       <div class="slots" style="--cols:${slotCols(goal)}">${Array.from({length: goal}, (_, i) => `<div class="slot">${i + 1}</div>`).join('')}</div>
       <div class="sc-foot">${regLabels()}만 적으면 시작돼요 <button class="btn sun sm" onclick="go('/register')">시작하기</button></div>
     </div>`;
@@ -1425,13 +1427,17 @@ function renderRecover(returnTo){
     }catch(e){ $('#rcGo').disabled = false; toast(e.message || '통신 실패'); }
   };
 }
+/* 첫 화면 제목·설명: 관리자 › 행사 설정에서 바꿈. 비우면 완주 개수를 넣은 기본 문장 */
+function regTitleHTML(home){ const t = (CONFIG.regTitle || '').trim(); if(t) return esc(t).replace(/\n/g, '<br>'); return home ? `부스 <b>${CONFIG.stampGoal}곳</b> 체험하고<br>선물 받아가세요` : `부스 ${CONFIG.stampGoal}곳 돌고<br>선물 받아가기`; }
+function regDescHTML(dflt){ const t = (CONFIG.regDesc || '').trim(); return t ? esc(t) : dflt; }
 function renderRegister(returnTo){
   returnTo = safeReturn(returnTo);
   shell(null, '', `
+    ${S.regPreview ? `<div class="notice" style="background:var(--ink);color:#fff">👀<span><b>미리보기</b> · 방문객이 보는 첫 화면이에요. <b style="cursor:pointer;text-decoration:underline" onclick="S.regPreview=false;go(admPath('/event'))">관리자로 돌아가기</b></span></div>` : ''}
     <div class="reg-hero">
       <div class="eyebrow">${esc(CONFIG.eventTitle)}</div>
-      <h1>부스 ${CONFIG.stampGoal}곳 돌고<br>선물 받아가기</h1>
-      <p>부스에 붙은 QR을 찍으면 도장이 찍혀요. <span style="white-space:nowrap">${regLabels()}만</span> 적으면 바로 시작할 수 있어요.</p>
+      <h1>${regTitleHTML(false)}</h1>
+      <p>${regDescHTML(`부스에 붙은 QR을 찍으면 도장이 찍혀요. <span style="white-space:nowrap">${regLabels()}만</span> 적으면 바로 시작할 수 있어요.`)}</p>
     </div>
     <div class="steps">
       ${CONFIG.miniMode ? `<div class="step"><div class="ic">🖐️</div><div class="t">부스에서 도장 받기</div><div class="s">체험을 마치면</div></div>` : `<div class="step"><div class="ic">📱</div><div class="t">부스 QR 찍기</div><div class="s">폰 카메라로</div></div>`}
@@ -2800,6 +2806,9 @@ function admEvent(){
         <div class="field"><label>일시</label><input class="inp" id="evDate" value="${esc(CONFIG.eventDate)}" maxlength="40"></div>
         <div class="field"><label>장소</label><input class="inp" id="evVenue" value="${esc(CONFIG.venue)}" maxlength="40"></div>
         <div class="field"><label>완주 도장 개수</label><input class="inp" id="evGoal" type="number" min="1" max="30" value="${CONFIG.stampGoal}"></div>
+        <div class="field"><label>첫 화면 제목 (홈 카드·등록 화면 · 줄바꿈 가능 · 비우면 "부스 N곳 돌고 선물 받아가기")</label><textarea class="inp" id="evRegTitle" style="min-height:64px;font-size:14px" maxlength="60" placeholder="예: 참여기업 부스 행사&#10;도장 7개 모으고 선물 받기">${esc(CONFIG.regTitle)}</textarea></div>
+        <div class="field"><label>첫 화면 설명 (등록 화면 · 비우면 기본 문장)</label><input class="inp" id="evRegDesc" value="${esc(CONFIG.regDesc)}" maxlength="120" placeholder="예: 부스에서 도장을 받고, 다 모으면 선물을 드려요"></div>
+        <div class="row" style="margin:-4px 0 12px"><button class="btn sm line" id="evPreview">첫 화면 미리보기</button><span class="small muted">저장 안 해도 지금 적은 대로 보여요</span></div>
         <label class="small" style="display:flex;gap:8px;align-items:center;margin:2px 0 12px;font-weight:700"><input type="checkbox" id="evSurveyOn" ${surveyOn() ? 'checked' : ''}> 설문 사용 <span class="muted" style="font-weight:600">— 끄면 완주하자마자 교환권이 열려요 (폰 없는 어린이도 선물 수령 가능)</span></label>
         ${CONFIG.miniMode ? '' : `<div class="field"><label>설문 링크 (구글폼 등 · 선택)</label><input class="inp" id="evSurvey" value="${esc(CONFIG.surveyUrl)}" placeholder="비우면 앱 안의 설문(설문 탭)을 써요"></div>
         <div class="row" style="gap:10px;align-items:flex-start">
@@ -2824,13 +2833,14 @@ function admEvent(){
         <p class="small muted" style="line-height:1.6">저장하면 방문객 폰엔 앱을 다시 열 때(또는 5분 안에) 반영돼요. 긴급 공지도 마찬가지예요. 완주 개수를 바꾸면 이미 진행 중인 사람에게도 적용돼요.</p>
       </div>
     </div>`);
+  $('#evPreview').onclick = () => { CONFIG.regTitle = $('#evRegTitle').value.trim(); CONFIG.regDesc = $('#evRegDesc').value.trim(); S.regPreview = true; go('/register'); };   // 저장 전 값으로 미리보기(새로고침하면 저장값으로 돌아감)
   $('#evSave').onclick = async () => {
     const parse = (id, keys) => $(id).value.split('\n').map(l => l.trim()).filter(Boolean).map(l => { const p = l.split('|').map(x => x.trim()); const o = {}; keys.forEach((k, i) => o[k] = p[i] || ''); return o; });
     const goal = parseInt($('#evGoal').value); if(!(goal >= 1 && goal <= 30)) return toast('완주 개수는 1~30 사이로');
     const full = !CONFIG.miniMode;   // 미니 모드: 설문 링크·마감·일정·자료 칸이 없음 → data 에서 빼면 savePatch 병합으로 기존 값 유지
     const surveyMinSec = full ? parseInt($('#evSurveySec').value) : undefined; if(full && !(surveyMinSec >= 0 && surveyMinSec <= 600)) return toast('설문 최소 시간은 0~600초 사이로');
     const surveyCodeField = full ? $('#evSurveyField').value.trim() : undefined; if(full && surveyCodeField && !/^[\w.]+$/.test(surveyCodeField)) return toast('항목 ID는 entry.숫자 형식이에요');
-    const data = { eventTitle: $('#evTitle').value.trim(), eventDate: $('#evDate').value.trim(), venue: $('#evVenue').value.trim(), stampGoal: goal, ...(full ? { surveyUrl: $('#evSurvey').value.trim(), surveyMinSec, surveyCodeField, giftDeadline: $('#evDeadline').value.trim() } : {}), giftPlace: $('#evGiftPlace').value.trim(), giftText: $('#evGiftText').value.trim(), contact: $('#evContact').value.trim(), notice: $('#evNotice').value.trim(),
+    const data = { eventTitle: $('#evTitle').value.trim(), eventDate: $('#evDate').value.trim(), venue: $('#evVenue').value.trim(), stampGoal: goal, regTitle: $('#evRegTitle').value.trim(), regDesc: $('#evRegDesc').value.trim(), ...(full ? { surveyUrl: $('#evSurvey').value.trim(), surveyMinSec, surveyCodeField, giftDeadline: $('#evDeadline').value.trim() } : {}), giftPlace: $('#evGiftPlace').value.trim(), giftText: $('#evGiftText').value.trim(), contact: $('#evContact').value.trim(), notice: $('#evNotice').value.trim(),
       ...(full ? { schedule: parse('#evSchedule', ['time', 'title', 'place']), resources: parse('#evResources', ['title', 'desc', 'url']) } : {}), surveyOn: $('#evSurveyOn').checked,
       regFields: Object.fromEntries(REG_FIELD_DEFS.map(d => [d.k, { on: $('#rf_' + d.k + '_on').checked, req: $('#rf_' + d.k + '_on').checked && $('#rf_' + d.k + '_req').checked }])) };
     if(!data.eventTitle) return toast('행사명을 적어주세요');
