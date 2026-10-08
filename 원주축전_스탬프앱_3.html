@@ -440,6 +440,11 @@ body.sheet-open{position:fixed;left:0;right:0;overflow:hidden}   /* 시트 열�
   .qrc .u{font-size:12pt;margin-top:2mm;color:var(--ink-2);word-break:keep-all;overflow-wrap:anywhere}
   .qrc .qrhow{display:block;margin-top:auto;padding-top:5mm;font-size:10.5pt;font-weight:700;color:var(--ink-2);line-height:1.4;word-break:keep-all}
   .qrc .qrhow b{color:var(--c)}
+  /* 카드 아래 비어 있던 자리에 참여 안내 3단계(번호 동그라미는 분류 색) */
+  .qrc .qrsteps{display:flex;flex-direction:column;gap:3.6mm;margin-top:1mm}
+  .qrc .qrsteps>div{display:flex;gap:3mm;align-items:flex-start;font-size:12.5pt;line-height:1.35;color:var(--ink);font-weight:600}
+  .qrc .qrsteps i{flex:0 0 7mm;width:7mm;height:7mm;border-radius:50%;background:var(--c);color:#fff;font-style:normal;font-weight:900;font-size:10pt;display:grid;place-items:center;margin-top:.3mm}
+  .qrc .qrsteps small{display:block;font-size:9.5pt;color:var(--ink-3);font-weight:600;margin-top:.6mm}
   .qrc .qrbrand{display:block;margin-top:1.5mm;font-size:8.5pt;color:var(--ink-3);letter-spacing:.02em;word-break:keep-all}
   .qrc .n{font-size:64pt;line-height:1;font-weight:900}
   .qrc .t{font-size:20pt;margin-top:4mm;line-height:1.3}
@@ -2534,6 +2539,13 @@ function hasStamp(b){ if(!b) return false; if(b.stamp === 'yes') return true; if
 function qrNeeded(b){ return hasStamp(b) || !!(b.variant && b.variant.stamp === 'yes'); }
 function boothOpen(b){ if(!b) return true; if(closedSet().has(b.id)) return false; const h = hoursState(b); return !(h && (h.state === 'before' || h.state === 'after')); }
 /* QR 인쇄 시트. 부스별 QR 주소 = base?b=번호&t=토큰. 토큰은 DB.boothTokens (부스가 서버에 없으면 먼저 저장해 발급). 같은 탭의 테스트 번호 입력도 통과되게 qrTok 에 넣음 */
+/* QR 인쇄 카드 아래 참여 안내 3단계. 완주 개수·선물 받는 곳·설문 사용 여부·교환 마감은 행사 설정값을 따라감 */
+function qrStepsHTML(){
+  const goal = CONFIG.stampGoal, place = typeof giftPlace === 'function' ? giftPlace() : '운영본부', dl = CONFIG.giftDeadline ? `교환은 ${esc(CONFIG.giftDeadline)}까지` : '';
+  const s1 = `<b>부스 체험 후</b> 폰 카메라로 이 QR을 찍어요<small>처음이면 이름·학교만 적으면 바로 시작</small>`;
+  const s3 = (typeof surveyOn === 'function' && !surveyOn()) ? `도장을 다 모으면 <b>${esc(place)}</b>에서 선물!<small>${dl}</small>` : `짧은 <b>설문</b> 하고 <b>${esc(place)}</b>에서 선물!<small>${dl || '설문은 1분이면 끝나요'}</small>`;
+  return `<div class="qrsteps"><div><i>1</i><div>${s1}</div></div><div><i>2</i><div>도장 <b>${goal}개</b> 모으기<small>앱의 별이 하나씩 채워져요</small></div></div><div><i>3</i><div>${s3}</div></div></div>`;
+}
 function admQR(){
   const base = location.origin + location.pathname;
   admShell('qr', `
@@ -2541,8 +2553,8 @@ function admQR(){
       <div class="grow"><b>부스 QR 인쇄 시트</b><div class="small muted" style="margin-top:3px">QR 주소: <code>${esc(base)}?b=부스번호&t=토큰</code> — 토큰이 있어야 도장이 찍혀요(번호만 쳐서 찍는 치팅 차단). 도메인이 바뀌면 재인쇄해야 해요. 인쇄 전에 주소를 확정하세요.${noStampSet().size ? `<br>도장 없는 부스 ${noStampSet().size}개는 빠져 있어요 (부스 탭 › QR 제외).` : ''}</div><div class="small" id="qrStatus" style="margin-top:3px"></div></div>
       <button class="btn sm" onclick="print()">인쇄</button></div>
     <div class="qrgrid">
-      <div class="qrc entry" style="--c:var(--blue)"><div class="qr" id="qr-entry"></div><div class="qrtxt"><div class="qrpill"><span class="dot"></span>입장 · 안내판용</div><div class="n entry">START</div><div class="t">QR을 찍고 등록하면<br>스탬프 랠리 시작!</div><div class="u">${esc(base)}?join</div><div class="qrhow">📱 휴대폰 카메라로 QR을 찍어주세요</div><div class="qrbrand">${esc(CONFIG.eventTitle)}</div></div></div>
-      ${S.booths.filter(qrNeeded).map(b => { const c = catOf(b.cat); return `<div class="qrc" style="--c:${c.color}"><div class="qr" id="qr-${esc(b.id)}"></div><div class="qrtxt"><div class="qrpill"><span class="dot"></span>${esc(c.name)}</div><div class="n"><small>BOOTH</small>${esc(b.n)}</div><div class="t">${esc(b.name)}</div><div class="u">${esc(b.org)}</div><div class="qrhow">📱 QR을 찍으면 도장이 <b>쾅!</b> ${CONFIG.stampGoal}개 모으면 선물</div><div class="qrbrand">${esc(CONFIG.eventTitle)}</div></div></div>`; }).join('')}</div>`);
+      <div class="qrc entry" style="--c:var(--blue)"><div class="qr" id="qr-entry"></div><div class="qrtxt"><div class="qrpill"><span class="dot"></span>입장 · 안내판용</div><div class="n entry">START</div><div class="t">QR을 찍고 등록하면<br>스탬프 랠리 시작!</div><div class="u">${esc(base)}?join</div><div class="qrhow">${qrStepsHTML()}</div><div class="qrbrand">${esc(CONFIG.eventTitle)}</div></div></div>
+      ${S.booths.filter(qrNeeded).map(b => { const c = catOf(b.cat); return `<div class="qrc" style="--c:${c.color}"><div class="qr" id="qr-${esc(b.id)}"></div><div class="qrtxt"><div class="qrpill"><span class="dot"></span>${esc(c.name)}</div><div class="n"><small>BOOTH</small>${esc(b.n)}</div><div class="t">${esc(b.name)}</div><div class="u">${esc(b.org)}</div><div class="qrhow">${qrStepsHTML()}</div><div class="qrbrand">${esc(CONFIG.eventTitle)}</div></div></div>`; }).join('')}</div>`);
   (async () => {
     let toks = {};
     if(S.boothsDirty){   // 부스 탭에서 추가·삭제·순서를 바꾸고 저장 안 한 상태. 예전엔 토큰 발급을 위해 그 목록을 검증 없이 서버에 저장해 버렸음
