@@ -633,7 +633,7 @@ const CONFIG = {
   surveyCodeField: '',                   // 구글폼 항목 ID(entry.123456…). 채우면 설문 링크에 방문객 코드가 미리 입력돼 응답과 대조 가능. 관리자 › 행사 설정
   // 설문 완료 자동 처리: 구글폼 확인 메시지에 '주소?survey' 링크를 넣어두면, 제출 후 그 링크를 누른 폰에서 완료 처리됨 (같은 브라우저여야 함). boot 참고
   giftDeadline: '',                      // 선물 교환 마감(안내 문구). 비우면 '행사 종료 전까지' (관리자 › 행사 설정)
-  regTitle: '',                          // 첫 화면(홈 카드·등록 화면) 제목. 줄바꿈 가능. 비우면 '부스 N곳 돌고 선물 받아가기' (관리자 › 행사 설정)
+  regTitle: '',                          // 첫 화면(홈 카드·등록 화면) 제목. 줄바꿈 가능. 비우면 '체험하고 스탬프를 모아보세요' (관리자 › 행사 설정)
   regDesc: '',                           // 등록 화면 설명 문장. 비우면 기본 문장 (관리자 › 행사 설정)
   giftPlace: '운영본부',                 // 선물 받는 곳. 완주·교환권·안내 문구의 '운영본부' 자리 (관리자 › 행사 설정)
   giftText: '',                          // 안내 화면 '선물 교환' 카드 본문. 비우면 기본 문장 (관리자 › 행사 설정)
@@ -1432,7 +1432,8 @@ function renderRecover(returnTo){
   };
 }
 /* 첫 화면 제목·설명: 관리자 › 행사 설정에서 바꿈. 비우면 완주 개수를 넣은 기본 문장 */
-function regTitleHTML(home){ const t = (CONFIG.regTitle || '').trim(); if(t) return esc(t).replace(/\n/g, '<br>'); return home ? `부스 <b>${CONFIG.stampGoal}곳</b> 체험하고<br>선물 받아가세요` : `부스 ${CONFIG.stampGoal}곳 돌고<br>선물 받아가기`; }
+function regTitleHTML(home){ const t = (CONFIG.regTitle || '').trim(); if(t) return esc(t).replace(/
+/g, '<br>'); return home ? `체험하고<br><b>스탬프</b>를 모아보세요` : `체험하고<br>스탬프를 모아보세요`; }   // 기본값엔 개수·선물 언급 없음(사용자 지시)
 function regDescHTML(dflt){ const t = (CONFIG.regDesc || '').trim(); return t ? esc(t) : dflt; }
 function renderRegister(returnTo){
   returnTo = safeReturn(returnTo);
@@ -2811,7 +2812,7 @@ function admEvent(){
         <div class="field"><label>일시</label><input class="inp" id="evDate" value="${esc(CONFIG.eventDate)}" maxlength="40"></div>
         <div class="field"><label>장소</label><input class="inp" id="evVenue" value="${esc(CONFIG.venue)}" maxlength="40"></div>
         <div class="field"><label>완주 도장 개수</label><input class="inp" id="evGoal" type="number" min="1" max="30" value="${CONFIG.stampGoal}"></div>
-        <div class="field"><label>첫 화면 제목 (홈 카드·등록 화면 · 줄바꿈 가능 · 비우면 "부스 N곳 돌고 선물 받아가기")</label><textarea class="inp" id="evRegTitle" style="min-height:64px;font-size:14px" maxlength="60" placeholder="예: 참여기업 부스 행사&#10;도장 7개 모으고 선물 받기">${esc(CONFIG.regTitle)}</textarea></div>
+        <div class="field"><label>첫 화면 제목 (홈 카드·등록 화면 · 줄바꿈 가능 · 비우면 "체험하고 스탬프를 모아보세요")</label><textarea class="inp" id="evRegTitle" style="min-height:64px;font-size:14px" maxlength="60" placeholder="예: 참여기업 부스 행사&#10;도장 7개 모으고 선물 받기">${esc(CONFIG.regTitle)}</textarea></div>
         <div class="field"><label>첫 화면 설명 (등록 화면 · 비우면 기본 문장)</label><input class="inp" id="evRegDesc" value="${esc(CONFIG.regDesc)}" maxlength="120" placeholder="예: 부스에서 도장을 받고, 다 모으면 선물을 드려요"></div>
         <div class="row" style="margin:-4px 0 12px"><button class="btn sm line" id="evPreview">첫 화면 미리보기</button><span class="small muted">저장 안 해도 지금 적은 대로 보여요</span></div>
         <label class="small" style="display:flex;gap:8px;align-items:center;margin:2px 0 12px;font-weight:700"><input type="checkbox" id="evSurveyOn" ${surveyOn() ? 'checked' : ''}> 설문 사용 <span class="muted" style="font-weight:600">— 끄면 완주하자마자 교환권이 열려요 (폰 없는 어린이도 선물 수령 가능)</span></label>
