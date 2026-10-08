@@ -1432,8 +1432,7 @@ function renderRecover(returnTo){
   };
 }
 /* 첫 화면 제목·설명: 관리자 › 행사 설정에서 바꿈. 비우면 완주 개수를 넣은 기본 문장 */
-function regTitleHTML(home){ const t = (CONFIG.regTitle || '').trim(); if(t) return esc(t).replace(/
-/g, '<br>'); return home ? `체험하고<br><b>스탬프</b>를 모아보세요` : `체험하고<br>스탬프를 모아보세요`; }   // 기본값엔 개수·선물 언급 없음(사용자 지시)
+function regTitleHTML(home){ const t = (CONFIG.regTitle || '').trim(); if(t) return esc(t).replace(/\n/g, '<br>'); return home ? `체험하고<br><b>스탬프</b>를 모아보세요` : `체험하고<br>스탬프를 모아보세요`; }   // 기본값엔 개수·선물 언급 없음(사용자 지시)
 function regDescHTML(dflt){ const t = (CONFIG.regDesc || '').trim(); return t ? esc(t) : dflt; }
 function renderRegister(returnTo){
   returnTo = safeReturn(returnTo);
