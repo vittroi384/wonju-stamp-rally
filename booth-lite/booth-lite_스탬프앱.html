@@ -2291,7 +2291,7 @@ function admManual(boothN){
     admShell('manual', `
       <div class="card" style="padding-bottom:18px">
         <div class="tb-q" style="margin:0">이 태블릿은 어느 부스인가요?</div>
-        <p class="small muted" style="margin-top:4px;line-height:1.6">폰이 없는 어린이는 부스에서 이 태블릿으로 도장을 찍어요. 한 번 고르면 이 탭에 고정돼요.</p>
+        <p class="small muted" style="margin-top:4px;line-height:1.6">폰이 없는 참가자는 부스에서 이 태블릿으로 도장을 찍어요. 한 번 고르면 이 탭에 고정돼요.</p>
         <button class="tb-qr" id="mScan">${I.qr} 부스 QR 찍어서 고르기</button>
         <div class="tb-grid">${booths.map(b => { const c = catOf(b.cat); return `<button class="tb-tile" data-pick="${esc(b.n)}" style="--c:${c.color}"><span class="num">${esc(b.n)}</span><span class="nm">${esc(b.name)}</span><span class="org">${esc(b.org || c.name)}</span></button>`; }).join('')}</div>
       </div>`);
@@ -2324,8 +2324,8 @@ function admManual(boothN){
   const showSearch = () => {
     panel.innerHTML = `
       <div class="tb-q">누구에게 ${esc(cur.n)}번 도장을 찍을까요?</div>
-      <div class="tb-search" id="mBox"><span class="ic">${I.search}</span><input class="inp" id="mq" placeholder="아이 이름" autocomplete="off"><button class="clr" id="mClr" aria-label="지우기">×</button></div>
-      <div class="tb-hint">아래 목록에서 바로 탭하거나, 두 글자만 치면 나와요 · 같은 이름은 소속·나이로 구분 · 처음 온 어린이는 맨 아래 버튼</div>
+      <div class="tb-search" id="mBox"><span class="ic">${I.search}</span><input class="inp" id="mq" placeholder="이름" autocomplete="off"><button class="clr" id="mClr" aria-label="지우기">×</button></div>
+      <div class="tb-hint">아래 목록에서 바로 탭하거나, 두 글자만 치면 나와요 · 같은 이름은 소속·나이로 구분 · 처음 왔으면 맨 아래 버튼</div>
       <div id="mRes"></div>
       <div id="mRecent"></div>
       <button class="tb-new" id="mNew">＋ 처음 왔어요 · 새로 등록하고 도장</button>`;
@@ -2357,8 +2357,8 @@ function admManual(boothN){
       if(!list){ box.innerHTML = '<div class="small muted" style="padding:6px 2px">목록을 못 불러왔어요 · 이름으로 찾아주세요</div>'; return; }
       const rows = showAll ? list : list.slice(0, SHOW);
       box.innerHTML = list.length
-        ? `<div class="tb-sec">아직 ${esc(cur.n)}번 도장을 안 받은 아이 <b>${list.length}명</b> <span class="muted small" style="font-weight:600">· 탭 한 번이면 도장 · 최근에 움직인 순</span></div>${rows.map(v => vcard(v, v.last ? `${fmtTime(v.last)} 도장` : `${fmtTime(v.createdAt)} 등록`)).join('')}${list.length > SHOW ? `<button class="btn sm line" id="mMore" style="margin-top:12px;width:100%">${showAll ? '접기' : `나머지 ${list.length - SHOW}명 더 보기`}</button>` : ''}`
-        : '<div class="small muted" style="padding:6px 2px">등록된 아이가 모두 이 부스 도장을 받았어요</div>';
+        ? `<div class="tb-sec">아직 ${esc(cur.n)}번 도장을 안 받은 <b>${list.length}명</b> <span class="muted small" style="font-weight:600">· 탭 한 번이면 도장 · 최근에 움직인 순</span></div>${rows.map(v => vcard(v, v.last ? `${fmtTime(v.last)} 도장` : `${fmtTime(v.createdAt)} 등록`)).join('')}${list.length > SHOW ? `<button class="btn sm line" id="mMore" style="margin-top:12px;width:100%">${showAll ? '접기' : `나머지 ${list.length - SHOW}명 더 보기`}</button>` : ''}`
+        : '<div class="small muted" style="padding:6px 2px">등록된 사람 모두 이 부스 도장을 받았어요</div>';
       wireStamp('#mRecent', rows, true);
       const more = $('#mMore'); if(more) more.onclick = () => { showAll = !showAll; recent(); };
     };
@@ -2381,7 +2381,7 @@ function admManual(boothN){
       <div><div class="stamp-h">${esc(v.name)}${fresh ? ' 등록 완료' : ''} · 도장 ${n}/${goal}${done ? ' 완주! 🎉' : ''}</div>${boothRow(ids || [cur.id], true)}<div class="small muted" style="margin-top:6px">노란 칸 = 받은 부스</div></div>
       ${fresh ? '<p class="stamp-p">다음 부스에서는 이름만 말하면 돼요</p>' : ''}
       ${done ? `<p class="stamp-p">${esc(giftPlace())}에서 선물을 받아가세요</p>` : ''}
-      <button class="btn blue full" style="max-width:340px;font-size:16px;padding:15px" id="mNext">다음 어린이</button>
+      <button class="btn blue full" style="max-width:340px;font-size:16px;padding:15px" id="mNext">다음</button>
       <div class="small muted" id="mCnt">5초 뒤 자동으로 넘어가요</div></div>`;
     let left = 5; const t = setInterval(() => { const c = $('#mCnt'); if(!c) return clearInterval(t); if(--left <= 0){ clearInterval(t); showSearch(); } else c.textContent = `${left}초 뒤 자동으로 넘어가요`; }, 1000);
     $('#mNext').onclick = () => { clearInterval(t); showSearch(); };
@@ -2389,7 +2389,7 @@ function admManual(boothN){
   /* 처음 온 어린이: 등록 항목(행사 설정에서 켠 것) + 이름 → 등록하고 바로 도장 */
   const showNew = () => {
     panel.innerHTML = `
-      <div class="tb-q">처음 온 어린이 등록</div>
+      <div class="tb-q">처음 등록</div>
       <div class="tb-form">
         <div class="field full"><label>이름</label><input class="inp" id="nName" placeholder="홍길동" maxlength="20" autocomplete="off"></div>
         ${regFieldsHTML('n')}
@@ -2409,10 +2409,10 @@ function admManual(boothN){
           const sameOrg = same.some(v => (v.school || '') === f.school && f.school);
           panel.innerHTML = `
             <div class="tb-q">같은 이름이 이미 있어요</div>
-            <div class="tb-hint" style="margin:0 0 6px">${sameOrg ? `<b style="color:var(--coral)">소속까지 같은 아이가 있어요.</b> 방금 다른 부스에서 등록했을 수 있어요. ` : ''}이 아이가 맞으면 [이 아이예요]를 누르세요. 도장 칸을 보면 어느 부스를 돌았는지 알 수 있어요.</div>
+            <div class="tb-hint" style="margin:0 0 6px">${sameOrg ? `<b style="color:var(--coral)">소속까지 같은 사람이 있어요.</b> 방금 다른 부스에서 등록했을 수 있어요. ` : ''}본인이 맞으면 [본인이에요]를 누르세요. 도장 칸을 보면 어느 부스를 돌았는지 알 수 있어요.</div>
             <div id="mSame">${same.map(v => vcard(v, `${fmtTime(v.createdAt)} 등록`)).join('')}</div>
-            <div class="row" style="gap:8px;margin-top:14px"><button class="btn blue grow" id="nForce" style="font-size:15px;padding:14px">다른 아이예요 · ${esc(name)} 새로 등록</button><button class="btn line" id="nBack2" style="padding:14px 18px">뒤로</button></div>`;
-          $$('#mSame [data-stamp]').forEach(b => b.textContent = '이 아이예요 · 도장');
+            <div class="row" style="gap:8px;margin-top:14px"><button class="btn blue grow" id="nForce" style="font-size:15px;padding:14px">다른 사람이에요 · ${esc(name)} 새로 등록</button><button class="btn line" id="nBack2" style="padding:14px 18px">뒤로</button></div>`;
+          $$('#mSame [data-stamp]').forEach(b => b.textContent = '본인이에요 · 도장');
           wireStamp('#mSame', same);
           $('#nBack2').onclick = () => { showNew(); setTimeout(() => { $('#nName').value = name; regFields().forEach(x => { const el = $('#n' + x.k); if(el) el.value = f[x.col] || ''; }); }, 0); };
           $('#nForce').onclick = async () => { $('#nForce').disabled = true; try{ const v = await DB.createVisitor({ name, school: f.school, grade: f.grade, gender: f.gender }); doStamp({ ...v, n: 0 }, true); }catch(e){ $('#nForce').disabled = false; toast('등록에 실패했어요. 다시 눌러주세요'); } };
@@ -2828,7 +2828,7 @@ function admEvent(){
         <div class="field"><label>첫 화면 제목 (홈·등록 화면 · 줄바꿈 가능 · 비우면 기본 문구)</label><textarea class="inp" id="evRegTitle" style="min-height:64px;font-size:14px" maxlength="60" placeholder="예: 참여기업 부스 행사&#10;도장 7개 모으고 선물 받기">${esc(CONFIG.regTitle)}</textarea></div>
         <div class="field"><label>첫 화면 설명 (등록 화면 제목 아래 · 비우면 기본 문장)</label><input class="inp" id="evRegDesc" value="${esc(CONFIG.regDesc)}" maxlength="120" placeholder="예: 부스에서 도장을 받고, 다 모으면 선물을 드려요"></div>
         <div class="row" style="margin:2px 0 6px;padding:10px 12px;background:var(--bg);border-radius:12px"><button class="btn sm line" id="evPreview" style="white-space:nowrap;flex-shrink:0">👀 첫 화면 미리보기</button><span class="small muted" style="line-height:1.3">저장 전에도 지금 적은 대로 보여요</span></div>
-        <label class="small" style="display:flex;gap:8px;align-items:center;margin:2px 0 12px;font-weight:700"><input type="checkbox" id="evSurveyOn" ${surveyOn() ? 'checked' : ''}> 설문 사용 <span class="muted" style="font-weight:600">— 끄면 완주하자마자 교환권이 열려요 (폰 없는 어린이도 선물 수령 가능)</span></label>
+        <label class="small" style="display:flex;gap:8px;align-items:center;margin:2px 0 12px;font-weight:700"><input type="checkbox" id="evSurveyOn" ${surveyOn() ? 'checked' : ''}> 설문 사용 <span class="muted" style="font-weight:600">— 끄면 완주하자마자 교환권이 열려요 (폰 없는 참가자도 선물 수령 가능)</span></label>
         ${CONFIG.miniMode ? '' : `<div class="field"><label>설문 링크 (구글폼 등 · 선택)</label><input class="inp" id="evSurvey" value="${esc(CONFIG.surveyUrl)}" placeholder="비우면 앱 안의 설문(설문 탭)을 써요"></div>
         <div class="row" style="gap:10px;align-items:flex-start">
           <div class="field" style="flex:0 0 130px"><label>설문 최소 시간(초)</label><input class="inp" id="evSurveySec" type="number" min="0" max="600" value="${CONFIG.surveyMinSec}"></div>
