@@ -2701,6 +2701,20 @@ function download(name, text){ const a = document.createElement('a'); a.href = U
    4. 못 보낸 도장 재전송 시도
    5. QR 딥링크(?b=번호&t=토큰) 또는 입장 QR(?join) 을 해시 라우트로 바꾸고 route()
    ===================================================================== */
+/* 앱 안 브라우저(카카오톡 등)로 열리면 기본 브라우저로 넘긴다. 앱 안 브라우저는 저장소가 따로라 QR로 들어온 것과 다른 사람으로 등록되고(기록이 안 이어짐),
+   카메라가 막히는 경우도 있다. 카카오톡은 kakaotalk://web/openExternal 로 기본 브라우저가 열린다(안드로이드·iOS). 그 외 안드로이드 앱 안 브라우저는 intent 로 크롬.
+   자동 전환이 안 되면(앱 설정으로 막힘) 아래 띠로 안내하고, '그냥 쓸게요'를 누르면 이 탭에선 다시 안 띄운다 */
+const inApp = (() => { const ua = navigator.userAgent; if(/KAKAOTALK/i.test(ua)) return 'kakao'; if(/NAVER\(inapp|Instagram|FBAN|FBAV|Line\//i.test(ua)) return 'other'; return ''; })();
+function openOutside(){
+  const url = location.href;
+  if(inApp === 'kakao'){ location.href = 'kakaotalk://web/openExternal?url=' + encodeURIComponent(url); return; }
+  if(/Android/i.test(navigator.userAgent)){ location.href = 'intent://' + url.replace(/^https?:\/\//, '') + '#Intent;scheme=https;package=com.android.chrome;end'; return; }
+  alert('오른쪽 위 ··· 메뉴에서 "다른 브라우저로 열기"(Safari)를 눌러주세요');
+}
+if(inApp && !sessionStorage.getItem('wj:inapp_stay')){
+  try{ openOutside(); }catch(e){}
+  setTimeout(() => { if(document.hidden || $('#inappBar')) return; document.body.insertAdjacentHTML('beforeend', `<div id="inappBar" style="position:fixed;left:12px;right:12px;bottom:14px;z-index:9999;background:var(--ink);color:#fff;border-radius:14px;padding:12px 14px;font-size:13px;line-height:1.5;box-shadow:0 8px 24px rgba(0,0,0,.25)"><b>${inApp === 'kakao' ? '카카오톡' : '앱'} 안에서 열렸어요</b><br>그대로 쓰면 QR로 들어온 기록과 따로 저장돼요. 기본 브라우저로 여는 게 좋아요.<div style="display:flex;gap:8px;margin-top:8px"><button class="btn sun sm" onclick="openOutside()">브라우저로 열기</button><button class="btn soft sm" onclick="sessionStorage.setItem('wj:inapp_stay','1');document.getElementById('inappBar').remove()">그냥 쓸게요</button></div></div>`); }, 1500);
+}
 (async function boot(){
   $('#frame').innerHTML = `<main class="content"><div class="bootwait"><div class="spin"></div><div>불러오는 중…</div><div class="small" id="bootSlow" style="display:none">서버 응답이 느려요.<br>잠시 후 다시 열어주세요</div></div></main>`;   // 데이터 오기 전 흰 화면 방지
   const slowT = setTimeout(() => { const el = $('#bootSlow'); if(el) el.style.display = ''; }, 8000);
