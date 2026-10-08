@@ -2742,7 +2742,7 @@ function admQR(){
       <button class="btn sm" onclick="print()">인쇄</button></div>
     <div class="qrgrid">
       <div class="qrc entry" style="--c:var(--blue)"><div class="qr" id="qr-entry"></div><div class="qrtxt"><div class="qrpill"><span class="dot"></span>입장 · 안내판용</div><div class="n entry">START</div><div class="t">QR을 찍고 등록하면<br>스탬프 랠리 시작!</div><div class="u">${esc(base)}?join</div><div class="qrhow">${qrStepsHTML()}</div><div class="qrbrand">${esc(CONFIG.eventTitle)}</div></div></div>
-      ${S.booths.filter(qrNeeded).map(b => { const c = catOf(b.cat); return `<div class="qrc" style="--c:${c.color}"><div class="qr" id="qr-${esc(b.id)}"></div><div class="qrtxt"><div class="qrpill"><span class="dot"></span>${esc(c.name)}</div><div class="n"><small>BOOTH</small>${esc(b.n)}</div><div class="t">${esc(b.name)}</div><div class="u">${esc(b.org)}</div><div class="qrhow">${qrStepsHTML()}</div><div class="qrbrand">${esc(CONFIG.eventTitle)}</div></div></div>`; }).join('')}</div>`);
+      ${S.booths.filter(qrNeeded).map(b => { const c = catOf(b.cat); return `<div class="qrc" style="--c:${c.color}"><div class="qr" id="qr-${esc(b.id)}"></div><div class="qrtxt"><div class="qrpill"><span class="dot"></span>${esc(c.name)}</div><div class="n"><small>BOOTH</small>${esc(b.n)}</div><div class="t">${esc(b.name)}</div>${b.variant && b.variant.at ? `<div class="u">${esc(b.variant.at)}부터 → <b>${esc(b.variant.n || b.n)} ${esc(b.variant.name)}</b></div>` : ''}<div class="qrhow">${qrStepsHTML()}</div><div class="qrbrand">${esc(CONFIG.eventTitle)}</div></div></div>`; }).join('')}</div>`);
   (async () => {
     let toks = {};
     if(S.boothsDirty){   // 부스 탭에서 추가·삭제·순서를 바꾸고 저장 안 한 상태. 예전엔 토큰 발급을 위해 그 목록을 검증 없이 서버에 저장해 버렸음
