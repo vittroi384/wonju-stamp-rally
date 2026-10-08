@@ -443,8 +443,8 @@ body.sheet-open{position:fixed;left:0;right:0;overflow:hidden}   /* 시트 열�
   /* 카드 아래 비어 있던 자리에 참여 안내 3단계(번호 동그라미는 분류 색) */
   .qrc .qrsteps{display:flex;flex-direction:column;gap:3.6mm;margin-top:1mm}
   .qrc .qrsteps>div{display:flex;gap:3mm;align-items:flex-start;font-size:12.5pt;line-height:1.35;color:var(--ink);font-weight:600}
-  .qrc .qrsteps i{flex:0 0 7mm;width:7mm;height:7mm;border-radius:50%;background:var(--c);color:#fff;font-style:normal;font-weight:900;font-size:10pt;display:grid;place-items:center;margin-top:.3mm}
-  .qrc .qrsteps small{display:block;font-size:9.5pt;color:var(--ink-3);font-weight:600;margin-top:.6mm}
+  .qrc .qrsteps i{flex:0 0 7mm;width:7mm;height:7mm;border-radius:50%;background:var(--ink);color:#fff;font-style:normal;font-weight:900;font-size:10pt;display:grid;place-items:center;margin-top:.3mm}   /* 번호 동그라미는 진한 남색(분류 색이 연하면 안 보여서) */
+  .qrc .qrsteps small{display:block;font-size:9.5pt;color:var(--ink-2);font-weight:700;margin-top:.6mm}
   .qrc .qrbrand{display:block;margin-top:1.5mm;font-size:8.5pt;color:var(--ink-3);letter-spacing:.02em;word-break:keep-all}
   .qrc .n{font-size:64pt;line-height:1;font-weight:900}
   /* 세로형: A4 를 가로로 놓고(@page 는 admQR 이 <style id=qrPageStyle> 로 바꿈) 좌우 A5 세로 카드 2장. QR 위, 번호·이름 아래, 안내는 맨 아래 */
@@ -455,12 +455,13 @@ body.sheet-open{position:fixed;left:0;right:0;overflow:hidden}   /* 시트 열�
   .qrgrid.portrait .qrc:nth-child(odd){border-bottom:0!important;border-right:1px dashed #999!important}
   .qrgrid.portrait .qrc .qr{width:82mm;height:82mm;margin-top:1mm}
   .qrgrid.portrait .qrc .qrtxt{height:auto;flex:1;width:100%;align-items:center;justify-content:flex-start;text-align:center}
-  .qrgrid.portrait .qrc .qrpill{margin-bottom:2mm}
-  .qrgrid.portrait .qrc .n{align-self:center;font-size:44pt;padding:2mm 5mm 2.5mm}
-  .qrgrid.portrait .qrc .t{font-size:17pt;margin-top:2.5mm}
+  .qrgrid.portrait .qrc .qrpill{margin-bottom:2mm;font-size:13pt}
+  .qrgrid.portrait .qrc .n{align-self:center;font-size:48pt;padding:2mm 6mm 2.5mm}
+  .qrgrid.portrait .qrc .t{font-size:20pt;margin-top:3mm}
   .qrgrid.portrait .qrc .u{text-align:center}
+  .qrgrid.portrait .qrc.entry .u{display:none}   /* 입장 카드의 주소 줄은 세로형에선 자리가 모자라 숨김 */
   .qrgrid.portrait .qrc .qrhow{width:100%;text-align:left;padding-top:6mm}
-  .qrgrid.portrait .qrc .qrsteps{gap:2.4mm}.qrgrid.portrait .qrc .qrsteps>div{font-size:11pt}.qrgrid.portrait .qrc .qrsteps small{font-size:8.5pt}
+  .qrgrid.portrait .qrc .qrsteps{gap:3.2mm}.qrgrid.portrait .qrc .qrsteps>div{font-size:13.5pt;font-weight:700}.qrgrid.portrait .qrc .qrsteps small{font-size:10.5pt}.qrgrid.portrait .qrc .qrsteps i{flex:0 0 8.5mm;width:8.5mm;height:8.5mm;font-size:12pt}
   .qrgrid.portrait .qrc .qrbrand{text-align:left;width:100%}
   /* 세로형 장식(인쇄 전용, 글자 뒤 연한 분류 색): 왼쪽 아래 별 · 오른쪽 위 작은 원 · 왼쪽 위 점선 고리 — 모두 카드 안에 온전히 */
   .qrgrid.portrait .qrc .qrtxt{isolation:isolate}
