@@ -2309,7 +2309,7 @@ function admManual(boothN){
   /* 부스 칸: 도장 받은 부스는 노랑, 이 부스는 테두리. ids = 그 아이가 도장 받은 부스 id 목록(null 이면 아직 불러오는 중) */
   const boothRow = (ids, big) => `<div class="bprog ${big ? 'big' : ''} ${ids ? '' : 'wait'}">${booths.map(b => `<span class="${ids && ids.includes(b.id) ? 'on' : ''} ${b.id === cur.id ? 'me' : ''}" title="${esc(b.name)}">${esc(b.n)}</span>`).join('')}</div>`;
   const vcard = (v, extra) => `<div class="vcard" data-v="${v.id}"><div class="av">${esc(v.name.slice(0, 1))}</div><div class="grow"><div class="nm">${esc(v.name)}</div><div class="meta">${vinfo(v) ? `<span>${esc(vinfo(v))}</span>` : ''}<span class="st">도장 ${v.n}/${goal}</span>${extra ? `<span>${esc(extra)}</span>` : ''}</div>${boothRow(v.boothIds || null)}</div><button class="go" data-stamp="${v.id}">도장</button></div>`;
-  const wireStamp = (sel, rows) => { $$(sel + ' [data-stamp]').forEach(btn => btn.onclick = () => { btn.disabled = true; doStamp(rows.find(x => x.id === btn.dataset.stamp)); }); fillStamps(sel, rows); };
+  const wireStamp = (sel, rows, prefilled) => { $$(sel + ' [data-stamp]').forEach(btn => btn.onclick = () => { btn.disabled = true; doStamp(rows.find(x => x.id === btn.dataset.stamp)); }); if(!prefilled) fillStamps(sel, rows); };
   /* 각 아이의 도장 부스를 서버에서 받아(visitor_stamps, 1분 캐시) 카드 칸을 채우고, 이 부스에 이미 있으면 버튼을 '이미 찍음'으로 */
   const stampCache = new Map();
   const stampsOf = async id => { const c = stampCache.get(id); if(c && Date.now() - c.at < 60000) return c.ids; const ids = (await DB.stampsOf(id)).map(s => s.boothId); stampCache.set(id, { ids, at: Date.now() }); return ids; };
@@ -2325,7 +2325,7 @@ function admManual(boothN){
     panel.innerHTML = `
       <div class="tb-q">누구에게 ${esc(cur.n)}번 도장을 찍을까요?</div>
       <div class="tb-search" id="mBox"><span class="ic">${I.search}</span><input class="inp" id="mq" placeholder="아이 이름" autocomplete="off"><button class="clr" id="mClr" aria-label="지우기">×</button></div>
-      <div class="tb-hint">두 글자만 치면 나와요 · 같은 이름은 소속·나이로 구분 · 처음 온 어린이는 맨 아래 버튼</div>
+      <div class="tb-hint">아래 목록에서 바로 탭하거나, 두 글자만 치면 나와요 · 같은 이름은 소속·나이로 구분 · 처음 온 어린이는 맨 아래 버튼</div>
       <div id="mRes"></div>
       <div id="mRecent"></div>
       <button class="tb-new" id="mNew">＋ 처음 왔어요 · 새로 등록하고 도장</button>`;
@@ -2340,14 +2340,27 @@ function admManual(boothN){
       $('#mRes').innerHTML = rows.length ? rows.map(vcard).join('') : '<div class="empty">없어요. 처음 왔으면 아래 [새로 등록]을 눌러주세요</div>';
       wireStamp('#mRes', rows);
     };
-    /* 방금 다른 부스에서 도장 찍은 아이들(10분) — 이름 안 치고 탭 한 번. 20초마다 갱신, 이 화면을 벗어나면 멈춤 */
+    /* 이 부스 도장을 아직 안 받은 아이 전부 — 이름 안 치고 탭 한 번. 최근에 움직인(도장·등록) 순, 20명 넘으면 [더 보기].
+       방문객·도장 전체를 한 번에 받아(관리자 RPC, 1000행씩) 아이별 부스 칸을 바로 채우므로 아이마다 서버를 안 부른다. 20초마다 갱신, 이 화면을 벗어나면 멈춤 */
+    const SHOW = 20; let showAll = false;
     const recent = async () => {
       const box = $('#mRecent'); if(!box) return;
-      let r = { list: [], counts: {} }; try{ r = await DB.recentVisitors(cur.id, booths.filter(b => b.id !== cur.id).map(b => b.id)); }catch(e){}
+      let list = null;
+      try{
+        const [vs, ss] = await Promise.all([DB.allVisitors(), DB.allStamps()]);
+        const by = {}; ss.forEach(st => { (by[st.visitorId] = by[st.visitorId] || []).push(st); });
+        list = vs.filter(v => !(by[v.id] || []).some(st => st.boothId === cur.id))
+          .map(v => { const st = (by[v.id] || []).slice().sort((a, b) => a.at - b.at); return { ...v, n: st.length, boothIds: st.map(x => x.boothId), last: st.length ? st[st.length - 1].at : 0 }; })
+          .sort((a, b) => (b.last || b.createdAt) - (a.last || a.createdAt));
+      }catch(e){}
       const box2 = $('#mRecent'); if(!box2 || box2 !== box) return;
-      const rows = r.list;
-      box.innerHTML = (rows.length ? `<div class="tb-sec">방금 다른 부스에서 도장 찍은 아이들 <span class="muted small" style="font-weight:600">· 탭 한 번이면 도장</span></div>${rows.map(v => vcard(v, `${fmtTime(v.stampedAt)} 도장`)).join('')}` : '<div class="small muted" style="padding:6px 2px">최근 10분 안에 다른 부스에서 도장 찍은 아이가 없어요</div>');
-      wireStamp('#mRecent', rows);
+      if(!list){ box.innerHTML = '<div class="small muted" style="padding:6px 2px">목록을 못 불러왔어요 · 이름으로 찾아주세요</div>'; return; }
+      const rows = showAll ? list : list.slice(0, SHOW);
+      box.innerHTML = list.length
+        ? `<div class="tb-sec">아직 ${esc(cur.n)}번 도장을 안 받은 아이 <b>${list.length}명</b> <span class="muted small" style="font-weight:600">· 탭 한 번이면 도장 · 최근에 움직인 순</span></div>${rows.map(v => vcard(v, v.last ? `${fmtTime(v.last)} 도장` : `${fmtTime(v.createdAt)} 등록`)).join('')}${list.length > SHOW ? `<button class="btn sm line" id="mMore" style="margin-top:12px;width:100%">${showAll ? '접기' : `나머지 ${list.length - SHOW}명 더 보기`}</button>` : ''}`
+        : '<div class="small muted" style="padding:6px 2px">등록된 아이가 모두 이 부스 도장을 받았어요</div>';
+      wireStamp('#mRecent', rows, true);
+      const more = $('#mMore'); if(more) more.onclick = () => { showAll = !showAll; recent(); };
     };
     recent(); const rt = setInterval(() => { if($('#mRecent')) recent(); else clearInterval(rt); }, 20000);
     inp.oninput = () => { const r = $('#mRecent'); if(r) r.hidden = !!inp.value.trim(); clearTimeout(timer); timer = setTimeout(search, 350); };   // 치기 시작하면 최근 목록은 바로 숨김
