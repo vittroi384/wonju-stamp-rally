@@ -164,6 +164,10 @@ select.inp.sm{padding-right:30px;background-position:right 10px center}
 .searchbar{display:flex;align-items:center;gap:9px;background:var(--card);border-radius:999px;padding:0 16px;height:46px;box-shadow:var(--sh-1)}
 .searchbar svg{width:17px;height:17px;color:var(--ink-3);flex-shrink:0}
 .searchbar input{border:0;background:none;outline:none;flex:1;font-size:15px;color:var(--ink);min-width:0}
+/* 관리자 › 행사 설정 › [첫 화면 미리보기] 때 화면 아래에 떠 있는 바 */
+.pvbar{position:fixed;left:14px;right:14px;bottom:calc(14px + var(--sab,0px));z-index:60;display:flex;align-items:center;gap:10px;background:var(--ink);color:#fff;border-radius:18px;padding:10px 10px 10px 16px;box-shadow:0 10px 30px rgba(21,26,45,.35)}
+.pvbar .l{flex:1;min-width:0;font-size:13px;line-height:1.35}.pvbar .l b{display:block;font-size:14px}.pvbar .l span{color:rgba(255,255,255,.7)}
+.pvbar .btn{flex-shrink:0}
 .notice{display:flex;align-items:center;gap:10px;background:var(--sun-soft);color:var(--sun-ink);border-radius:14px;padding:11px 14px;font-size:13px;font-weight:700}
 .notice svg{width:16px;height:16px;flex-shrink:0}
 
@@ -1433,7 +1437,7 @@ function regDescHTML(dflt){ const t = (CONFIG.regDesc || '').trim(); return t ? 
 function renderRegister(returnTo){
   returnTo = safeReturn(returnTo);
   shell(null, '', `
-    ${S.regPreview ? `<div class="notice" style="background:var(--ink);color:#fff">👀<span><b>미리보기</b> · 방문객이 보는 첫 화면이에요. <b style="cursor:pointer;text-decoration:underline" onclick="S.regPreview=false;go(admPath('/event'))">관리자로 돌아가기</b></span></div>` : ''}
+    ${S.regPreview ? `<div class="pvbar"><div class="l"><b>미리보기</b><span>방문객이 처음 보는 화면 · 저장 전 내용</span></div><button class="btn sun sm" onclick="S.regPreview=false;go(admPath('/event'))">설정으로 돌아가기</button></div>` : ''}
     <div class="reg-hero">
       <div class="eyebrow">${esc(CONFIG.eventTitle)}</div>
       <h1>${regTitleHTML(false)}</h1>
@@ -1464,6 +1468,7 @@ function renderRegister(returnTo){
       toast(`${v.name}님, 기록을 그대로 이어가요`); go(returnTo || '/', true);
     };
   })();
+  if(S.regPreview){ $('#main').style.paddingBottom = '96px'; $('#rGo').onclick = () => toast('미리보기 중이에요 — 등록은 되지 않아요'); return; }
   $('#rGo').onclick = async () => {   // 항목은 regFields() (관리자 › 행사 설정). DB 열: school = 소속, grade = 나이, gender = 연락처
     const name = $('#rName').value.trim(), f = readRegFields('r'); if(f.err) return toast(f.err), $(f.focus).focus();
     const { school, grade, gender } = f;
