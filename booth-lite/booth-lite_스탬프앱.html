@@ -2751,10 +2751,10 @@ function boothOpen(b){ if(!b) return true; if(closedSet().has(b.id)) return fals
 /* QR 인쇄 시트. 부스별 QR 주소 = base?b=번호&t=토큰. 토큰은 DB.boothTokens (부스가 서버에 없으면 먼저 저장해 발급). 같은 탭의 테스트 번호 입력도 통과되게 qrTok 에 넣음 */
 /* QR 인쇄 카드 아래 참여 안내 3단계. 완주 개수·선물 받는 곳·설문 사용 여부·교환 마감은 행사 설정값을 따라감 */
 function qrStepsHTML(){
-  const goal = CONFIG.stampGoal, place = typeof giftPlace === 'function' ? giftPlace() : '운영본부', dl = CONFIG.giftDeadline ? `교환은 ${esc(CONFIG.giftDeadline)}까지` : '행사 종료 전까지 교환할 수 있어요';
-  const s1 = CONFIG.miniMode ? `<b>체험을 마치면</b> 부스에서 도장을 받아요<small>폰이 있으면 카메라로 이 QR을 찍어도 돼요</small>` : `<b>부스 체험 후</b> 폰 카메라로 이 QR을 찍어요<small>처음이면 이름·학교만 적으면 바로 시작</small>`;
-  const s3 = (typeof surveyOn === 'function' && !surveyOn()) ? `도장을 다 모으면 <b>${esc(place)}</b>에서 선물!<small>${dl}</small>` : `짧은 <b>설문</b> 하고 <b>${esc(place)}</b>에서 선물!<small>${dl}</small>`;
-  return `<div class="qrsteps"><div><i>1</i><div>${s1}</div></div><div><i>2</i><div>도장 <b>${goal}개</b> 모으기<small>앱의 별이 하나씩 채워져요</small></div></div><div><i>3</i><div>${s3}</div></div></div>`;
+  const goal = CONFIG.stampGoal, place = typeof giftPlace === 'function' ? giftPlace() : '운영본부', dl = CONFIG.giftDeadline ? `교환은 ${esc(CONFIG.giftDeadline)}까지입니다` : '교환은 행사 종료 전까지입니다';
+  const s1 = CONFIG.miniMode ? `<b>체험을 마치면</b> 부스에서 도장을 받으세요<small>휴대폰이 있으면 카메라로 이 QR을 찍어도 됩니다</small>` : `<b>부스 체험 후</b> 휴대폰 카메라로 이 QR을 찍어 주세요<small>처음이면 이름·학교만 적으면 바로 시작됩니다</small>`;
+  const s3 = (typeof surveyOn === 'function' && !surveyOn()) ? `도장을 다 모으면 <b>${esc(place)}</b>에서 선물을 받아 가세요<small>${dl}</small>` : `짧은 <b>설문</b> 후 <b>${esc(place)}</b>에서 선물을 받아 가세요<small>${dl}</small>`;
+  return `<div class="qrsteps"><div><i>1</i><div>${s1}</div></div><div><i>2</i><div>도장 <b>${goal}개</b>를 모아 주세요<small>앱의 별이 하나씩 채워집니다</small></div></div><div><i>3</i><div>${s3}</div></div></div>`;
 }
 function admQR(){
   const base = location.origin + location.pathname;
