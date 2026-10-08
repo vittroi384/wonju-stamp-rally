@@ -508,6 +508,11 @@ body.sheet-open{position:fixed;left:0;right:0;overflow:hidden}   /* 시트 열�
 .sv-chip b{color:var(--blue);margin-right:4px}
 .sv-chip.on{border-color:var(--ink);background:var(--ink);color:#fff}
 .sv-chip.on b{color:var(--sun)}
+/* 부스 고르기: 칩 대신 한 줄 카드(번호 배지는 분류 색, 이름은 줄바꿈 허용, 오른쪽 라디오) */
+.sv-booth{padding:10px 12px;gap:10px}.sv-booth .bn{width:36px;height:36px;border-radius:11px;background:var(--c,var(--blue));color:#fff;font-weight:900;font-size:14px;display:grid;place-items:center;flex-shrink:0}
+.sv-booth .grow{display:flex;flex-direction:column;gap:2px;min-width:0}.sv-booth .nm{font-size:15px;font-weight:700;line-height:1.35;word-break:keep-all}.sv-booth .org{font-size:12px;color:var(--ink-3);font-weight:600}.sv-booth .dot{margin-left:auto}
+/* '기타' 직접 입력칸: 기타를 고르면 바로 아래 펼쳐짐 */
+.sv-etc{margin:-2px 0 2px 32px;width:calc(100% - 32px);font-size:14px}
 .sv-q textarea.inp{min-height:96px;resize:vertical;line-height:1.55;margin-top:14px}
 .sv-q input.inp{margin-top:14px}
 .sv-foot{position:sticky;bottom:calc(var(--tabh,64px) + 8px);display:flex;gap:10px;align-items:center;background:var(--card);border-radius:18px;padding:10px 10px 10px 16px;box-shadow:var(--sh-2);margin-top:4px}
@@ -641,7 +646,7 @@ let RESOURCES = [];   // 기본값 없음. 관리자 › 행사 설정 › 자�
 const DEFAULT_SURVEY = [   // booth-lite 기본 문항. 관리자 › 설문에서 바꿈. 행사 설정에서 '설문 사용'을 끄면 완주 즉시 교환권
   { id: 'overall', type: 'scale',  title: '오늘 체험은 전체적으로 어땠나요?', sub: '가장 가까운 표정을 골라주세요', required: true },
   { id: 'best',    type: 'booth',  title: '가장 재미있었던 부스는?', sub: '도장 찍은 부스 중에서 골라주세요', required: true },
-  { id: 'why',     type: 'multi',  title: '그 부스가 좋았던 이유는?', sub: '여러 개 골라도 돼요', required: true, opts: ['직접 만들어서', '설명이 쉬웠어서', '결과물을 가져가서', '신기한 걸 봐서', '친구랑 같이 해서', '선생님이 친절해서'] },
+  { id: 'why',     type: 'multi',  title: '그 부스가 좋았던 이유는?', sub: '여러 개 골라도 돼요', required: true, opts: ['직접 만들어서', '설명이 쉬웠어서', '결과물을 가져가서', '신기한 걸 봐서', '친구랑 같이 해서', '선생님이 친절해서', '기타'] },
   { id: 'count',   type: 'single', title: '도장 모으기는 어땠나요?', required: true, opts: ['쉬웠어요', '딱 적당했어요', '조금 힘들었어요', '너무 많았어요'] },
   { id: 'again',   type: 'single', title: '다음에도 참여하고 싶나요?', required: true, opts: ['꼭 할래요', '아마 할 것 같아요', '잘 모르겠어요'] },
   { id: 'free',    type: 'text',   title: '하고 싶은 말이 있다면 적어주세요', sub: '불편했던 점, 바라는 점 뭐든 좋아요', required: false },
@@ -1617,10 +1622,11 @@ function renderSurvey(){
   const A = {}, req = SURVEY.filter(q => q.required);
   const answered = q => { const v = A[q.id]; return Array.isArray(v) ? v.length > 0 : v !== undefined && String(v).trim() !== ''; };
   const mine = allStampsLocal().map(s => boothById(s.boothId)).filter(Boolean);
+  const ETC = {}, isEtc = o => /^기타/.test(String(o).trim());   // '기타…' 보기는 직접 입력칸이 붙음. ETC[문항|보기] = 입력 내용
   const body = q => {
     if(q.type === 'scale') return `<div class="sv-scale" role="radiogroup" aria-label="별점">${[1, 2, 3, 4, 5].map(i => `<button type="button" data-v="${i}" aria-label="${i}점" class="${A[q.id] >= i ? 'lit' : ''} ${A[q.id] === i ? 'on' : ''}">★</button>`).join('')}</div><div class="sv-scale-l"><span>별로예요</span><span>최고예요</span></div>`;
-    if(q.type === 'single' || q.type === 'multi') return `<div class="sv-opts">${(q.opts || []).map(o => `<button type="button" class="sv-opt ${q.type === 'multi' ? 'chk' : ''}" data-v="${esc(o)}"><span class="dot"></span>${esc(o)}</button>`).join('')}</div>`;
-    if(q.type === 'booth') return `<div class="sv-chips">${mine.map(b => `<button type="button" class="sv-chip" data-v="${esc(b.n)}"><b>${esc(bn(bv(b)))}</b>${esc(clipName(b.name, 12))}</button>`).join('')}</div>${mine.length ? '' : `<input class="inp" inputmode="numeric" placeholder="부스 번호 (예: 12)" maxlength="4" data-text>`}`;
+    if(q.type === 'single' || q.type === 'multi') return `<div class="sv-opts">${(q.opts || []).map(o => `<button type="button" class="sv-opt ${q.type === 'multi' ? 'chk' : ''}" data-v="${esc(o)}"><span class="dot"></span>${esc(o)}</button>${isEtc(o) ? `<input class="inp sv-etc" placeholder="직접 적어주세요" maxlength="60" data-etc="${esc(o)}" hidden>` : ''}`).join('')}</div>`;
+    if(q.type === 'booth') return `<div class="sv-opts sv-booths">${mine.map(b => { const v = bv(b), c = catOf(v.cat); return `<button type="button" class="sv-opt sv-booth" data-v="${esc(b.n)}" style="--c:${c.color}"><span class="bn">${esc(bn(v))}</span><span class="grow"><span class="nm">${esc(v.name)}</span>${v.org ? `<span class="org">${esc(v.org)}</span>` : ''}</span><span class="dot"></span></button>`; }).join('')}</div>${mine.length ? '' : `<input class="inp" inputmode="numeric" placeholder="부스 번호 (예: 12)" maxlength="4" data-text>`}`;
     if(q.type === 'text') return `<textarea class="inp" placeholder="자유롭게 적어주세요" maxlength="300" data-text></textarea>`;
     return '';
   };
@@ -1642,15 +1648,18 @@ function renderSurvey(){
     $$('.sv-scale button, .sv-opt, .sv-chip', el).forEach(b => b.onclick = () => {
       if(q.type === 'multi'){ const set = new Set(A[q.id] || []); set.has(b.dataset.v) ? set.delete(b.dataset.v) : set.add(b.dataset.v); A[q.id] = [...set]; b.classList.toggle('on'); }
       else { A[q.id] = q.type === 'scale' ? +b.dataset.v : b.dataset.v; $$('.sv-scale button, .sv-opt, .sv-chip', el).forEach(x => { x.classList.toggle('on', x === b); if(q.type === 'scale') x.classList.toggle('lit', +x.dataset.v <= +b.dataset.v); }); }
+      $$('.sv-etc', el).forEach(inp => { const on = $$('.sv-opt.on', el).some(x => x.dataset.v === inp.dataset.etc); inp.hidden = !on; if(on && b.dataset.v === inp.dataset.etc) setTimeout(() => inp.focus(), 50); });
       el.classList.remove('bad'); update();
     });
+    $$('.sv-etc', el).forEach(inp => inp.oninput = () => { ETC[q.id + '|' + inp.dataset.etc] = inp.value; });
     const t = $('[data-text]', el); if(t) t.oninput = () => { A[q.id] = t.value; el.classList.remove('bad'); update(); };
   });
   update();
   $('#svSubmit').onclick = async () => {
     const missing = req.filter(q => !answered(q));
     if(missing.length){ missing.forEach(q => $(`.sv-q[data-id="${q.id}"]`).classList.add('bad')); $(`.sv-q[data-id="${missing[0].id}"]`).scrollIntoView({ behavior: 'smooth', block: 'center' }); return toast(`${missing.length}개 문항이 남았어요`); }
-    const answers = {}; SURVEY.forEach(q => { if(answered(q)) answers[q.id] = typeof A[q.id] === 'string' ? A[q.id].trim().slice(0, 300) : A[q.id]; });
+    const etc = (q, v) => { const t = (ETC[q.id + '|' + v] || '').trim().slice(0, 60); return t ? `${v}: ${t}` : v; };   // '기타'는 '기타: 직접 쓴 내용'으로 저장
+    const answers = {}; SURVEY.forEach(q => { if(!answered(q)) return; const v = A[q.id]; answers[q.id] = Array.isArray(v) ? v.map(x => etc(q, x)) : typeof v === 'string' ? etc(q, v).trim().slice(0, 300) : v; });
     $('#svSubmit').disabled = true;
     try{ await DB.submitSurvey(S.me.id, answers); S.me.surveyAt = Date.now(); await store.set('wj:me_cache', S.me); confetti(); toast('고마워요! 교환권이 열렸어요'); go('/my', true); }
     catch(e){ $('#svSubmit').disabled = false; toast(e.message || '저장에 실패했어요. 다시 눌러주세요'); }
@@ -2838,13 +2847,15 @@ function admSurvey(){
   const load = async () => { $('#sqRes').innerHTML = '<div class="empty">불러오는 중…</div>'; try{ rows = await DB.surveyAnswers(); }catch(e){ $('#sqRes').innerHTML = `<div class="empty">${esc(e.message)}${/PGRST202|admin_survey_answers/.test(e.message) ? '<br>SQL 9절(앱 내 설문)을 실행해주세요' : ''}</div>`; return; } drawResults(); };
   const drawResults = () => {
     if(!rows.length){ $('#sqRes').innerHTML = '<div class="empty">아직 응답이 없어요</div>'; return; }
+    const svBase = (v, etcs) => { v = String(v); if(/^기타/.test(v) && v.includes(':')){ etcs.push(v.slice(v.indexOf(':') + 1).trim()); return v.split(':')[0].trim(); } return v; };   // '기타: 내용' → 막대는 '기타', 내용은 따로
+    const svEtcList = etcs => etcs.length ? `<div class="small muted" style="margin-top:6px">기타 내용 ${etcs.length}</div><div style="display:flex;flex-direction:column;gap:4px;max-height:200px;overflow:auto">${etcs.slice(-30).reverse().map(t => `<div class="sv-txt">${esc(t)}</div>`).join('')}</div>` : '';
     const bars = (pairs, total) => { const max = Math.max(1, ...pairs.map(p => p[1])); return `<div class="sv-res">${pairs.map(([k, v]) => `<div class="r"><div>${esc(k)}</div><div class="bar"><i style="width:${v / max * 100}%"></i></div><div class="v">${v}<small class="muted" style="font-weight:400"> ${total ? Math.round(v / total * 100) : 0}%</small></div></div>`).join('')}</div>`; };
     $('#sqRes').innerHTML = `<div class="small muted" style="margin-bottom:4px">응답 <b>${rows.length}</b>명 · 나이대별 ${Object.entries(rows.reduce((m, r) => { const g = gradeGroup(r.grade) || '미입력'; m[g] = (m[g] || 0) + 1; return m; }, {})).map(([k, v]) => `${k} ${v}`).join(' · ')}</div>` + SURVEY.map((q, i) => {
       const vals = rows.map(r => r.answers?.[q.id]).filter(v => v !== undefined && v !== null && v !== '');
       let body = '';
       if(q.type === 'scale'){ const cnt = [1, 2, 3, 4, 5].map(k => [SV_FACES[k - 1] + ' ' + k, vals.filter(v => +v === k).length]); const avg = vals.length ? (vals.reduce((a, v) => a + +v, 0) / vals.length).toFixed(2) : '-'; body = `<div class="small" style="margin-bottom:6px">평균 <b style="font-size:18px">${avg}</b> / 5</div>` + bars(cnt, vals.length); }
-      else if(q.type === 'single'){ const m = {}; vals.forEach(v => m[v] = (m[v] || 0) + 1); body = bars((q.opts || []).map(o => [o, m[o] || 0]).concat(Object.keys(m).filter(k => !(q.opts || []).includes(k)).map(k => [k, m[k]])), vals.length); }
-      else if(q.type === 'multi'){ const m = {}; vals.forEach(v => [].concat(v).forEach(x => m[x] = (m[x] || 0) + 1)); body = bars((q.opts || []).map(o => [o, m[o] || 0]).concat(Object.keys(m).filter(k => !(q.opts || []).includes(k)).map(k => [k, m[k]])), vals.length); }
+      else if(q.type === 'single'){ const m = {}, etcs = []; vals.forEach(v => { const k = svBase(v, etcs); m[k] = (m[k] || 0) + 1; }); body = bars((q.opts || []).map(o => [o, m[o] || 0]).concat(Object.keys(m).filter(k => !(q.opts || []).includes(k)).map(k => [k, m[k]])), vals.length) + svEtcList(etcs); }
+      else if(q.type === 'multi'){ const m = {}, etcs = []; vals.forEach(v => [].concat(v).forEach(x => { const k = svBase(x, etcs); m[k] = (m[k] || 0) + 1; })); body = bars((q.opts || []).map(o => [o, m[o] || 0]).concat(Object.keys(m).filter(k => !(q.opts || []).includes(k)).map(k => [k, m[k]])), vals.length) + svEtcList(etcs); }
       else if(q.type === 'booth'){ const m = {}; vals.forEach(v => m[v] = (m[v] || 0) + 1); body = bars(Object.entries(m).sort((a, b) => b[1] - a[1]).slice(0, 10).map(([n, c]) => [`${n} ${boothByN(n)?.name || ''}`, c]), vals.length); }
       else body = vals.length ? `<div style="display:flex;flex-direction:column;gap:6px;max-height:260px;overflow:auto">${vals.slice(-50).reverse().map(v => `<div class="sv-txt">${esc(v)}</div>`).join('')}</div>` : '';
       return `<div class="card tight"><div class="small muted">Q${i + 1} · ${SV_TYPES[q.type]} · 응답 ${vals.length}</div><b style="display:block;margin:2px 0 8px">${esc(q.title)}</b>${body || '<div class="empty">응답 없음</div>'}</div>`;
@@ -2915,6 +2926,28 @@ if(inApp && !sessionStorage.getItem('wj:inapp_stay')){
   try{ openOutside(); }catch(e){}
   setTimeout(() => { if(document.hidden || $('#inappBar')) return; document.body.insertAdjacentHTML('beforeend', `<div id="inappBar" style="position:fixed;left:12px;right:12px;bottom:14px;z-index:9999;background:var(--ink);color:#fff;border-radius:14px;padding:12px 14px;font-size:13px;line-height:1.5;box-shadow:0 8px 24px rgba(0,0,0,.25)"><b>${inApp === 'kakao' ? '카카오톡' : '앱'} 안에서 열렸어요</b><br>그대로 쓰면 QR로 들어온 기록과 따로 저장돼요. 기본 브라우저로 여는 게 좋아요.<div style="display:flex;gap:8px;margin-top:8px"><button class="btn sun sm" onclick="openOutside()">브라우저로 열기</button><button class="btn soft sm" onclick="sessionStorage.setItem('wj:inapp_stay','1');document.getElementById('inappBar').remove()">그냥 쓸게요</button></div></div>`); }, 1500);
 }
+/* 탭 넘기기: 폰 카메라로 부스 QR을 찍으면 매번 새 탭이 열려 탭이 쌓인다. 새 탭이 BroadcastChannel 로 "이미 열린 앱 탭 있니?" 묻고,
+   있으면 그 탭에 도장 경로(번호·토큰)를 넘기고 자기는 닫는다(카메라가 연 탭은 방문 기록이 1개라 window.close 가 허용됨).
+   안 닫히면(브라우저가 막음) 400ms 뒤 '그대로 진행' 신호를 보내고 이 탭이 처리하고, 옛 탭은 넘겨받은 걸 버린다 */
+const tabCh = ('BroadcastChannel' in window) ? new BroadcastChannel('wj:tabs') : null;
+const TAB_ID = Math.random().toString(36).slice(2);
+let tabHand = null;
+if(tabCh) tabCh.addEventListener('message', e => {
+  const m = e.data || {};
+  if(m.type === 'ping') tabCh.postMessage({ type: 'pong', to: m.from, from: TAB_ID });
+  else if(m.type === 'hand' && m.to === TAB_ID){ tabHand = m; setTimeout(() => { if(tabHand !== m) return; tabHand = null; qrTok.set(m.n, m.t); go('/stamp/' + m.n); }, 600); }
+  else if(m.type === 'alive' && tabHand && tabHand.from === m.from) tabHand = null;
+});
+async function handOverToOpenTab(n, t){
+  if(!tabCh) return false;
+  const other = await new Promise(res => { const h = e => { const m = e.data || {}; if(m.type === 'pong' && m.to === TAB_ID){ tabCh.removeEventListener('message', h); res(m.from); } }; tabCh.addEventListener('message', h); tabCh.postMessage({ type: 'ping', from: TAB_ID }); setTimeout(() => { tabCh.removeEventListener('message', h); res(null); }, 250); });
+  if(!other) return false;
+  tabCh.postMessage({ type: 'hand', to: other, from: TAB_ID, n, t });
+  window.close();
+  await new Promise(r => setTimeout(r, 400));
+  tabCh.postMessage({ type: 'alive', from: TAB_ID });   // 여기까지 왔으면 안 닫힌 것 → 이 탭이 처리
+  return false;
+}
 (async function boot(){
   $('#frame').innerHTML = `<main class="content"><div class="bootwait"><div class="spin"></div><div>불러오는 중…</div><div class="small" id="bootSlow" style="display:none">서버 응답이 느려요.<br>잠시 후 다시 열어주세요</div></div></main>`;   // 데이터 오기 전 흰 화면 방지
   const slowT = setTimeout(() => { const el = $('#bootSlow'); if(el) el.style.display = ''; }, 8000);
@@ -2925,7 +2958,7 @@ if(inApp && !sessionStorage.getItem('wj:inapp_stay')){
   flushPending();
   // QR 딥링크: ?b=07&t=토큰 → 스탬프 화면. 토큰은 세션에 두고 주소창에서 쿼리는 지워서 새로고침 시 재진입을 막는다.
   const qs = new URLSearchParams(location.search); const b = qs.get('b');
-  if(b){ qrTok.set(b, qs.get('t')); history.replaceState(null, '', location.pathname + '#/stamp/' + b); }
+  if(b){ qrTok.set(b, qs.get('t')); history.replaceState(null, '', location.pathname + '#/stamp/' + b); await handOverToOpenTab(b, qs.get('t')); }   // 이미 열린 앱 탭이 있으면 그 탭에 넘기고 이 탭은 닫힘
   else if(qs.has('join')){ history.replaceState(null, '', location.pathname + (S.me ? '#/' : '#/register')); }   // 안내판·포스터용 입장 QR
   else if(qs.has('survey')){ S.surveyReturn = true; history.replaceState(null, '', location.pathname + '#/my'); }   // 구글폼 확인 메시지의 복귀 링크 → 내 스탬프에서 자동 완료 처리 (미등록이면 등록/이어받기 뒤에)
   route();
