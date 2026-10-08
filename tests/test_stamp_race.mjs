@@ -2,7 +2,9 @@
 // 나머지 6개는 TOO_FAST 여야 한다. 적용 전에는 7개가 전부 들어간다(이 테스트가 그걸 잡아낸다).
 // 사용: node tests/test_stamp_race.mjs <관리자 비번>   (토큰 목록을 받기 위해 비번이 필요)
 // 데이터: 이름 'TEST-race-…' 방문객 1명 + 도장 1개가 남는다. admin_reset 은 쓰지 않는다. 행사 전 초기화 때 함께 지워진다.
-const fs = await import('fs'); const src = fs.readFileSync('C:/dev/stamp-rally-v3/원주축전_스탬프앱_3.html', 'utf8');
+import { fileURLToPath } from 'url'; import path from 'path';
+const DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..').replace(/\\/g, '/') + '/';   // 저장소 루트 (스크립트 위치 기준)
+const fs = await import('fs'); const src = fs.readFileSync(DIR + '원주축전_스탬프앱_3.html', 'utf8');
 const URL_ = src.match(/supabaseUrl: '([^']+)'/)[1], KEY = src.match(/supabaseAnonKey: '([^']+)'/)[1], PW = process.argv[2] || process.env.ADMIN_PW;
 if(!PW){ console.error('비번 필요: node tests/test_stamp_race.mjs 비번  또는 $env:ADMIN_PW'); process.exit(1); }
 const fails = []; const check = (n, ok, x = '') => { console.log((ok ? '  ✓ ' : '  ✗ ') + n + (x ? ' — ' + x : '')); if(!ok) fails.push(n); };
