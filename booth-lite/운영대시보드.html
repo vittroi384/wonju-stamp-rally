@@ -204,10 +204,10 @@ select.btn{padding:7px 8px}
     <div class="card c4">
       <div class="h"><div><div class="t">나이대</div><div class="s">등록 기준</div></div></div>
       <div class="dist" id="grade"></div>
-      <div class="h" style="margin-top:14px"><div><div class="t">성별</div></div></div>
-      <div class="dist" id="gender" style="max-height:none;overflow:visible"></div>
+      <div id="genderSec"><div class="h" style="margin-top:14px"><div><div class="t">성별</div></div></div>
+      <div class="dist" id="gender" style="max-height:none;overflow:visible"></div></div>
     </div>
-    <div class="card c4">
+    <div class="card c4" id="schoolsCard">
       <div class="h"><div><div class="t">소속 TOP 10</div><div class="s">등록 인원</div></div></div>
       <div class="rows" id="schools"></div>
     </div>
@@ -248,9 +248,11 @@ const CONFIG = {
   stampGoal: 7,               // settings.stampGoal 이 있으면 그걸 씀
   quietMin: 30,               // 부스 전체 표에서 이 분 넘게 도장이 없으면 마지막 시각을 빨갛게
   timeoutMs: 20000,
+  miniMode: true,             // booth-lite: 성별·소속 TOP10 카드 숨김 (히트맵은 HTML 에서 hidden)
 };
 const CATS = { sci:{name:'원리의정원',color:'#1FA97A'}, craft:{name:'대담한갤러리',color:'#D9971F'}, play:{name:'한바탕놀이터',color:'#E5484D'}, app:{name:'상상공작소',color:'#2D5BFF'}, etc:{name:'상상그이상',color:'#7C5CFF'}, ops:{name:'운영·편의',color:'#151A2D'} };
 const $ = (s, el = document) => el.querySelector(s), $$ = (s, el = document) => [...el.querySelectorAll(s)];
+if(CONFIG.miniMode){ $('#genderSec').hidden = true; $('#schoolsCard').hidden = true; }   // 미니 모드: 성별·소속 TOP10 숨김(요소는 남겨 둠)
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 const fmt = n => (+n || 0).toLocaleString('ko-KR');
 const hhmm = t => { const d = new Date(t); return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`; };

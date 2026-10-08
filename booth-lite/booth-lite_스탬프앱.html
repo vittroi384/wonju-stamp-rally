@@ -594,6 +594,7 @@ const CONFIG = {
   giftDeadline: '15:50',                 // 선물 교환 마감(안내 화면 문구)
   giftPlace: '운영본부',                 // 선물 받는 곳. 완주·교환권·안내 문구의 '운영본부' 자리 (관리자 › 행사 설정)
   giftText: '',                          // 안내 화면 '선물 교환' 카드 본문. 비우면 기본 문장 (관리자 › 행사 설정)
+  cameraKeepMs: 180000,                  // 스캐너를 닫은 뒤 카메라를 들고 있는 시간(ms). 그 안에 다시 열면 권한 창 없이 바로 켜짐. 0 이면 바로 끔
   contact: '문의는 운영본부로',            // 안내 화면 맨 아래 문구
   notice: '',                            // 긴급 공지. 비어 있지 않으면 홈 맨 위에 빨간 띠 (관리자 › 행사 설정)
   // ↑ eventTitle·eventDate·venue·stampGoal·surveyUrl·giftDeadline·contact 와 SCHEDULE·RESOURCES 는 관리자 › 행사 설정에서 바꾸면 서버 settings 값이 우선
@@ -1348,14 +1349,14 @@ function renderHome(){
   shell('/', CONFIG.eventTitle, `
     ${CONFIG.notice ? `<div class="notice" style="background:var(--coral);color:#fff">📢<span>${esc(CONFIG.notice)}</span></div>` : ''}
     ${stampCardHTML()}
-    ${next ? `<div class="notice">${I.bell}<span>${nextLive ? '<b>진행 중</b> ' : ''}<b>${esc(next.time)}</b> ${esc(next.title)}${next.place ? ' · ' + esc(next.place) : ''}</span></div>` : ''}
+    ${!CONFIG.miniMode && next ? `<div class="notice">${I.bell}<span>${nextLive ? '<b>진행 중</b> ' : ''}<b>${esc(next.time)}</b> ${esc(next.title)}${next.place ? ' · ' + esc(next.place) : ''}</span></div>` : ''}
     <div class="h-sec">부스 둘러보기 ${CONFIG.miniMode ? '' : `<button class="more" onclick="go('/map')">지도에서 보기 ›</button>`}</div>
-    <div class="searchbar">${I.search}<input id="q" placeholder="부스 이름, 번호" value="${esc(S.q)}" autocomplete="off"></div>
+    ${CONFIG.miniMode ? '' : `<div class="searchbar">${I.search}<input id="q" placeholder="부스 이름, 번호" value="${esc(S.q)}" autocomplete="off"></div>`}
     <div class="chips" id="chips">${catChipsHTML()}</div>
     <div class="blist" id="blist"></div>`,
     { sub: `${CONFIG.eventDate} · ${CONFIG.venue}` });   // 관리자 진입 버튼 없음 — 주소 #/${CONFIG.adminPath} 직접 입력
   const draw = () => { const list = filteredBooths(); $('#blist').innerHTML = list.length ? list.map(boothItemHTML).join('') : '<div class="empty"><b>검색 결과가 없어요</b>다른 이름이나 번호로 찾아보세요</div>'; };
-  $('#q').oninput = e => { S.q = e.target.value; draw(); };
+  const qInp = $('#q'); if(qInp) qInp.oninput = e => { S.q = e.target.value; draw(); };   // 미니 모드: 검색창 없음
   wireChips($('#chips'), function again(){ $('#chips').innerHTML = catChipsHTML(); wireChips($('#chips'), again); draw(); });
   draw();
 }
@@ -1396,9 +1397,9 @@ function renderRegister(returnTo){
       <p>부스에 붙은 QR을 찍으면 도장이 찍혀요. <span style="white-space:nowrap">${regLabels()}만</span> 적으면 바로 시작할 수 있어요.</p>
     </div>
     <div class="steps">
-      <div class="step"><div class="ic">📱</div><div class="t">부스 QR 찍기</div><div class="s">폰 카메라로</div></div>
+      ${CONFIG.miniMode ? `<div class="step"><div class="ic">🖐️</div><div class="t">부스에서 도장 받기</div><div class="s">체험을 마치면</div></div>` : `<div class="step"><div class="ic">📱</div><div class="t">부스 QR 찍기</div><div class="s">폰 카메라로</div></div>`}
       <div class="step"><div class="ic">🟡</div><div class="t">도장 ${CONFIG.stampGoal}개 모으기</div><div class="s">부스 어디든</div></div>
-      <div class="step"><div class="ic">🎁</div><div class="t">설문 후 선물</div><div class="s">${esc(giftPlace())}에서</div></div>
+      <div class="step"><div class="ic">🎁</div><div class="t">${CONFIG.miniMode && !surveyOn() ? '선물 받기' : '설문 후 선물'}</div><div class="s">${esc(giftPlace())}에서</div></div>
     </div>
     <div class="notice" id="rExist" style="display:none">${I.bell}<span>이 폰에 <b id="rExistName"></b>님의 기록이 이미 있어요. <b style="cursor:pointer;text-decoration:underline" id="rExistUse">그대로 쓰기</b> · 아래에서 새로 등록하면 기록이 나뉘어요</span></div>
     <div class="card" style="display:flex;flex-direction:column;gap:14px">
@@ -1444,11 +1445,11 @@ function renderBooth(n){
       <div class="num">BOOTH ${esc(bn(b))}</div>
       <h1 class="name">${esc(b.name)}</h1>
       <div class="org">${esc(b.org)}</div>
-      <span class="pill"><span class="dot"></span>${esc(c.name)}</span>${b.target ? `<span class="pill" style="margin-left:6px">${esc(targetName(b.target))} 대상</span>` : ''}
+      <span class="pill"><span class="dot"></span>${esc(c.name)}</span>${b.target && !CONFIG.miniMode ? `<span class="pill" style="margin-left:6px">${esc(targetName(b.target))} 대상</span>` : ''}
     </div>
     ${b.img ? `<div class="bimgwrap" id="bImgWrap" hidden><img class="bimg" id="bImg" alt="${esc(b.name)} 부스 사진"><span class="hint">탭하면 크게 보기</span></div>` : ''}
     <div class="card"><div class="kv"><div><div class="k">체험 소개</div></div><p class="desc">${esc(b.desc || DESC_BY_CAT[b.cat])}</p>
-      ${CONFIG.miniMode ? '' : `<div class="k" style="margin-top:4px">위치</div><div class="v" style="font-size:14px">${esc(zoneOf(b.zone).name)} <button class="more" style="border:0;background:none;color:var(--blue);font-weight:800;font-size:13px;padding:0 4px" data-go="${esc('/map/' + b.n)}">지도 ›</button></div>`}${b.hours ? `<div class="k" style="margin-top:4px">운영 시간</div><div class="v" style="font-size:14px">${esc(b.hours)}${(() => { const h = hoursState(b); return h && h.label ? ` <span class="bhours ${h.state}" style="display:inline;margin:0">· ${h.label}</span>` : ''; })()}</div>` : ''}${b.variant && b.variant.at ? `<div class="k" style="margin-top:4px">시간대</div><div class="v" style="font-size:14px">${b.switched ? `${esc(b.variant.at)} 전엔 ${b.variant.n ? esc(b.n) + ' ' : ''}${esc(b.baseName)}` : `${esc(b.variant.at)}부터 <b>${b.variant.n ? esc(b.variant.n) + ' ' : ''}${esc(b.variant.name)}</b>(으)로 바뀌어요`}</div>` : ''}</div></div>
+      ${CONFIG.miniMode ? '' : `<div class="k" style="margin-top:4px">위치</div><div class="v" style="font-size:14px">${esc(zoneOf(b.zone).name)} <button class="more" style="border:0;background:none;color:var(--blue);font-weight:800;font-size:13px;padding:0 4px" data-go="${esc('/map/' + b.n)}">지도 ›</button></div>`}${b.hours && !CONFIG.miniMode ? `<div class="k" style="margin-top:4px">운영 시간</div><div class="v" style="font-size:14px">${esc(b.hours)}${(() => { const h = hoursState(b); return h && h.label ? ` <span class="bhours ${h.state}" style="display:inline;margin:0">· ${h.label}</span>` : ''; })()}</div>` : ''}${!CONFIG.miniMode && b.variant && b.variant.at ? `<div class="k" style="margin-top:4px">시간대</div><div class="v" style="font-size:14px">${b.switched ? `${esc(b.variant.at)} 전엔 ${b.variant.n ? esc(b.n) + ' ' : ''}${esc(b.baseName)}` : `${esc(b.variant.at)}부터 <b>${b.variant.n ? esc(b.variant.n) + ' ' : ''}${esc(b.variant.name)}</b>(으)로 바뀌어요`}</div>` : ''}</div></div>
     ${ytId(b.video) ? `<div class="card tight"><div class="kv"><div class="k">체험 영상</div><div class="yt"><iframe src="https://www.youtube-nocookie.com/embed/${ytId(b.video)}?rel=0" title="${esc(b.name)} 영상" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen></iframe></div></div></div>` : ''}
     ${b.pdf ? `<a class="btn line full" id="bPdf" target="_blank" rel="noopener" hidden>${I.doc} 부스 자료 PDF 보기</a>` : ''}
     ${!st && !hasStamp(b) ? `<div class="stampstate">
@@ -1654,12 +1655,12 @@ function renderSurvey(){
 /* 행사 안내: 오늘의 일정(SCHEDULE)·자료 링크(RESOURCES)·선물 교환 안내. 내용은 관리자 › 행사 설정에서 바뀜 */
 function renderInfo(){
   shell('/info', '행사 안내', `
-    <div class="card"><div class="h-sec" style="margin:0 0 6px">오늘의 일정</div>
+    ${CONFIG.miniMode ? '' : `<div class="card"><div class="h-sec" style="margin:0 0 6px">오늘의 일정</div>
       <div class="timeline">${SCHEDULE.map(s => `<div class="tl"><div class="tm">${schedTimeHTML(s.time)}</div><div><div class="t">${esc(s.title)}</div><div class="s">${esc(s.place)}</div></div></div>`).join('')}</div></div>
     <div class="h-sec">자료</div>
-    ${RESOURCES.map(r => `<a class="link" href="${esc(r.url)}" target="_blank" rel="noopener"><span class="ic">${I.doc}</span><div class="grow"><div class="t">${esc(r.title)}</div><div class="s">${esc(r.desc)}</div></div><span class="bgo">${I.chev}</span></a>`).join('')}
+    ${RESOURCES.map(r => `<a class="link" href="${esc(r.url)}" target="_blank" rel="noopener"><span class="ic">${I.doc}</span><div class="grow"><div class="t">${esc(r.title)}</div><div class="s">${esc(r.desc)}</div></div><span class="bgo">${I.chev}</span></a>`).join('')}`}
     <div class="h-sec">선물 교환</div>
-    <div class="card"><p class="desc">${CONFIG.giftText ? esc(CONFIG.giftText).replace(/\n/g, '<br>') : `부스 ${CONFIG.stampGoal}곳의 도장을 모으고 ${surveyOn() ? '<b>설문</b>에 참여하면 ' : ''}<b>${esc(giftPlace())}</b>에서 선물을 드려요. 내 스탬프 화면의 교환권을 보여주세요.${CONFIG.giftDeadline ? ` 교환은 ${esc(CONFIG.giftDeadline)}까지예요.` : ''}`}</p></div>
+    <div class="card"><p class="desc">${CONFIG.giftText ? esc(CONFIG.giftText).replace(/\n/g, '<br>') : `부스 ${CONFIG.stampGoal}곳의 도장을 모으고 ${surveyOn() ? '<b>설문</b>에 참여하면 ' : ''}<b>${esc(giftPlace())}</b>에서 선물을 드려요. 내 스탬프 화면의 교환권을 보여주세요.${CONFIG.giftDeadline && !CONFIG.miniMode ? ` 교환은 ${esc(CONFIG.giftDeadline)}까지예요.` : ''}`}</p></div>
     <p class="small muted" style="text-align:center;line-height:1.6">${esc(CONFIG.eventDate)} · ${esc(CONFIG.venue)}${CONFIG.contact ? ' · ' + esc(CONFIG.contact) : ''}</p>`,
     { sub: CONFIG.eventTitle });
 }
@@ -2019,7 +2020,9 @@ async function openScanner(opts = {}){
   if(!navigator.mediaDevices?.getUserMedia){ msg.innerHTML = `<b>이 브라우저에선 카메라를 쓸 수 없어요</b>폰 기본 카메라 앱으로 QR을 찍어도 똑같이 도장이 찍혀요.<br><button class="btn sun sm" onclick="closeScanner()">알겠어요</button>`; return; }
   try{
     await loadJsQR();
-    scanner.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
+    clearTimeout(scanner.idle);
+    const alive = scanner.stream && scanner.stream.getVideoTracks().some(t => t.readyState === 'live');   // 닫은 지 얼마 안 됐으면 그대로 재사용(권한 창 없음)
+    if(!alive) scanner.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false });
     video.srcObject = scanner.stream; await video.play();
     scanner.resume();
     const cv = document.createElement('canvas'), ctx = cv.getContext('2d', { willReadFrequently: true });
@@ -2045,10 +2048,14 @@ async function openScanner(opts = {}){
     msg.innerHTML = `<b>${denied ? '카메라 권한이 필요해요' : '카메라를 열 수 없어요'}</b>${denied ? '브라우저 주소창의 카메라 권한을 허용해 주세요.' : 'HTTPS 주소에서만 카메라가 열려요.'}<br>폰 기본 카메라 앱으로 QR을 찍어도 똑같이 도장이 찍혀요.<br><button class="btn sun sm" onclick="closeScanner()">알겠어요</button>`;
   }
 }
+/* 카메라 끄기. 스캐너를 닫은 뒤 cameraKeepMs 가 지나거나 탭이 숨겨지면 호출 */
+function stopCamera(){ clearTimeout(scanner.idle); if(scanner.stream){ scanner.stream.getTracks().forEach(t => t.stop()); scanner.stream = null; } }
+document.addEventListener('visibilitychange', () => { if(document.hidden && !scanner.on) stopCamera(); });
 function closeScanner(){
   const after = scanner.opts?.onClose; scanner.opts = null;
   scanner.on = false; cancelAnimationFrame(scanner.raf);
-  if(scanner.stream){ scanner.stream.getTracks().forEach(t => t.stop()); scanner.stream = null; }
+  clearTimeout(scanner.idle);
+  if(scanner.stream){ if(CONFIG.cameraKeepMs > 0) scanner.idle = setTimeout(stopCamera, CONFIG.cameraKeepMs); else stopCamera(); }
   const v = $('#scanVideo'); if(v) v.srcObject = null;
   $('#scan').classList.remove('show'); $('#scanHit').classList.remove('on');
   if(after) after();
@@ -2061,7 +2068,7 @@ const ADM_TABS = [['dash', '현황'], ['manual', '수기 도장'], ['gift', '선
   .filter(([k]) => CONFIG.miniMode ? k !== 'map' : k !== 'manual');   // 미니 모드: 지도 탭 대신 수기 도장 탭
 function admShell(tab, body){
   shell(null, '운영 본부', `
-    <div class="adm-nav no-print">${ADM_TABS.map(([k, l]) => `<button class="${tab === k ? 'on' : ''}" onclick="go('${admPath('/' + k)}')">${l}</button>`).join('')}</div>
+    <div class="adm-nav no-print">${ADM_TABS.filter(([k]) => !(CONFIG.miniMode && k === 'survey' && !surveyOn())).map(([k, l]) => `<button class="${tab === k ? 'on' : ''}" onclick="go('${admPath('/' + k)}')">${l}</button>`).join('')}</div>
     ${body}`, { wide: true, noTabs: true, sub: CONFIG.eventTitle, right: `${DB === SupabaseDB ? `<button class="btn xs line no-print" onclick="adminAuth.logout();S.admin=false;go(admPath('/dash'),true)">로그아웃</button> ` : ''}<button class="btn xs line no-print" onclick="go('/')">방문객 화면</button>` });
 }
 /* 관리자 진입. S.admin 아니면 로그인 화면(Supabase: admin_login RPC / 로컬: CONFIG.adminPassword). 탭별로 admXxx 호출. 현황·선물·데이터는 DB.stats 먼저 */
@@ -2357,13 +2364,13 @@ function admBooths(){
   admShell('booths', `
     <div class="row" style="flex-wrap:wrap;gap:8px">
       <button class="btn sm" id="bAdd">+ 부스 추가</button>
-      <button class="btn sm line" id="bXlsx">엑셀 양식 내려받기</button>
+      ${CONFIG.miniMode ? '' : `<button class="btn sm line" id="bXlsx">엑셀 양식 내려받기</button>
       <label class="btn sm line" style="cursor:pointer">엑셀·CSV 불러오기<input type="file" accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" id="bImp" hidden></label>
-      <button class="btn xs soft" id="bCsv" title="예전 방식">CSV</button>
+      <button class="btn xs soft" id="bCsv" title="예전 방식">CSV</button>`}
       <button class="btn sm line" id="bSort" title="표 순서를 부스 번호 순으로">번호순 정렬</button>
       <button class="btn sm line" id="bStatus" title="쉬는 부스를 한 화면에서 고르기">운영 상태</button>
-      <button class="btn sm line" id="bNoStamp" title="QR 안 하는(도장 없는) 부스 고르기">QR 제외</button>
-      <button class="btn sm line" id="bColors" title="분류별 색 바꾸기 (홈 칩·지도·QR 인쇄물에 반영)">분류 색</button>
+      ${CONFIG.miniMode ? '' : `<button class="btn sm line" id="bNoStamp" title="QR 안 하는(도장 없는) 부스 고르기">QR 제외</button>
+      <button class="btn sm line" id="bColors" title="분류별 색 바꾸기 (홈 칩·지도·QR 인쇄물에 반영)">분류 색</button>`}
       <span class="small muted">${S.booths.length}/${CONFIG.boothMax}개 · 같은 구역 안에서는 표 순서가 지도 순서예요 (트랙 둘레는 정문 오른쪽부터 시계방향) · 왼쪽 ≡ 를 끌어서 순서를 바꿔요<br>분류: ${esc(CATS.map(c => c.name).join(' / '))} — 일부만 적어도 알아듣고, 없는 이름을 적으면 새 분류가 생겨요</span>
     </div>
     <div class="blist" id="bList">
@@ -2381,9 +2388,9 @@ function admBooths(){
         <div class="l2">
           <input class="inp sm f-cat" value="${esc(b.catTxt || catOf(b.cat).name)}" data-f="cat" placeholder="분류" title="없는 이름을 적으면 새 분류가 생겨요">
           <select class="inp sm f-zone" data-f="zone" title="구역">${ZONES.map(z => `<option value="${z.id}" ${z.id === (b.zone || '') ? 'selected' : ''}>${z.name}</option>`).join('')}</select>
-          <input type="hidden" data-f="target" value="${esc(b.target || '')}"><div class="tsel" data-tsel="${i}" title="대상: 초등 이하로 두면 중고등학생 폰에는 안 보이고 도장도 안 찍혀요">${TARGETS.map(t => `<button type="button" class="${(b.target || '') === t.id ? 'on' : ''}" data-t="${t.id}">${t.name}</button>`).join('')}</div>
+          <input type="hidden" data-f="target" value="${esc(b.target || '')}">${CONFIG.miniMode ? '' : `<div class="tsel" data-tsel="${i}" title="대상: 초등 이하로 두면 중고등학생 폰에는 안 보이고 도장도 안 찍혀요">${TARGETS.map(t => `<button type="button" class="${(b.target || '') === t.id ? 'on' : ''}" data-t="${t.id}">${t.name}</button>`).join('')}</div>`}
           <input type="hidden" data-f="hours" value="${esc(b.hours || '')}"><input type="hidden" data-f="variant" value="${esc(b.variant ? JSON.stringify(b.variant) : '')}">
-          <span class="mchip ${b.hours ? 'on' : ''}" data-m="hours">🕒 ${esc(b.hours || '종일')}</span><span class="mchip ${b.variant ? 'on' : ''}" data-m="variant">🔁 ${b.variant ? esc(b.variant.at) + ' 전환' + (b.variant.n ? ' · 번호 ' + esc(b.variant.n) : '') + (b.variant.media ? ' · 자료 별도' : '') + (b.variant.stamp === 'yes' ? ' · 도장 있음' : b.variant.stamp === 'no' ? ' · 도장 없음' : '') : '전환 없음'}</span><button class="btn xs soft" data-time="${i}" style="white-space:nowrap" title="운영 시간 · 시간대 전환">시간</button>
+          <span class="mchip ${b.hours ? 'on' : ''}" data-m="hours">🕒 ${esc(b.hours || '종일')}</span><span class="mchip ${b.variant ? 'on' : ''}" data-m="variant"${CONFIG.miniMode ? ' style="display:none"' : ''}>🔁 ${b.variant ? esc(b.variant.at) + ' 전환' + (b.variant.n ? ' · 번호 ' + esc(b.variant.n) : '') + (b.variant.media ? ' · 자료 별도' : '') + (b.variant.stamp === 'yes' ? ' · 도장 있음' : b.variant.stamp === 'no' ? ' · 도장 없음' : '') : '전환 없음'}</span><button class="btn xs soft" data-time="${i}" style="white-space:nowrap" title="운영 시간 · 시간대 전환">시간</button>
           <input class="inp sm f-desc" value="${esc(b.desc || '')}" data-f="desc" placeholder="소개 (방문객 부스 소개 화면에 나와요)"></div></div>`).join('')}
     </div>
     <div class="row no-print"><button class="btn blue" id="bSave">변경사항 저장</button><span class="small muted">저장 전엔 지도에 반영되지 않아요</span></div>`);
@@ -2493,7 +2500,7 @@ function admBooths(){
         ${field('시간', `<div class="row tmr">${tm('tStart', hm[1], '--:--')}<span>~</span>${tm('tEnd', hm[2], '--:--')}<button class="btn xs soft" id="tClear">종일</button></div>`)}
         ${keepRaw ? `<p class="small muted" style="margin:6px 0 0 82px;line-height:1.5">지금 값 <b>${esc(rawHours)}</b>은 시작~끝 형식이 아니라 그대로 둬요. 바꾸려면 위에 적고, 없애려면 [종일].</p>` : ''}
       </div></div>
-      <div class="card tight tsheet" style="margin-bottom:14px"><div class="kv">
+      <div class="card tight tsheet" style="margin-bottom:14px${CONFIG.miniMode ? ';display:none' : ''}"><div class="kv">
         <label class="row" style="gap:8px;align-items:center;cursor:pointer"><input type="checkbox" id="tSw" ${v ? 'checked' : ''}><span class="k" style="margin:0">🔁 시간이 되면 다른 부스로 바뀌어요</span></label>
         <p class="small muted" style="margin:4px 0 0 26px;line-height:1.5">예: 오전엔 운영본부, 오후엔 체험 부스. QR·도장은 하나로 같고, 번호는 보이는 것만 바뀌어요.</p>
         <div id="tSwBox" ${v ? '' : 'hidden'} style="margin-top:6px">
@@ -2605,9 +2612,9 @@ function admBooths(){
   $('#bStatus').textContent = statusLabel();
   $('#bStatus').onclick = () => openPickSheet({ key: 'closedBooths', title: '운영 상태', offWord: '쉬는 중', allOn: '모두 운영 중', allOff: '모두 쉬는 중',
     desc: '눌러서 쉬는 중 ↔ 운영 중. 쉬는 부스는 방문객 폰에 흐리게 보여요(도장은 찍혀요).', after: () => { $('#bStatus').textContent = statusLabel(); } });
-  $('#bNoStamp').textContent = noStampLabel();
+  if(!CONFIG.miniMode){ $('#bNoStamp').textContent = noStampLabel();   // 미니 모드: 버튼 없음
   $('#bNoStamp').onclick = () => openPickSheet({ key: 'noStampBooths', title: 'QR 제외 (도장 없는 부스)', offWord: 'QR 제외', allOn: '모두 도장 있음', allOff: '모두 QR 제외',
-    desc: '눌러서 흐리게 된 부스는 QR 인쇄에서 빠지고, 방문객 폰에 \'도장 없음 · 체험만\'으로 보여요(도장 안 찍힘). 완주 개수는 도장 있는 부스 수보다 작게 두세요.', after: () => { $('#bNoStamp').textContent = noStampLabel(); } });
+    desc: '눌러서 흐리게 된 부스는 QR 인쇄에서 빠지고, 방문객 폰에 \'도장 없음 · 체험만\'으로 보여요(도장 안 찍힘). 완주 개수는 도장 있는 부스 수보다 작게 두세요.', after: () => { $('#bNoStamp').textContent = noStampLabel(); } }); }
   /* 분류 색: 시트에 분류마다 색 동그라미(type=color, 눌러서 고르기) + [기본색]. [적용] 때 settings.categoryColors 에 기본색과 다른 것만 저장, 즉시 반영 */
   const openColorSheet = () => {
     const row = c => `<div class="crow" data-cat="${esc(c.id)}"><input type="color" value="${c.color}" title="눌러서 색 고르기"><span class="cname">${esc(c.name)}</span><button type="button" class="btn xs soft cdef" title="기본색 ${c.def}">기본색</button></div>`;
@@ -2627,12 +2634,12 @@ function admBooths(){
       closeSheet(); toast('분류 색을 저장했어요'); renderAdmin('booths');
     };
   };
-  $('#bColors').onclick = openColorSheet;
+  if(!CONFIG.miniMode) $('#bColors').onclick = openColorSheet;
   $$('[data-tsel]').forEach(box => $$('button', box).forEach(bt => bt.onclick = () => { $$('button', box).forEach(x => x.classList.toggle('on', x === bt)); $('[data-f=target]', box.closest('.brow')).value = bt.dataset.t; }));
   /* 엑셀(xlsx) 양식: 열 너비·제목 줄 고정·소개 줄바꿈. 담당자가 엑셀에서 바로 채워서 다시 올리는 용도. ExcelJS 는 눌렀을 때만 CDN 에서 로드 */
   const loadExcelJS = () => window.ExcelJS ? Promise.resolve() : new Promise((res, rej) => { const el = document.createElement('script'); el.src = 'https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js'; el.onload = res; el.onerror = () => rej(new Error('엑셀 라이브러리를 못 불러왔어요 (인터넷 연결 확인)')); document.head.appendChild(el); });
   const XCOLS = [['번호', 7], ['부스명', 34], ['운영기관', 22], ['분류', 15], ['구역', 24], ['소개', 60], ['유튜브', 28], ['PDF', 28], ['사진', 28], ['운영시간', 14], ['대상', 10]];
-  $('#bXlsx').onclick = async () => {
+  if(!CONFIG.miniMode) $('#bXlsx').onclick = async () => {
     try{ toast('엑셀 만드는 중…'); await loadExcelJS(); }catch(e){ return toast(e.message); }
     const wb = new ExcelJS.Workbook(); const ws = wb.addWorksheet('부스', { views: [{ state: 'frozen', ySplit: 1 }] });
     ws.columns = XCOLS.map(([h, w]) => ({ header: h, width: w }));
@@ -2648,8 +2655,8 @@ function admBooths(){
   /* xlsx 읽기: '부스' 시트(없으면 첫 시트) 2행부터. 셀이 하이퍼링크·서식 텍스트면 글자만 */
   const cellText = v => v == null ? '' : typeof v === 'object' ? (v.text ?? (v.richText ? v.richText.map(r => r.text).join('') : v.result ?? v.hyperlink ?? '')) : String(v);
   const readXlsx = async f => { await loadExcelJS(); const wb = new ExcelJS.Workbook(); await wb.xlsx.load(await f.arrayBuffer()); const ws = wb.getWorksheet('부스') || wb.worksheets[0]; const rows = []; ws.eachRow((row, i) => { if(i === 1) return; rows.push(Array.from({ length: 11 }, (_, c) => cellText(row.getCell(c + 1).value).trim())); }); return rows; };
-  $('#bCsv').onclick = () => download('booths.csv', '\ufeff' + [['번호', '부스명', '운영기관', '분류', '구역', '소개', '유튜브', 'PDF', '사진', '운영시간', '대상']].concat(collect().map(b => [b.n, b.name, b.org, catOf(b.cat).name, zoneOf(b.zone).name, b.desc || '', b.video || '', b.pdf || '', b.img || '', b.hours || '', targetName(b.target)])).map(r => r.map(csv).join(',')).join('\n'));
-  $('#bImp').onchange = async e => { const f = e.target.files[0]; if(!f) return; e.target.value = '';
+  if(!CONFIG.miniMode) $('#bCsv').onclick = () => download('booths.csv', '\ufeff' + [['번호', '부스명', '운영기관', '분류', '구역', '소개', '유튜브', 'PDF', '사진', '운영시간', '대상']].concat(collect().map(b => [b.n, b.name, b.org, catOf(b.cat).name, zoneOf(b.zone).name, b.desc || '', b.video || '', b.pdf || '', b.img || '', b.hours || '', targetName(b.target)])).map(r => r.map(csv).join(',')).join('\n'));
+  if(!CONFIG.miniMode) $('#bImp').onchange = async e => { const f = e.target.files[0]; if(!f) return; e.target.value = '';
     let rows; try{ rows = (/\.xlsx$/i.test(f.name) ? await readXlsx(f) : parseCSV(await f.text()).slice(1)).filter(r => r[0]); }catch(err){ return toast(err.message || '파일을 읽지 못했어요'); }
     if(!rows.length) return toast('읽을 행이 없어요');
     { const bad = rows.find(r => !validN(r[0])); if(bad) return toast(`${N_MSG} (${bad[0]})`); }
@@ -2740,25 +2747,25 @@ function admEvent(){
         <div class="field"><label>장소</label><input class="inp" id="evVenue" value="${esc(CONFIG.venue)}" maxlength="40"></div>
         <div class="field"><label>완주 도장 개수</label><input class="inp" id="evGoal" type="number" min="1" max="30" value="${CONFIG.stampGoal}"></div>
         <label class="small" style="display:flex;gap:8px;align-items:center;margin:2px 0 12px;font-weight:700"><input type="checkbox" id="evSurveyOn" ${surveyOn() ? 'checked' : ''}> 설문 사용 <span class="muted" style="font-weight:600">— 끄면 완주하자마자 교환권이 열려요 (폰 없는 어린이도 선물 수령 가능)</span></label>
-        <div class="field"><label>설문 링크 (구글폼 등 · 선택)</label><input class="inp" id="evSurvey" value="${esc(CONFIG.surveyUrl)}" placeholder="비우면 앱 안의 설문(설문 탭)을 써요"></div>
+        ${CONFIG.miniMode ? '' : `<div class="field"><label>설문 링크 (구글폼 등 · 선택)</label><input class="inp" id="evSurvey" value="${esc(CONFIG.surveyUrl)}" placeholder="비우면 앱 안의 설문(설문 탭)을 써요"></div>
         <div class="row" style="gap:10px;align-items:flex-start">
           <div class="field" style="flex:0 0 130px"><label>설문 최소 시간(초)</label><input class="inp" id="evSurveySec" type="number" min="0" max="600" value="${CONFIG.surveyMinSec}"></div>
           <div class="field grow"><label>구글폼 코드 항목 ID (선택)</label><input class="inp" id="evSurveyField" value="${esc(CONFIG.surveyCodeField)}" placeholder="entry.1234567890"></div>
         </div>
-        <p class="small muted" style="margin:-4px 0 12px;line-height:1.6">'설문 참여하기'를 누른 뒤 <b>최소 시간</b>이 지나야 '다 했어요'가 켜져요.<br>구글폼에 <b>'방문객 코드' 단답 항목</b>을 만들고 '미리 채워진 링크 가져오기'에서 그 항목의 <code>entry.…</code> ID를 넣으면 응답마다 코드가 자동 입력돼 대조할 수 있어요.<br>구글폼 설정 › 프레젠테이션 › 확인 메시지에 <code>${esc(location.origin + location.pathname)}?survey</code> 를 적어두면, 제출 후 그 링크를 누른 폰은 <b>자동으로 완료 처리</b>돼요.</p>
-        <div class="field"><label>선물 교환 마감 (안내 문구)</label><input class="inp" id="evDeadline" value="${esc(CONFIG.giftDeadline)}" maxlength="20" placeholder="예: 15:50"></div>
+        <p class="small muted" style="margin:-4px 0 12px;line-height:1.6">'설문 참여하기'를 누른 뒤 <b>최소 시간</b>이 지나야 '다 했어요'가 켜져요.<br>구글폼에 <b>'방문객 코드' 단답 항목</b>을 만들고 '미리 채워진 링크 가져오기'에서 그 항목의 <code>entry.…</code> ID를 넣으면 응답마다 코드가 자동 입력돼 대조할 수 있어요.<br>구글폼 설정 › 프레젠테이션 › 확인 메시지에 <code>${esc(location.origin + location.pathname)}?survey</code> 를 적어두면, 제출 후 그 링크를 누른 폰은 <b>자동으로 완료 처리</b>돼요.</p>`}
+        ${CONFIG.miniMode ? '' : `<div class="field"><label>선물 교환 마감 (안내 문구)</label><input class="inp" id="evDeadline" value="${esc(CONFIG.giftDeadline)}" maxlength="20" placeholder="예: 15:50"></div>`}
         <div class="field"><label>선물 받는 곳 (완주·교환권 화면의 "○○에서 선물 받아가세요")</label><input class="inp" id="evGiftPlace" value="${esc(CONFIG.giftPlace)}" maxlength="20" placeholder="운영본부"></div>
         <div class="field"><label>선물 교환 안내 (안내 화면 · 비우면 기본 문장)</label><textarea class="inp" id="evGiftText" style="min-height:80px;font-size:14px" maxlength="300" placeholder="예: 부스 7곳 도장을 다 모으면 안내데스크에서 선물을 드려요. 교환권 화면을 보여주세요.">${esc(CONFIG.giftText)}</textarea></div>
         <div class="field"><label>문의 안내 (안내 화면 맨 아래)</label><input class="inp" id="evContact" value="${esc(CONFIG.contact)}" maxlength="60"></div>
         <div class="field"><label>긴급 공지 (홈 맨 위 빨간 띠 · 비우면 안 나옴)</label><input class="inp" id="evNotice" value="${esc(CONFIG.notice)}" maxlength="120" placeholder="예: 우천으로 개막식 11:40으로 변경"></div>
       </div>
       <div style="display:flex;flex-direction:column;gap:14px">
-        <div class="card"><div class="h-sec" style="margin:0 0 6px">오늘의 일정</div><p class="small muted" style="margin-bottom:8px;line-height:1.6">한 줄에 하나 · <code>시간 | 제목 | 장소·설명</code> · 시간은 <code>10:00</code> 또는 <code>09:00~10:00</code></p>
-          <textarea class="inp" id="evSchedule" style="min-height:160px;font-size:14px">${esc(lines(SCHEDULE, x => [x.time, x.title, x.place].join(' | ')))}</textarea></div>
+        ${CONFIG.miniMode ? '' : `<div class="card"><div class="h-sec" style="margin:0 0 6px">오늘의 일정</div><p class="small muted" style="margin-bottom:8px;line-height:1.6">한 줄에 하나 · <code>시간 | 제목 | 장소·설명</code> · 시간은 <code>10:00</code> 또는 <code>09:00~10:00</code></p>
+          <textarea class="inp" id="evSchedule" style="min-height:160px;font-size:14px">${esc(lines(SCHEDULE, x => [x.time, x.title, x.place].join(' | ')))}</textarea></div>`}
         <div class="card"><div class="h-sec" style="margin:0 0 6px">등록 항목</div><p class="small muted" style="margin-bottom:8px;line-height:1.6">방문객이 처음에 적는 칸. <b>이름</b>은 항상 받고, 아래는 켜고 끌 수 있어요. '필수'를 끄면 비워도 넘어가요. 바꾸면 이미 등록한 사람의 기록은 그대로예요.</p>
           <div style="display:flex;flex-direction:column;gap:8px">${REG_FIELD_DEFS.map(d => { const o = { ...d, ...(((S.settingsRaw || {}).regFields || {})[d.k] || {}) }; return `<div class="row" style="gap:14px;align-items:center"><b style="flex:0 0 56px">${d.label}</b><label class="small" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="rf_${d.k}_on" ${o.on ? 'checked' : ''}> 사용</label><label class="small" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="rf_${d.k}_req" ${o.req ? 'checked' : ''}> 필수</label></div>`; }).join('')}</div></div>
-        <div class="card"><div class="h-sec" style="margin:0 0 6px">자료 링크</div><p class="small muted" style="margin-bottom:8px;line-height:1.6">한 줄에 하나 · <code>제목 | 설명 | 주소(https://…)</code></p>
-          <textarea class="inp" id="evResources" style="min-height:90px;font-size:14px">${esc(lines(RESOURCES, x => [x.title, x.desc, x.url].join(' | ')))}</textarea></div>
+        ${CONFIG.miniMode ? '' : `<div class="card"><div class="h-sec" style="margin:0 0 6px">자료 링크</div><p class="small muted" style="margin-bottom:8px;line-height:1.6">한 줄에 하나 · <code>제목 | 설명 | 주소(https://…)</code></p>
+          <textarea class="inp" id="evResources" style="min-height:90px;font-size:14px">${esc(lines(RESOURCES, x => [x.title, x.desc, x.url].join(' | ')))}</textarea></div>`}
         <div class="row"><button class="btn blue" id="evSave">저장</button><button class="btn line" onclick="go('/info')">안내 화면 보기</button></div>
         <p class="small muted" style="line-height:1.6">저장하면 방문객 폰엔 앱을 다시 열 때(또는 5분 안에) 반영돼요. 긴급 공지도 마찬가지예요. 완주 개수를 바꾸면 이미 진행 중인 사람에게도 적용돼요.</p>
       </div>
@@ -2766,13 +2773,14 @@ function admEvent(){
   $('#evSave').onclick = async () => {
     const parse = (id, keys) => $(id).value.split('\n').map(l => l.trim()).filter(Boolean).map(l => { const p = l.split('|').map(x => x.trim()); const o = {}; keys.forEach((k, i) => o[k] = p[i] || ''); return o; });
     const goal = parseInt($('#evGoal').value); if(!(goal >= 1 && goal <= 30)) return toast('완주 개수는 1~30 사이로');
-    const surveyMinSec = parseInt($('#evSurveySec').value); if(!(surveyMinSec >= 0 && surveyMinSec <= 600)) return toast('설문 최소 시간은 0~600초 사이로');
-    const surveyCodeField = $('#evSurveyField').value.trim(); if(surveyCodeField && !/^[\w.]+$/.test(surveyCodeField)) return toast('항목 ID는 entry.숫자 형식이에요');
-    const data = { eventTitle: $('#evTitle').value.trim(), eventDate: $('#evDate').value.trim(), venue: $('#evVenue').value.trim(), stampGoal: goal, surveyUrl: $('#evSurvey').value.trim(), surveyMinSec, surveyCodeField, giftDeadline: $('#evDeadline').value.trim(), giftPlace: $('#evGiftPlace').value.trim(), giftText: $('#evGiftText').value.trim(), contact: $('#evContact').value.trim(), notice: $('#evNotice').value.trim(),
-      schedule: parse('#evSchedule', ['time', 'title', 'place']), resources: parse('#evResources', ['title', 'desc', 'url']), surveyOn: $('#evSurveyOn').checked,
+    const full = !CONFIG.miniMode;   // 미니 모드: 설문 링크·마감·일정·자료 칸이 없음 → data 에서 빼면 savePatch 병합으로 기존 값 유지
+    const surveyMinSec = full ? parseInt($('#evSurveySec').value) : undefined; if(full && !(surveyMinSec >= 0 && surveyMinSec <= 600)) return toast('설문 최소 시간은 0~600초 사이로');
+    const surveyCodeField = full ? $('#evSurveyField').value.trim() : undefined; if(full && surveyCodeField && !/^[\w.]+$/.test(surveyCodeField)) return toast('항목 ID는 entry.숫자 형식이에요');
+    const data = { eventTitle: $('#evTitle').value.trim(), eventDate: $('#evDate').value.trim(), venue: $('#evVenue').value.trim(), stampGoal: goal, ...(full ? { surveyUrl: $('#evSurvey').value.trim(), surveyMinSec, surveyCodeField, giftDeadline: $('#evDeadline').value.trim() } : {}), giftPlace: $('#evGiftPlace').value.trim(), giftText: $('#evGiftText').value.trim(), contact: $('#evContact').value.trim(), notice: $('#evNotice').value.trim(),
+      ...(full ? { schedule: parse('#evSchedule', ['time', 'title', 'place']), resources: parse('#evResources', ['title', 'desc', 'url']) } : {}), surveyOn: $('#evSurveyOn').checked,
       regFields: Object.fromEntries(REG_FIELD_DEFS.map(d => [d.k, { on: $('#rf_' + d.k + '_on').checked, req: $('#rf_' + d.k + '_on').checked && $('#rf_' + d.k + '_req').checked }])) };
     if(!data.eventTitle) return toast('행사명을 적어주세요');
-    if((data.surveyUrl && !/^https?:\/\//.test(data.surveyUrl)) || data.resources.some(r => !/^https?:\/\//.test(r.url))) return toast('링크는 http:// 또는 https:// 로 시작해야 해요');
+    if(full && ((data.surveyUrl && !/^https?:\/\//.test(data.surveyUrl)) || data.resources.some(r => !/^https?:\/\//.test(r.url)))) return toast('링크는 http:// 또는 https:// 로 시작해야 해요');
     $('#evSave').disabled = true;
     try{ await savePatch(data); toast('저장했어요'); admEvent(); }catch(e){ $('#evSave').disabled = false; toast('저장 실패: ' + (e.message || '통신 오류')); }
   };
@@ -2856,7 +2864,7 @@ function admData(st){
           <p class="small muted" style="margin-top:12px;line-height:1.6">행사명·일시·완주 개수·설문 링크·일정·자료는 <b>행사 설정</b> 탭에서, Supabase 연결은 파일 상단 <code>CONFIG</code>에서 바꿔요.<br>현재 저장소: <b>${local ? '브라우저 로컬 (이 기기에만 저장)' : 'Supabase'}</b></p></div>
       </div>
       <div style="display:flex;flex-direction:column;gap:14px">
-        ${local ? `<div class="card"><div class="h-sec" style="margin:0 0 10px">데모</div><p class="small muted" style="line-height:1.6;margin-bottom:12px">화면 확인용 가짜 방문객 180명과 스탬프를 만들어요. 기존 기록은 지워져요.</p><button class="btn sm line" id="demoGo">데모 데이터 만들기</button></div>` : ''}
+        ${local && !CONFIG.miniMode ? `<div class="card"><div class="h-sec" style="margin:0 0 10px">데모</div><p class="small muted" style="line-height:1.6;margin-bottom:12px">화면 확인용 가짜 방문객 180명과 스탬프를 만들어요. 기존 기록은 지워져요.</p><button class="btn sm line" id="demoGo">데모 데이터 만들기</button></div>` : ''}
         <div class="dz"><div class="t">개인정보 파기</div><p>방문객 ${visitors.length}명, 스탬프 ${stamps.length}개를 모두 삭제해요. 행사 종료 후 보고서를 뽑은 다음 실행하세요. 되돌릴 수 없어요.</p>
           <button class="btn sm" style="background:var(--coral);margin-top:12px" id="purgeGo">전부 삭제</button></div>
       </div>
