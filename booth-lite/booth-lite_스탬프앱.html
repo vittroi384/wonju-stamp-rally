@@ -1351,7 +1351,7 @@ function stampCardHTML(){
   const ln = local.length;
   if(!surveyOn() && done && !S.pending.length && !S.me.surveyAt){ markSurveyDone().then(renderHome); return; }
   const title = done ? (S.me.surveyAt || S.me.giftAt ? `<b>완주!</b> ${esc(giftPlace())}에서<br>선물 받아가세요` : `<b>완주!</b> 설문 참여하면<br>선물 교환권이 열려요`) : ln >= goal ? `전송이 끝나면<br><b>완주</b>예요` : ln === 0 ? `부스 QR을 찍으면<br>도장이 <b>쾅</b>` : `<b>${goal - ln}개</b> 더 모으면<br>선물이에요`;
-  const foot = S.me.giftAt ? `${I.check} <b>선물 수령 완료</b>` : S.pending.length ? `전송 대기 ${S.pending.length}개 <button class="btn soft sm" style="margin-left:auto" onclick="flushPending()">다시 보내기</button><button class="btn sun sm" style="margin-left:0" onclick="openScanner()">${I.qr} QR 찍기</button>` : done ? (S.me.surveyAt ? `운영본부로 오세요 <button class="btn sun sm" onclick="go('/my')">교환권 보기</button>` : `설문은 1분이면 끝나요 <button class="btn sun sm" onclick="go('/my')">📝 설문 참여</button>`) : `부스 앞 QR을 찍으면 도장 <button class="btn sun sm" onclick="openScanner()">${I.qr} QR 찍기</button>`;
+  const foot = S.me.giftAt ? `${I.check} <b>선물 수령 완료</b>` : S.pending.length ? `전송 대기 ${S.pending.length}개 <button class="btn soft sm" style="margin-left:auto" onclick="flushPending()">다시 보내기</button><button class="btn sun sm" style="margin-left:0" onclick="openScanner()">${I.qr} QR 찍기</button>` : done ? (S.me.surveyAt ? `${esc(giftPlace())}로 오세요 <button class="btn sun sm" onclick="go('/my')">교환권 보기</button>` : `설문은 1분이면 끝나요 <button class="btn sun sm" onclick="go('/my')">📝 설문 참여</button>`) : `부스 앞 QR을 찍으면 도장 <button class="btn sun sm" onclick="openScanner()">${I.qr} QR 찍기</button>`;
   return `
     <div class="stampcard">
       <div class="sc-top">
@@ -1418,7 +1418,7 @@ function renderRecover(returnTo){
   returnTo = safeReturn(returnTo);
   shell(null, '기록 이어받기', `
     <div class="card" style="display:flex;flex-direction:column;gap:14px">
-      <p class="desc">전에 쓰던 폰(또는 카카오톡 브라우저 등)의 <b>내 스탬프</b> 화면 아래에 있는 <b>6자리 코드</b>와 이름을 적어주세요.<br>코드를 모르면 운영본부에서 이름으로 찾아드려요.</p>
+      <p class="desc">전에 쓰던 폰(또는 카카오톡 브라우저 등)의 <b>내 스탬프</b> 화면 아래에 있는 <b>6자리 코드</b>와 이름을 적어주세요.<br>코드를 모르면 ${esc(giftPlace())}에서 이름으로 찾아드려요.</p>
       <div class="field"><label>6자리 코드</label><input class="inp" id="rcCode" placeholder="예: A1B2C3" maxlength="6" autocomplete="off" style="text-transform:uppercase;letter-spacing:.15em;font-weight:800"></div>
       <div class="field"><label>이름</label><input class="inp" id="rcName" placeholder="등록할 때 쓴 이름" maxlength="20" autocomplete="off"></div>
       <button class="btn blue full" id="rcGo">이어받기</button>
@@ -1580,7 +1580,7 @@ function renderStamp(n){
       <div class="bigstamp ${res.dup ? 'dup' : ''}"><div><div class="n">${esc(bn(b))}</div><div class="t">${res.dup ? '이미 찍었어요' : '체험 완료'}</div></div></div>
       <div>
         <div class="stamp-h">${res.dup ? '이 부스는 이미 찍었어요' : justDone ? `${goal}개 완주! 🎉` : n0 >= goal && S.pending.length ? '전송이 끝나면 완주예요' : `${esc(b.name)}`}</div>
-        <p class="stamp-p" style="margin-top:8px">${res.dup ? '다른 부스에서 도장을 모아보세요.' : justDone ? '설문에 참여하면 선물 교환권이 열려요. 교환권을 운영본부에서 보여주고 선물을 받아가세요.' : `${esc(b.org)} · <span style="color:${c.color};font-weight:800">${esc(c.name)}</span><br>${n0 >= goal ? `벌써 ${n0}곳째 방문이에요` : `${goal - n0}개 더 모으면 선물이에요`}`}</p>
+        <p class="stamp-p" style="margin-top:8px">${res.dup ? '다른 부스에서 도장을 모아보세요.' : justDone ? '설문에 참여하면 선물 교환권이 열려요. 교환권을 ' + esc(giftPlace()) + '에서 보여주고 선물을 받아가세요.' : `${esc(b.org)} · <span style="color:${c.color};font-weight:800">${esc(c.name)}</span><br>${n0 >= goal ? `벌써 ${n0}곳째 방문이에요` : `${goal - n0}개 더 모으면 선물이에요`}`}</p>
       </div>
       ${res.queued ? `<div class="notice" style="max-width:340px;width:100%">${I.bell}<span>통신이 불안정해서 폰에 저장해 뒀어요. 연결되면 자동으로 보내져요.</span></div>` : ''}
       <div class="slots" style="width:100%;max-width:340px;--cols:${slotCols(goal)}">${Array.from({ length: goal }, (_, i) => { const s = local[i]; return s ? `<div class="slot ink ${s.pending ? 'pend' : ''}" style="animation-delay:${.2 + i * .06}s"><span class="num">${esc(bn(boothById(s.boothId)))}</span></div>` : `<div class="slot ${i === goal - 1 ? 'gift' : ''}">${i === goal - 1 ? '🎁' : i + 1}</div>`; }).join('')}</div>
@@ -1611,16 +1611,16 @@ function renderMy(){
         <div class="v-done" style="align-self:stretch;justify-content:center">${I.check} 설문 참여 완료 · ${esc(giftPlace())}에서 선물 받아가세요</div>
         <div class="qr" id="myQr"></div>
         <div class="code">${shortCode(S.me.id)}</div>
-        <p class="small muted" style="text-align:center;line-height:1.6">운영본부(정문 오른쪽) 담당자에게 이 화면을 보여주세요.<br>QR 또는 위 코드로 확인합니다.</p>`}
+        <p class="small muted" style="text-align:center;line-height:1.6">${esc(giftPlace())} 담당자에게 이 화면을 보여주세요.<br>QR 또는 위 코드로 확인합니다.</p>`}
       </div>
     </div>` : `
     <div class="voucher">
       <div class="v-head"><div><div class="t">완주! 마지막 한 걸음</div><div class="s">설문에 참여하면 교환권이 열려요</div></div><span style="font-size:28px">📝</span></div>
       <div class="v-body">
         ${surveyMode() === 'app' ? `
-        <p class="desc small" style="text-align:center;line-height:1.7;margin:0">짧은 설문 ${SURVEY.length}문항에 답하면<br>바로 교환권이 나와요. <b>운영본부</b>에서 선물을 받아요.</p>
+        <p class="desc small" style="text-align:center;line-height:1.7;margin:0">짧은 설문 ${SURVEY.length}문항에 답하면<br>바로 교환권이 나와요. <b>${esc(giftPlace())}</b>에서 선물을 받아요.</p>
         <button class="btn blue full" onclick="go('/survey')">📝 설문 참여하고 교환권 받기</button>` : `
-        <p class="desc small" style="text-align:center;line-height:1.7;margin:0">① <b>설문 참여하기</b>로 설문을 마치고<br>② 돌아와서 <b>설문 다 했어요</b>를 눌러주세요.<br>교환권이 나오면 <b>운영본부</b>에서 선물을 받아요.</p>
+        <p class="desc small" style="text-align:center;line-height:1.7;margin:0">① <b>설문 참여하기</b>로 설문을 마치고<br>② 돌아와서 <b>설문 다 했어요</b>를 눌러주세요.<br>교환권이 나오면 <b>${esc(giftPlace())}</b>에서 선물을 받아요.</p>
         <button class="btn blue full" id="svOpen">📝 설문 참여하기</button>
         <button class="btn line full" id="svDone" disabled>설문 다 했어요</button>
         <p class="small muted" id="svHint" style="text-align:center;margin:0;min-height:1.4em"></p>`}
@@ -2352,7 +2352,7 @@ function admManual(boothN){
       wireStamp('#mRes', rows);
     };
     /* 이 부스 도장을 아직 안 받은 아이 전부 — 이름 안 치고 탭 한 번. 최근에 움직인(도장·등록) 순, 20명 넘으면 [더 보기].
-       방문객·도장 전체를 한 번에 받아(관리자 RPC, 1000행씩) 아이별 부스 칸을 바로 채우므로 아이마다 서버를 안 부른다. 20초마다 갱신, 이 화면을 벗어나면 멈춤 */
+       방문객·도장 전체를 한 번에 받아(관리자 RPC, 1000행씩) 아이별 부스 칸을 바로 채우므로 아이마다 서버를 안 부른다. 60초마다 갱신, 이 화면을 벗어나면 멈춤 */
     const SHOW = 20; let showAll = false;
     const recent = async () => {
       const box = $('#mRecent'); if(!box) return;
@@ -2373,9 +2373,8 @@ function admManual(boothN){
       wireStamp('#mRecent', rows, true);
       const more = $('#mMore'); if(more) more.onclick = () => { showAll = !showAll; recent(); };
     };
-    recent(); const rt = setInterval(() => { if($('#mRecent')) recent(); else clearInterval(rt); }, 20000);
+    recent(); const rbox = $('#mRecent'), rt = setInterval(() => { if(!rbox.isConnected) return clearInterval(rt); if(!inp.value.trim() && !document.hidden) recent(); }, 60000);   // 자기 상자 기준(새 찾기 화면의 #mRecent 로 착각하면 타이머가 쌓임). 검색 중·화면 꺼짐이면 건너뜀
     inp.oninput = () => { const r = $('#mRecent'); if(r) r.hidden = !!inp.value.trim(); clearTimeout(timer); timer = setTimeout(search, 350); };   // 치기 시작하면 최근 목록은 바로 숨김
-    inp.addEventListener('focus', () => { clearInterval(rt); });   // 자판이 올라오면 갱신으로 목록이 흔들리지 않게
     inp.onkeydown = e => { if(e.key === 'Enter'){ clearTimeout(timer); search(); } };
     $('#mClr').onclick = () => { inp.value = ''; search(); inp.focus(); };
     $('#mNew').onclick = showNew;
