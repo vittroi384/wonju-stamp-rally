@@ -554,8 +554,8 @@ function geom(){
   const mid = g.band.mid, th = 20 * Math.PI / 180; g.sideGap = 40;                 // 측문 자리 빈칸 폭(부스 한 칸 반쯤)
   g.gates = [
     { id: 'gate-main', label: '정문',  x: cx, y: cy - outerR - 46, w: 240, h: 34, t: .5, rot: 0 },   // 부스 띠(운영본부·인생네컷) 바로 위, 통로보다 훨씬 넓게
-    { id: 'gate-1', label: '측1문', ringGap: true, t: (L / 2 + Math.PI * mid.r + L + mid.r * th) / mid.per, x: cx, y: cy, w: 120, h: 34, rot: 0 },
-    { id: 'gate-2', label: '측2문', ringGap: true, after: '66', t: (L / 2 + Math.PI * mid.r - mid.r * th) / mid.per, x: cx, y: cy, w: 120, h: 34, rot: 0 },   // 66번 다음(66·67 사이). 66번이 없으면 t 로
+    { id: 'gate-1', label: '직1문', ringGap: true, after: '11', t: (L / 2 + Math.PI * mid.r + L + mid.r * th) / mid.per, x: cx, y: cy, w: 120, h: 34, rot: 0 },
+    { id: 'gate-2', label: '직2문', ringGap: true, after: '66', t: (L / 2 + Math.PI * mid.r - mid.r * th) / mid.per, x: cx, y: cy, w: 120, h: 34, rot: 0 },   // 66번 다음(66·67 사이). 66번이 없으면 t 로
   ];
   g.gates.forEach(gt => { if(gt.t == null) gt.t = nearestT(g.band.walk, gt.x, gt.y); });
   g.fac = [
@@ -586,10 +586,10 @@ function boothPos(g = geom()){
   ring.forEach((b, i) => { left.filter(x => due(x, i)).forEach(putGate); seg(b, i, cur, cur + unit); cur += unit; });
   left.slice().forEach(putGate);
   ['goalL', 'goalR'].forEach(z => { const c = g.cols[z], list = boothsIn(z), y0 = g.colY0(list.length); list.forEach((b, i) => { const x = c.x, y = y0 + i * c.dy; pos[b.id] = { x, y, i, rect: true, w: 40, h: 34, side: c.side, wt: nearestT(band.walk, x, y), segW: 40 }; }); });
-  /* 측1문 밖 버스 자리: 측1문 띠 바깥(법선 방향)으로 버스 모양 칸을 한 대씩 이어 놓는다. 측1문은 위에서 자리가 정해져 있다 */
+  /* 직1문 밖 버스 자리: 직1문 띠 바깥(법선 방향)으로 버스 모양 칸을 한 대씩 이어 놓는다. 직1문은 위에서 자리가 정해져 있다 */
   const g1 = g.gates.find(x => x.id === 'gate-1'), bus = boothsIn('bus');
   if(g1 && bus.length){ const a = (g1.rot || 0) * Math.PI / 180, ox = Math.sin(a), oy = -Math.cos(a), bw = 96, bh = 46;   // (ox,oy) = 문 바깥쪽
-    bus.forEach((b, i) => { const d = g1.h / 2 + 24 + bh / 2 + i * (bh + 12), x = g1.x + ox * d, y = g1.y + oy * d; pos[b.id] = { x, y, i, rect: true, bus: true, rot: g1.rot || 0, w: bw, h: bh, side: 1, wt: nearestT(band.walk, x, y), segW: bw }; }); }   // rot: 측1문 띠와 같은 기울기
+    bus.forEach((b, i) => { const d = g1.h / 2 + 24 + bh / 2 + i * (bh + 12), x = g1.x + ox * d, y = g1.y + oy * d; pos[b.id] = { x, y, i, rect: true, bus: true, rot: g1.rot || 0, w: bw, h: bh, side: 1, wt: nearestT(band.walk, x, y), segW: bw }; }); }   // rot: 직1문 띠와 같은 기울기
   return pos;
 }
 /* 이름표 알약: 글자 폭을 어림해(한글 1em, 영숫자 .58em) 흰 배경을 깔아 준다. anchor: start|middle|end 기준점 */

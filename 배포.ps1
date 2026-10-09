@@ -26,4 +26,4 @@ try {
 [IO.File]::WriteAllText("$root\deploy\index.html", $src, $utf8)
 Copy-Item "$root\운영대시보드.html" "$root\deploy\dashboard.html"
 Copy-Item "$root\jsQR.js", "$root\qrcode.min.js" "$root\deploy\"
-npx vercel deploy "$root\deploy" --prod --yes --name your-app
+npx vercel deploy "$root\deploy" --prod --yes

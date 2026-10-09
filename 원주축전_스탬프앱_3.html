@@ -637,7 +637,7 @@ const ZONES = [
   {id:'photo', name:'정문 왼쪽 · 인생네컷'},
   {id:'goalL', name:'왼쪽 골대 뒤편'},
   {id:'goalR', name:'오른쪽 골대 뒤편'},
-  {id:'bus',   name:'측1문 밖 · 버스'},      // 측1문 바깥에 버스 모양으로 (2026-10-02, 실제 배치도의 84번 버스)
+  {id:'bus',   name:'직1문 밖 · 버스'},      // 직1문 바깥에 버스 모양으로 (2026-10-02, 실제 배치도의 84번 버스)
 ];
 const zoneOf = id => ZONES.find(z => z.id === (id || '')) || ZONES[0];
 const GRADES = ['초1','초2','초3','초4','초5','초6','중1','중2','중3','고1','고2','고3','성인'];
@@ -1123,7 +1123,7 @@ function stadium(cx, cy, r, L, portrait){
 }
 function geom(){
   /* 실제 배치도: 위쪽에 본부석·정문, 트랙 바깥 한 줄(정문 오른쪽 1번부터 시계방향), 정문 좌우에 운영본부·인생네컷,
-     필드 안은 축구 골대 뒤편 두 열만. 정문은 본부석 아래 가운데, 측1문·측2문은 트랙 위쪽 양 모서리 부스 띠에 빈칸을 내고 그 바깥에 비스듬히(화살표는 빈칸 쪽). */
+     필드 안은 축구 골대 뒤편 두 열만. 정문은 본부석 아래 가운데, 직1문·직2문은 트랙 위쪽 양 모서리 부스 띠에 빈칸을 내고 그 바깥에 비스듬히(화살표는 빈칸 쪽). */
   const W = 1300, H = 960, cx = W / 2, cy = 530;
   const rT = 210, L = 480, TW = 40, BH = 46;                                   // 트랙 바깥 반지름, 직선 길이, 트랙 폭, 부스 띠 높이
   const St = r => stadium(cx, cy, r, L, false);
@@ -1139,8 +1139,8 @@ function geom(){
   const mid = g.band.mid, th = 20 * Math.PI / 180; g.sideGap = 40;                 // 측문 자리 빈칸 폭(부스 한 칸 반쯤)
   g.gates = [
     { id: 'gate-main', label: '정문',  x: cx, y: cy - outerR - 46, w: 240, h: 34, t: .5, rot: 0 },   // 부스 띠(운영본부·인생네컷) 바로 위, 통로보다 훨씬 넓게
-    { id: 'gate-1', label: '측1문', ringGap: true, t: (L / 2 + Math.PI * mid.r + L + mid.r * th) / mid.per, x: cx, y: cy, w: 120, h: 34, rot: 0 },
-    { id: 'gate-2', label: '측2문', ringGap: true, after: '66', t: (L / 2 + Math.PI * mid.r - mid.r * th) / mid.per, x: cx, y: cy, w: 120, h: 34, rot: 0 },   // 66번 다음(66·67 사이). 66번이 없으면 t 로
+    { id: 'gate-1', label: '직1문', ringGap: true, after: '11', t: (L / 2 + Math.PI * mid.r + L + mid.r * th) / mid.per, x: cx, y: cy, w: 120, h: 34, rot: 0 },
+    { id: 'gate-2', label: '직2문', ringGap: true, after: '66', t: (L / 2 + Math.PI * mid.r - mid.r * th) / mid.per, x: cx, y: cy, w: 120, h: 34, rot: 0 },   // 66번 다음(66·67 사이). 66번이 없으면 t 로
   ];
   g.gates.forEach(gt => { if(gt.t == null) gt.t = nearestT(g.band.walk, gt.x, gt.y); });
   g.fac = [
@@ -1173,10 +1173,10 @@ function boothPos(g = geom()){
   ring.forEach((b, i) => { left.filter(x => due(x, i)).forEach(putGate); seg(b, i, cur, cur + unit); cur += unit; });
   left.slice().forEach(x => { if(!n) cur = x.t - gap / 2; putGate(x); });   // 링이 비면 희망 자리(t)에 (안 그러면 정문 옆에 겹쳐 쌓임)
   ['goalL', 'goalR'].forEach(z => { const c = g.cols[z], list = boothsIn(z), y0 = g.colY0(list.length); list.forEach((b, i) => { const x = c.x, y = y0 + i * c.dy; pos[b.id] = { x, y, i, rect: true, w: 40, h: 34, side: c.side, wt: nearestT(band.walk, x, y), segW: 40 }; }); });
-  /* 측1문 밖 버스 자리: 측1문 띠 바깥(법선 방향)으로 버스 모양 칸을 한 대씩 이어 놓는다. 측1문은 위에서 자리가 정해져 있다 */
+  /* 직1문 밖 버스 자리: 직1문 띠 바깥(법선 방향)으로 버스 모양 칸을 한 대씩 이어 놓는다. 직1문은 위에서 자리가 정해져 있다 */
   const g1 = g.gates.find(x => x.id === 'gate-1'), bus = boothsIn('bus');
   if(g1 && bus.length){ const a = (g1.rot || 0) * Math.PI / 180, ox = Math.sin(a), oy = -Math.cos(a), bw = 96, bh = 46;   // (ox,oy) = 문 바깥쪽
-    bus.forEach((b, i) => { const d = g1.h / 2 + 24 + bh / 2 + i * (bh + 12), x = g1.x + ox * d, y = g1.y + oy * d; pos[b.id] = { x, y, i, rect: true, bus: true, rot: g1.rot || 0, w: bw, h: bh, side: 1, wt: nearestT(band.walk, x, y), segW: bw }; }); }   // rot: 측1문 띠와 같은 기울기
+    bus.forEach((b, i) => { const d = g1.h / 2 + 24 + bh / 2 + i * (bh + 12), x = g1.x + ox * d, y = g1.y + oy * d; pos[b.id] = { x, y, i, rect: true, bus: true, rot: g1.rot || 0, w: bw, h: bh, side: 1, wt: nearestT(band.walk, x, y), segW: bw }; }); }   // rot: 직1문 띠와 같은 기울기
   return pos;
 }
 /* 이름표 알약: 글자 폭을 어림해(한글 1em, 영숫자 .58em) 흰 배경을 깔아 준다. anchor: start|middle|end 기준점 */
@@ -1716,7 +1716,7 @@ function mapSVG(){
   S.booths.forEach(b => {
     const p = pos[b.id]; if(!p) return; const vb = bv(b), c = catOf(vb.cat);   // 전환 후 분류 색·운영 상태(variant hours 비우면 종일)
     const cls = `tile ${visible.has(b.id) ? '' : 'dim'} ${boothOpen(vb) ? '' : 'off'} ${done.has(b.id) ? 'done' : ''} ${S.focus === b.id ? 'hi' : ''}`;
-    if(p.bus){                                                                                                             // 측1문 밖 버스: 창문 3개 + 바퀴 2개
+    if(p.bus){                                                                                                             // 직1문 밖 버스: 창문 3개 + 바퀴 2개
       const bx = p.x - p.w / 2, by = p.y - p.h / 2;
       s += `<g class="${cls}" data-id="${esc(b.id)}" data-x="${p.x.toFixed(0)}" data-y="${p.y.toFixed(0)}" transform="rotate(${(p.rot || 0).toFixed(1)} ${p.x.toFixed(1)} ${p.y.toFixed(1)})"><rect class="bg" x="${bx}" y="${by}" width="${p.w}" height="${p.h}" rx="12" fill="${c.color}" stroke="#fff" stroke-width="2"/>
         ${[0, 1, 2].map(k => `<rect x="${bx + 10 + k * 28}" y="${by + 7}" width="20" height="12" rx="3" fill="rgba(255,255,255,.88)"/>`).join('')}
