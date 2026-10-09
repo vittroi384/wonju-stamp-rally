@@ -1450,11 +1450,11 @@ function renderRegister(returnTo){
     <div class="reg-hero">
       <div class="eyebrow">${esc(CONFIG.eventTitle)}</div>
       <h1>${regTitleHTML(false)}</h1>
-      <p>${regDescHTML(`부스에 붙은 QR을 찍으면 도장이 찍혀요. <span style="white-space:nowrap">${regLabels()}만</span> 적으면 바로 시작할 수 있어요.`)}</p>
+      <p>${regDescHTML(`부스에 붙은 QR을 찍으면 체험이 기록돼요. <span style="white-space:nowrap">${regLabels()}만</span> 적으면 바로 시작할 수 있어요.`)}</p>
     </div>
     <div class="steps">
       <div class="step"><div class="ic">📱</div><div class="t">부스 QR 찍기</div><div class="s">폰 카메라로</div></div>
-      <div class="step"><div class="ic">🟡</div><div class="t">도장 ${CONFIG.stampGoal}개 모으기</div><div class="s">부스 어디든</div></div>
+      <div class="step"><div class="ic">🟡</div><div class="t">QR로 체험 ${CONFIG.stampGoal}개 완료하기</div><div class="s">13~19번 부스</div></div>
       <div class="step"><div class="ic">🎁</div><div class="t">${CONFIG.miniMode && !surveyOn() ? '선물 받기' : '설문 후 선물'}</div><div class="s">${esc(giftPlace())}에서</div></div>
     </div>
     <div class="notice" id="rExist" style="display:none">${I.bell}<span>이 폰에 <b id="rExistName"></b>님의 기록이 이미 있어요. <b style="cursor:pointer;text-decoration:underline" id="rExistUse">그대로 쓰기</b> · 아래에서 새로 등록하면 기록이 나뉘어요</span></div>
@@ -2790,7 +2790,7 @@ function qrStepsHTML(){
   const goal = CONFIG.stampGoal, place = typeof giftPlace === 'function' ? giftPlace() : '운영본부', dl = CONFIG.giftDeadline ? `교환은 ${esc(CONFIG.giftDeadline)}까지입니다` : '교환은 행사 종료 전까지입니다';
   const s1 = `<b>부스 체험 후</b> 휴대폰 카메라로 이 QR을 찍어 주세요<small>처음이면 ${esc(regLabels())}만 적으면 바로 시작됩니다</small>`;   // 등록 항목은 행사 설정을 따라감
   const s3 = (typeof surveyOn === 'function' && !surveyOn()) ? `도장을 다 모으면 <b>${esc(place)}</b>에서 선물을 받아 가세요<small>${dl}</small>` : `짧은 <b>설문</b> 후 <b>${esc(place)}</b>에서 선물을 받아 가세요<small>${dl}</small>`;
-  return `<div class="qrsteps"><div><i>1</i><div>${s1}</div></div><div><i>2</i><div>도장 <b>${goal}개</b>를 모아 주세요<small>앱의 별이 하나씩 채워집니다</small></div></div><div><i>3</i><div>${s3}</div></div></div>`;
+  return `<div class="qrsteps"><div><i>1</i><div>${s1}</div></div><div><i>2</i><div>${s3}</div></div></div>`;
 }
 function admQR(){
   const base = location.origin + location.pathname;

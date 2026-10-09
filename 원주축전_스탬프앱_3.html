@@ -648,9 +648,7 @@ let SCHEDULE = [   // 기본값. 관리자 › 행사 설정에서 바꾸면 서
   {time:'12:00', title:'점심시간', place:'홀수 부스 12:00~12:50 · 짝수 부스 12:50~13:40'},
   {time:'16:00', title:'행사 마무리', place:'선물 교환은 15:50까지'},
 ];
-let RESOURCES = [
-  {title:'행사 안내 리플릿', desc:'일정 · 부스 유형 · 안내사항', url:'https://example.com/leaflet.pdf'},
-];
+let RESOURCES = [];   // 자료 링크 {title, desc, url}. 관리자 › 행사 설정 › 자료 링크에서 넣음, 비면 안내 화면에서 '자료' 줄째 숨김
 /* 앱 내 설문 기본 문항. 관리자 › 설문 탭에서 바꾸면 서버(settings.survey)가 우선. type: scale(1~5 표정) | single(하나) | multi(여러 개) | booth(도장 찍은 부스 고르기) | text(자유) */
 const DEFAULT_SURVEY = [
   { id: 'overall', type: 'scale',  title: '오늘 축전은 전체적으로 어땠나요?', sub: '별을 눌러 점수를 골라주세요', required: true },
@@ -1666,7 +1664,7 @@ function renderInfo(){
   shell('/info', '행사 안내', `
     <div class="card"><div class="h-sec" style="margin:0 0 6px">오늘의 일정</div>
       <div class="timeline">${SCHEDULE.map(s => `<div class="tl"><div class="tm">${schedTimeHTML(s.time)}</div><div><div class="t">${esc(s.title)}</div><div class="s">${esc(s.place)}</div></div></div>`).join('')}</div></div>
-    <div class="h-sec">자료</div>
+    ${RESOURCES.length ? '<div class="h-sec">자료</div>' : ''}
     ${RESOURCES.map(r => `<a class="link" href="${esc(r.url)}" target="_blank" rel="noopener"><span class="ic">${I.doc}</span><div class="grow"><div class="t">${esc(r.title)}</div><div class="s">${esc(r.desc)}</div></div><span class="bgo">${I.chev}</span></a>`).join('')}
     <div class="h-sec">선물 교환</div>
     <div class="card"><p class="desc">부스 ${CONFIG.stampGoal}곳의 도장을 모으고 <b>설문</b>에 참여하면 <b>운영본부</b>에서 선물을 드려요. 내 스탬프 화면의 교환권을 보여주세요.${CONFIG.giftDeadline ? ` 교환은 ${esc(CONFIG.giftDeadline)}까지예요.` : ' 행사 종료 전까지 교환할 수 있어요.'}</p></div>

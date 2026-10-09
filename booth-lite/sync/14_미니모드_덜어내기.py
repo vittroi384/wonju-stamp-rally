@@ -95,12 +95,12 @@ rep("""    if((data.surveyUrl && !/^https?:\\/\\//.test(data.surveyUrl)) || data
 rep("""    ${next ? `<div class="notice">${I.bell}<span>""", """    ${!CONFIG.miniMode && next ? `<div class="notice">${I.bell}<span>""")
 rep("""    <div class="card"><div class="h-sec" style="margin:0 0 6px">오늘의 일정</div>
       <div class="timeline">${SCHEDULE.map(s => `<div class="tl"><div class="tm">${schedTimeHTML(s.time)}</div><div><div class="t">${esc(s.title)}</div><div class="s">${esc(s.place)}</div></div></div>`).join('')}</div></div>
-    <div class="h-sec">자료</div>
+    ${RESOURCES.length ? '<div class="h-sec">자료</div>' : ''}
     ${RESOURCES.map(r => `<a class="link" href="${esc(r.url)}" target="_blank" rel="noopener"><span class="ic">${I.doc}</span><div class="grow"><div class="t">${esc(r.title)}</div><div class="s">${esc(r.desc)}</div></div><span class="bgo">${I.chev}</span></a>`).join('')}
 """,
     """    ${CONFIG.miniMode ? '' : `<div class="card"><div class="h-sec" style="margin:0 0 6px">오늘의 일정</div>
       <div class="timeline">${SCHEDULE.map(s => `<div class="tl"><div class="tm">${schedTimeHTML(s.time)}</div><div><div class="t">${esc(s.title)}</div><div class="s">${esc(s.place)}</div></div></div>`).join('')}</div></div>
-    <div class="h-sec">자료</div>
+    ${RESOURCES.length ? '<div class="h-sec">자료</div>' : ''}
     ${RESOURCES.map(r => `<a class="link" href="${esc(r.url)}" target="_blank" rel="noopener"><span class="ic">${I.doc}</span><div class="grow"><div class="t">${esc(r.title)}</div><div class="s">${esc(r.desc)}</div></div><span class="bgo">${I.chev}</span></a>`).join('')}`}
 """)
 # 11. 안내 화면 기본 문장의 '교환은 HH:MM까지예요'
