@@ -1709,8 +1709,8 @@ function mapSVG(){
   [['hq', 1], ['photo', -1]].forEach(([z, dir]) => { const list = boothsIn(z); if(!list.length) return; const a = pos[list[0].id], b = pos[list[list.length - 1].id]; const f = g.band.mid.frame((a.ta + b.tb) / 2); s += cap(f.x, f.y + g.band.h / 2 + 16, `${zoneOf(z).name.split('·')[1].trim()} ${list.length}`); });
   ['goalL', 'goalR'].forEach(z => { const list = boothsIn(z); if(!list.length) return; const c = g.cols[z]; s += cap(c.x, g.colY0(list.length) - 38, zoneOf(z).name); });
   { const list = boothsIn('bus'); if(list.length){ const p = pos[list[list.length - 1].id], a = (p.rot || 0) * Math.PI / 180, ox = Math.sin(a), oy = -Math.cos(a);   // 맨 바깥 버스에서 바깥쪽(법선)으로
-      const name = zoneOf('bus').name, off = p.h / 2 + 14 + Math.abs(Math.sin(a)) * textW(name, 13) / 2;                                               // 기울어진 모서리·가로 글자 끝이 안 닿게
-      s += cap(p.x + ox * off, p.y + oy * off, name); } }   // 버스 바깥 구역 이름표
+      const name = zoneOf('bus').name, off = p.h / 2 + 14, x = p.x + ox * off, y = p.y + oy * off;                                                  // 글자도 버스와 같은 기울기
+      s += `<g transform="rotate(${(p.rot || 0).toFixed(1)} ${x.toFixed(1)} ${y.toFixed(1)})">${cap(x, y, name)}</g>`; } }   // 버스 바깥 구역 이름표
   s += `<g id="routeLayer"></g>`;
   const visible = new Set(filteredBooths().map(b => b.id));
   S.booths.forEach(b => {
