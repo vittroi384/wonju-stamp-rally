@@ -42,7 +42,7 @@
   </tr>
 </table>
 
-<p align="center"><img src="assets/map-pc.png" width="100%" alt="지도 (PC)"><br><sub><b>지도 (PC)</b> — 부스 95개 전체, 확대하면 이름표</sub></p>
+<p align="center"><img src="assets/map-pc.png" width="65%" alt="지도 (PC)"><br><sub><b>지도 (PC)</b> — 부스 95개 전체, 확대하면 이름표</sub></p>
 
 ## 운영본부 화면
 
