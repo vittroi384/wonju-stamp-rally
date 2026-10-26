@@ -86,18 +86,7 @@ flowchart LR
 
 ## 아키텍처
 
-```
- 방문객 폰 (index.html)                       운영본부 (index.html#/admin · dashboard.html)
-   │ anon 키                                    │ anon 키 + 관리자 비번(RPC 인자)
-   ▼                                            ▼
- ┌────────────────────── Supabase (Postgres + PostgREST) ──────────────────────┐
- │ 직접 읽기  booths · settings · booth_stats · hourly_stats   (개인정보 없음)      │
- │ 방문객 RPC visitor_create / visitor_get / visitor_stamps / visitor_recover       │
- │           add_stamp(토큰·90초 검사) / visitor_survey_submit(완주 확인)            │
- │ 관리자 RPC admin_ok(비번 해시) 뒤에서만 — 집계·명단·선물·부스·설정·대시보드         │
- │ RLS       visitors · stamps · survey_answers · booth_tokens 정책 없음 = RPC 로만   │
- └────────────────────────────────────────────────────────────────────────────┘
-```
+![스탬프 랠리 시스템 아키텍처](assets/architecture.png)
 
 - **한 파일 구조** — CONFIG → UTIL → STORAGE → DATA LAYER(LocalDB / SupabaseDB, 같은 인터페이스) → 상태 → 지도 기하 → 라우터 → 화면 → 스캐너 → 관리자 → BOOT. `CONFIG.supabaseUrl` 을 비우면 브라우저 저장소만으로 동작(데모).
 - **설정은 서버에** — 행사명·완주 개수·설문 문항·공지·일정을 관리자가 저장하면 열린 폰에도 5분 안에 반영.
