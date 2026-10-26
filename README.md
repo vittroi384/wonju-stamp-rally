@@ -33,15 +33,16 @@
     <td align="center"><img src="assets/register.png" width="150"><br><sub><b>등록</b><br>학교·학년·이름·성별</sub></td>
     <td align="center"><img src="assets/map-phone.png" width="150"><br><sub><b>지도</b><br>실제 배치도·핀치줌</sub></td>
     <td align="center"><img src="assets/map-route.png" width="150"><br><sub><b>가는 길</b><br>정문→부스, 가까운 출구</sub></td>
-    <td align="center"><img src="assets/booth.png" width="150"><br><sub><b>부스 소개</b><br>영상·PDF·운영 시간·대상</sub></td>
   </tr>
   <tr>
+    <td align="center"><img src="assets/booth.png" width="150"><br><sub><b>부스 소개</b><br>영상·PDF·운영 시간·대상</sub></td>
     <td align="center"><img src="assets/my-stamps-done.png" width="150"><br><sub><b>완주</b><br>7개 모으면 설문 안내</sub></td>
     <td align="center"><img src="assets/survey.png" width="150"><br><sub><b>앱 내 설문</b><br>표정·내 부스 고르기·객관식</sub></td>
     <td align="center"><img src="assets/voucher.png" width="150"><br><sub><b>교환권</b><br>제출 즉시 QR + 코드</sub></td>
-    <td align="center" colspan="2"><img src="assets/map-pc.png" width="320"><br><sub><b>지도 (PC)</b><br>부스 95개 전체, 확대하면 이름표</sub></td>
   </tr>
 </table>
+
+<p align="center"><img src="assets/map-pc.png" width="100%" alt="지도 (PC)"><br><sub><b>지도 (PC)</b> — 부스 95개 전체, 확대하면 이름표</sub></p>
 
 ## 운영본부 화면
 
@@ -49,24 +50,23 @@
 
 <table>
   <tr>
-    <td width="50%"><img src="assets/dashboard-table.png"><br><sub><b>대시보드 · 부스 전체 표</b> — 열 제목 정렬·검색, 30분 넘게 도장 없으면 빨강</sub></td>
+    <td colspan="2"><img src="assets/dashboard-table.png"><br><sub><b>대시보드 · 부스 전체 표</b> — 열 제목 정렬·검색, 30분 넘게 도장 없으면 빨강</sub></td>
+  </tr>
+  <tr>
     <td width="50%"><img src="assets/admin-dash.png"><br><sub><b>관리자 · 현황</b> — 등록·도장·완주·수령, 시간대별, 부스별</sub></td>
+    <td width="50%"><img src="assets/admin-gift.png"><br><sub><b>선물 수령</b> — 교환권 QR 연속 스캔 또는 코드 검색으로 수령 처리, 방문객 찾기·수동 도장</sub></td>
   </tr>
   <tr>
-    <td><img src="assets/admin-gift.png"><br><sub><b>선물 수령</b> — 교환권 QR 연속 스캔 또는 코드 검색으로 수령 처리, 방문객 찾기·수동 도장</sub></td>
-    <td><img src="assets/admin-survey.png"><br><sub><b>설문</b> — 문항 편집(5가지 유형) + 결과 집계 + CSV</sub></td>
+    <td width="50%"><img src="assets/admin-survey.png"><br><sub><b>설문</b> — 문항 편집(5가지 유형) + 결과 집계 + CSV</sub></td>
+    <td width="50%"><img src="assets/admin-booths.png"><br><sub><b>부스</b> — 카드 편집·순서·엑셀·PDF/사진, 운영 시간·시간대 전환·대상(초등/중고등)</sub></td>
   </tr>
   <tr>
-    <td><img src="assets/admin-booths.png"><br><sub><b>부스</b> — 카드 편집·순서·엑셀·PDF/사진, 운영 시간·시간대 전환·대상(초등/중고등)</sub></td>
-    <td><img src="assets/admin-qr.png"><br><sub><b>QR 시트</b> — 부스별 토큰 포함 QR, A4 인쇄</sub></td>
+    <td width="50%"><img src="assets/admin-qr.png"><br><sub><b>QR 시트</b> — 부스별 토큰 포함 QR, A4 인쇄</sub></td>
+    <td width="50%"><img src="assets/admin-map.png"><br><sub><b>지도</b> — 화장실·휴지통 표시를 탭으로 놓고 지움, 방문객 지도에 바로 반영</sub></td>
   </tr>
   <tr>
-    <td><img src="assets/admin-map.png"><br><sub><b>지도</b> — 화장실·휴지통 표시를 탭으로 놓고 지움, 방문객 지도에 바로 반영</sub></td>
-    <td><img src="assets/admin-status.png"><br><sub><b>운영 상태</b> — 쉬는 부스를 한 화면에서 골라 적용, 방문객 폰엔 흐리게</sub></td>
-  </tr>
-  <tr>
-    <td><img src="assets/admin-event.png"><br><sub><b>행사 설정</b> — 행사명·완주 개수·설문·긴급 공지·일정, 열린 폰에 5분 내 반영</sub></td>
-    <td><img src="assets/soak-test.png"><br><sub><b>지속 테스트</b> — 초당 4명 × 10분, 에러 0 · p95 64ms</sub></td>
+    <td width="50%"><img src="assets/admin-status.png"><br><sub><b>운영 상태</b> — 쉬는 부스를 한 화면에서 골라 적용, 방문객 폰엔 흐리게</sub></td>
+    <td width="50%"><img src="assets/admin-event.png"><br><sub><b>행사 설정</b> — 행사명·완주 개수·설문·긴급 공지·일정, 열린 폰에 5분 내 반영</sub></td>
   </tr>
 </table>
 
@@ -120,6 +120,8 @@ flowchart LR
 | 결과 | 800명 동시까지 에러 0 · p95 < 1s, 2000명은 66% 타임아웃 | 방문객 2,344명 · 요청 11,558건 · **에러 0 · p50 53ms · p95 64ms**, 10분간 지연 상승 없음 | 방문객 5,242명 · 요청 35,314건 · **에러 0 · p95 73ms**. 초당 59건까지 평평, 65건에서 쓰기 p95 3~4초로 줄 섬(에러 없음) |
 
 무료 컴퓨트의 한계는 대략 **초당 60건 쓰기**. 행사 실부하(하루 5만 명 = 초당 2~3명 등록, 부스 체류가 길어 도장은 초당 10~15건)보다 훨씬 높은 부하를 버텨 무료 플랜으로 충분하다고 판단. 위험은 개막 직후 순간 폭주뿐 — 그건 행사 며칠 전 Supabase Pro + 컴퓨트 Micro 로 올려두는 것으로 대비(컴퓨트 변경 시 약 2분 다운타임이라 당일 아침엔 하지 않음).
+
+<p align="center"><img src="assets/soak-test.png" width="70%" alt="지속 테스트"><br><sub><b>지속 테스트</b> — 초당 4명 × 10분, 에러 0 · p95 64ms</sub></p>
 
 ### 지속 테스트 2차 — 분 단위 실측 (`지속테스트_2026-09-15_15분_6ps.json`)
 
